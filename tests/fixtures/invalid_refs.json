@@ -1,0 +1,33 @@
+{
+  "_comment": "Dangling identifiers, a via_device cycle, a duplicate id and an impossible correlation.",
+  "schema_version": "1.0",
+  "generated_at": "2026-08-30T09:14:02+02:00",
+  "collector": "websocket",
+
+  "integrations": [
+    { "id": "int.a", "domain": "demo", "title": "Demo", "iot_class": "local_push", "is_built_in": true }
+  ],
+
+  "devices": [
+    { "id": "dev.good", "integration_id": "int.a", "name": "Buono", "transport": "wifi", "ip": "192.168.1.20" },
+    { "_expect": "TALOS-R001", "id": "dev.bad.integration", "integration_id": "int.missing", "name": "Integrazione fantasma", "transport": "wifi" },
+    { "_expect": "TALOS-R004", "id": "dev.bad.via", "integration_id": "int.a", "name": "Hub fantasma", "transport": "zigbee", "via_device_id": "dev.nope" },
+    { "_expect": "TALOS-R005", "id": "dev.loop.a", "integration_id": "int.a", "name": "Anello A", "transport": "zigbee", "via_device_id": "dev.loop.b" },
+    { "id": "dev.loop.b", "integration_id": "int.a", "name": "Anello B", "transport": "zigbee", "via_device_id": "dev.loop.a" },
+    { "id": "dev.dup", "integration_id": "int.a", "name": "Primo", "transport": "wifi" },
+    { "_expect": "TALOS-S005", "id": "dev.dup", "integration_id": "int.a", "name": "Secondo con lo stesso id", "transport": "wifi" }
+  ],
+
+  "destinations": [
+    { "id": "dst.a", "fqdn": "api.example-vendor.com", "kind": "vendor_cloud", "vendor": "Example" }
+  ],
+
+  "conduits": [
+    { "_expect": "TALOS-R002", "id": "c.bad.destination", "source": { "kind": "device", "id": "dev.good" }, "destination_id": "dst.missing", "evidence": "declared" },
+    { "_expect": "TALOS-R003", "id": "c.bad.source", "source": { "kind": "device", "id": "dev.missing" }, "destination_id": "dst.a", "evidence": "declared" },
+    { "_expect": "TALOS-R006", "id": "c.bad.inherited_from", "source": { "kind": "device", "id": "dev.good" }, "destination_id": "dst.a", "evidence": "inherited", "inherited_from": "dev.also.missing" }
+  ],
+
+  "correlation": { "_expect": "TALOS-C007", "devices_total": 3, "devices_correlated": 9, "method": "mac_ip" },
+  "unverified": []
+}

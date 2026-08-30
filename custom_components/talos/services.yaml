@@ -1,0 +1,17 @@
+export_report:
+  fields:
+    path:
+      required: false
+      example: "talos/report.html"
+      selector:
+        text:
+    format:
+      required: false
+      default: html
+      selector:
+        select:
+          options:
+            - html
+            - json
+
+refresh:

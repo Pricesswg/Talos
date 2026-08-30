@@ -1,0 +1,115 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Talos",
+        "description": "Talos maps where your data comes from and where it goes.\n\nAdGuard Home is optional. Without it, Talos still tells you what stops working when the internet drops, using what Home Assistant declares about itself. It cannot tell you which devices talk to the outside world, and the report says so rather than leaving it blank.\n\nFor full coverage, AdGuard should also be serving DHCP: the leases are the only place a MAC and an IP appear together, and without them an observation cannot be traced back to a device.",
+        "data": {
+          "adguard_url": "AdGuard Home URL",
+          "adguard_username": "Username",
+          "adguard_password": "Password",
+          "verify_ssl": "Verify the SSL certificate"
+        },
+        "data_description": {
+          "adguard_url": "For example http://192.168.1.10:3000. Leave empty to run without observed data.",
+          "adguard_username": "Leave empty if AdGuard has no authentication."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "AdGuard Home did not answer at that address.",
+      "invalid_auth": "AdGuard Home rejected those credentials.",
+      "unknown": "Unexpected error. Check the logs."
+    },
+    "abort": {
+      "already_configured": "Talos is already set up. One instance maps the whole house."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Talos settings",
+        "description": "Retention is not optional: the query log grows one row per client-and-name pair, so both limits below are enforced on every scan. The row cap is what actually bounds the database file.",
+        "data": {
+          "scan_interval_minutes": "Scan interval",
+          "observation_days": "Forget observations after",
+          "max_observations": "Maximum stored observations",
+          "scan_history": "Scan snapshots kept",
+          "page_size": "Query log page size",
+          "max_pages": "Maximum pages per scan",
+          "domain_rules_path": "Extra domain rules file",
+          "zone_trusted_lan": "Trusted LAN subnet",
+          "zone_iot_vlan": "IoT VLAN subnet",
+          "zone_guest": "Guest network subnet",
+          "check_rules_path": "Extra posture checks file"
+        },
+        "data_description": {
+          "observation_days": "A device replaced months ago should stop shaping today's report.",
+          "max_observations": "The limit that bounds the file. Oldest observations are dropped first.",
+          "scan_history": "Snapshots are a convenience; the observations are the historical record.",
+          "max_pages": "A budget, so one scan cannot walk a busy log for minutes.",
+          "domain_rules_path": "Absolute path to a JSON or YAML file. Your rules are layered on top of the built-in list, never replacing it.",
+          "zone_trusted_lan": "For example 192.168.1.0/24. Until you set it, the network-zone checks report themselves as not runnable rather than passing.",
+          "zone_iot_vlan": "Several ranges, comma separated. An address matching none of them stays 'unknown': it is never assumed to be trusted.",
+          "check_rules_path": "Absolute path to a JSON or YAML file replacing the check list. Severity and remediation are data, not code."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "local_with_egress": {
+        "name": "Local devices phoning home"
+      },
+      "entities_offline": {
+        "name": "Entities that stop offline"
+      },
+      "autonomy": {
+        "name": "Offline autonomy"
+      },
+      "devices_talking_out": {
+        "name": "Devices talking outside"
+      },
+      "unverified_checks": {
+        "name": "Unverified checks"
+      },
+      "correlation": {
+        "name": "Correlation coverage"
+      },
+      "database_size": {
+        "name": "Database size"
+      },
+      "last_scan": {
+        "name": "Last scan"
+      },
+      "findings_high": {
+        "name": "High severity findings"
+      }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "name": "Blind spot"
+      }
+    }
+  },
+  "services": {
+    "export_report": {
+      "name": "Export the report",
+      "description": "Writes the self-contained report of the last scan. The default target is config/talos/, deliberately not config/www/: that directory is served at /local/ without authentication and this report lists addresses, MACs and network topology.",
+      "fields": {
+        "path": {
+          "name": "Path",
+          "description": "Relative to the configuration directory, or absolute inside it. Leave empty for the default."
+        },
+        "format": {
+          "name": "Format",
+          "description": "html for a readable, archivable file; json for the raw scan and derivations."
+        }
+      }
+    },
+    "refresh": {
+      "name": "Run the scan again",
+      "description": "Forces a fresh collection without waiting for the interval."
+    }
+  }
+}

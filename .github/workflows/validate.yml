@@ -1,0 +1,54 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # HACS and hassfest rules move without us touching the code, so the
+    # validation runs on a schedule too, not only on a push.
+    - cron: "0 4 * * 1"
+
+jobs:
+  core:
+    name: core (no Home Assistant)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the suite
+        # The core is deliberately free of homeassistant imports so this step
+        # needs nothing installed. If it ever starts needing a dependency,
+        # that is the regression, not the failure.
+        run: python -m unittest discover -s tests -t . -v
+
+  bundle:
+    name: bundled core is in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Re-bundle and diff
+        # The vendored copy under custom_components is committed so HACS
+        # installs work, but talos_core/ at the root is the source of truth.
+        # If they ever differ, someone edited the wrong one.
+        run: |
+          ./scripts/bundle.sh
+          git diff --exit-code -- custom_components/talos/vendor             || { echo "::error::vendor/ is stale - run ./scripts/bundle.sh"; exit 1; }
+
+  hassfest:
+    name: hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration

@@ -1,0 +1,25 @@
+{
+  "entity": {
+    "sensor": {
+      "local_with_egress": { "default": "mdi:home-alert" },
+      "findings_high": { "default": "mdi:alert-octagon-outline" },
+      "entities_offline": { "default": "mdi:cloud-off-outline" },
+      "autonomy": { "default": "mdi:lan-disconnect" },
+      "devices_talking_out": { "default": "mdi:transit-connection-variant" },
+      "unverified_checks": { "default": "mdi:help-rhombus-outline" },
+      "correlation": { "default": "mdi:link-variant" },
+      "database_size": { "default": "mdi:database-outline" },
+      "last_scan": { "default": "mdi:clock-outline" }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "default": "mdi:eye-outline",
+        "state": { "on": "mdi:eye-off-outline" }
+      }
+    }
+  },
+  "services": {
+    "export_report": "mdi:file-export-outline",
+    "refresh": "mdi:reload"
+  }
+}

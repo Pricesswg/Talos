@@ -1,0 +1,44 @@
+{
+  "_comment": "Every coherence violation the evidence invariant can produce, one per conduit.",
+  "schema_version": "1.0",
+  "generated_at": "2026-08-30T09:14:02+02:00",
+  "collector": "websocket",
+  "ha_version": "2026.8.1",
+
+  "integrations": [
+    { "id": "int.a", "domain": "demo", "title": "Demo", "iot_class": "local_push", "is_built_in": true }
+  ],
+
+  "devices": [
+    { "id": "dev.hub", "integration_id": "int.a", "name": "Hub", "transport": "wifi", "ip": "192.168.1.30" },
+    { "id": "dev.child", "integration_id": "int.a", "name": "Lampadina", "transport": "zigbee", "via_device_id": "dev.hub" },
+    { "id": "dev.orphan", "integration_id": "int.a", "name": "Sensore isolato", "transport": "zigbee" },
+    { "id": "dev.other", "integration_id": "int.a", "name": "Presa", "transport": "wifi", "ip": "192.168.1.31" }
+  ],
+
+  "destinations": [
+    { "id": "dst.cloud", "fqdn": "api.example-vendor.com", "kind": "vendor_cloud", "vendor": "Example" },
+    { "id": "dst.other", "fqdn": "telemetry.example-vendor.com", "kind": "telemetry", "vendor": "Example" }
+  ],
+
+  "conduits": [
+    { "_expect": "TALOS-C001", "id": "c.declared.with.count", "source": { "kind": "device", "id": "dev.hub" }, "destination_id": "dst.cloud", "evidence": "declared", "query_count": 10 },
+
+    { "_expect": "TALOS-C002", "id": "c.observed.no.lastseen", "source": { "kind": "device", "id": "dev.other" }, "destination_id": "dst.other", "evidence": "observed", "query_count": 4 },
+
+    { "_expect": "TALOS-C003", "id": "c.inherited.noparent", "source": { "kind": "device", "id": "dev.child" }, "destination_id": "dst.cloud", "evidence": "inherited" },
+
+    { "_expect": "TALOS-C004", "id": "c.declared.with.inherited_from", "source": { "kind": "device", "id": "dev.other" }, "destination_id": "dst.cloud", "evidence": "declared", "inherited_from": "dev.hub" },
+
+    { "_expect": "TALOS-C005", "id": "c.inherited.no.basis", "source": { "kind": "device", "id": "dev.child" }, "destination_id": "dst.other", "evidence": "inherited", "inherited_from": "dev.hub" },
+
+    { "_expect": "TALOS-C006", "id": "c.inherited.not.ancestor", "source": { "kind": "device", "id": "dev.orphan" }, "destination_id": "dst.cloud", "evidence": "inherited", "inherited_from": "dev.hub" },
+
+    { "_expect": "TALOS-C008", "id": "c.observed.without.ip", "source": { "kind": "device", "id": "dev.orphan" }, "destination_id": "dst.other", "evidence": "observed", "last_seen": "2026-08-30T09:00:00+02:00" },
+
+    { "_expect": "TALOS-C009", "id": "c.unknown.host.declared", "source": { "kind": "unknown_host", "id": "10.0.0.9" }, "destination_id": "dst.cloud", "evidence": "declared" }
+  ],
+
+  "correlation": { "devices_total": 4, "devices_correlated": 2, "method": "mac_ip" },
+  "unverified": []
+}

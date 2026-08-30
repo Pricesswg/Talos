@@ -1,0 +1,115 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Talos",
+        "description": "Talos mappa da dove arrivano i dati e dove vanno.\n\nAdGuard Home è facoltativo. Senza, Talos ti dice comunque cosa smette di funzionare se salta internet, usando quello che Home Assistant dichiara di sé. Non può dirti quali dispositivi parlano con l'esterno, e il report lo scrive invece di lasciare la casella vuota.\n\nPer una copertura piena AdGuard dovrebbe fare anche da server DHCP: le lease sono l'unico punto in cui un MAC e un IP compaiono insieme, e senza non è possibile risalire dall'osservazione al dispositivo.",
+        "data": {
+          "adguard_url": "Indirizzo di AdGuard Home",
+          "adguard_username": "Utente",
+          "adguard_password": "Password",
+          "verify_ssl": "Verifica il certificato SSL"
+        },
+        "data_description": {
+          "adguard_url": "Per esempio http://192.168.1.10:3000. Lascia vuoto per funzionare senza dati osservati.",
+          "adguard_username": "Lascia vuoto se AdGuard non ha autenticazione."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "AdGuard Home non ha risposto a quell'indirizzo.",
+      "invalid_auth": "AdGuard Home ha rifiutato le credenziali.",
+      "unknown": "Errore inatteso. Controlla i log."
+    },
+    "abort": {
+      "already_configured": "Talos è già configurato. Una sola istanza mappa tutta la casa."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Impostazioni di Talos",
+        "description": "La ritenzione non è facoltativa: il query log produce una riga per ogni coppia client-dominio, quindi entrambi i limiti qui sotto vengono applicati a ogni scansione. È il tetto di righe a limitare davvero la dimensione del database.",
+        "data": {
+          "scan_interval_minutes": "Intervallo di scansione",
+          "observation_days": "Dimentica le osservazioni dopo",
+          "max_observations": "Osservazioni massime conservate",
+          "scan_history": "Snapshot di scansione conservati",
+          "page_size": "Dimensione pagina del query log",
+          "max_pages": "Pagine massime per scansione",
+          "domain_rules_path": "File di regole domini aggiuntive",
+          "zone_trusted_lan": "Subnet della LAN di fiducia",
+          "zone_iot_vlan": "Subnet della VLAN IoT",
+          "zone_guest": "Subnet della rete ospiti",
+          "check_rules_path": "File di controlli aggiuntivi"
+        },
+        "data_description": {
+          "observation_days": "Un dispositivo sostituito mesi fa non deve più pesare sul report di oggi.",
+          "max_observations": "È il limite che tiene a bada il file. Si scartano prima le osservazioni più vecchie.",
+          "scan_history": "Gli snapshot sono una comodità; lo storico vero sono le osservazioni.",
+          "max_pages": "Un budget, perché una scansione non possa percorrere un log trafficato per minuti.",
+          "domain_rules_path": "Percorso assoluto a un file JSON o YAML. Le tue regole si aggiungono a quelle predefinite, non le sostituiscono.",
+          "zone_trusted_lan": "Per esempio 192.168.1.0/24. Finché non la indichi, i controlli sulle zone di rete si dichiarano non eseguibili invece di risultare superati.",
+          "zone_iot_vlan": "Più intervalli separati da virgola. Un indirizzo che non ricade in nessuno resta 'sconosciuto': non viene mai dato per fidato.",
+          "check_rules_path": "Percorso assoluto a un file JSON o YAML che sostituisce l'elenco dei controlli. Severità e correzioni sono dati, non codice."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "local_with_egress": {
+        "name": "Dispositivi locali che telefonano a casa"
+      },
+      "entities_offline": {
+        "name": "Entità che si fermano offline"
+      },
+      "autonomy": {
+        "name": "Autonomia offline"
+      },
+      "devices_talking_out": {
+        "name": "Dispositivi che parlano fuori"
+      },
+      "unverified_checks": {
+        "name": "Controlli non verificati"
+      },
+      "correlation": {
+        "name": "Copertura della correlazione"
+      },
+      "database_size": {
+        "name": "Dimensione del database"
+      },
+      "last_scan": {
+        "name": "Ultima scansione"
+      },
+      "findings_high": {
+        "name": "Rilievi ad alta severità"
+      }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "name": "Punto cieco"
+      }
+    }
+  },
+  "services": {
+    "export_report": {
+      "name": "Esporta il report",
+      "description": "Scrive il report autoconsistente dell'ultima scansione. Il percorso predefinito è config/talos/, non config/www/: quest'ultima viene servita su /local/ senza autenticazione e il report elenca indirizzi, MAC e topologia di rete.",
+      "fields": {
+        "path": {
+          "name": "Percorso",
+          "description": "Relativo alla cartella di configurazione, oppure assoluto al suo interno. Vuoto per il percorso predefinito."
+        },
+        "format": {
+          "name": "Formato",
+          "description": "html per un file leggibile e archiviabile, json per lo scan e le derivazioni grezze."
+        }
+      }
+    },
+    "refresh": {
+      "name": "Ripeti la scansione",
+      "description": "Forza una nuova raccolta senza aspettare l'intervallo."
+    }
+  }
+}

@@ -1,0 +1,268 @@
+"""The polling coordinator.
+
+Everything blocking happens in the executor: the SQLite store, the mapping
+walk over the registries, the derivations. The query log is paginated and can
+be long, so nothing here may sit on the event loop.
+
+A scan is always produced, even when the observed side fails. Losing AdGuard
+must degrade the report to `declared` only, with a note saying so — never
+leave the panel showing yesterday's numbers as if they were today's.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+
+from .const import (
+    CONF_ADGUARD_PASSWORD,
+    CONF_ADGUARD_URL,
+    CONF_ADGUARD_USERNAME,
+    CONF_CHECK_RULES,
+    CONF_DOMAIN_RULES,
+    CONF_MAX_OBSERVATIONS,
+    CONF_MAX_PAGES,
+    CONF_OBSERVATION_DAYS,
+    CONF_PAGE_SIZE,
+    CONF_SCAN_HISTORY,
+    CONF_SCAN_INTERVAL,
+    CONF_VERIFY_SSL,
+    CONF_ZONE_GUEST,
+    CONF_ZONE_IOT,
+    CONF_ZONE_TRUSTED,
+    DEFAULT_MAX_PAGES,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    STORAGE_DIR,
+    STORAGE_FILE,
+)
+from .core import (
+    AdGuardCollector,
+    CheckEngine,
+    Derived,
+    DomainClassifier,
+    ObservedAuthError,
+    ObservedError,
+    RetentionPolicy,
+    Scan,
+    TalosStore,
+    UnverifiedCheck,
+    ZoneMap,
+    derive,
+    merge_observed,
+)
+from .http_transport import HassHttpTransport
+from .native_source import NativeSource
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class TalosData:
+    """One complete run, ready for the panel and the entities."""
+
+    scan: Scan
+    derived: Derived
+    store_stats: dict[str, Any] = field(default_factory=dict)
+    retention: dict[str, Any] = field(default_factory=dict)
+    observed_available: bool = False
+    observed_error: str | None = None
+
+
+class TalosCoordinator(DataUpdateCoordinator[TalosData]):
+    """Collects, joins, derives and persists on a fixed interval."""
+
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry) -> None:
+        self.entry = entry
+        self._store: TalosStore | None = None
+        self._classifier: DomainClassifier | None = None
+        self._engine: CheckEngine | None = None
+        self._zones = ZoneMap()
+
+        minutes = int(entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=timedelta(minutes=minutes),
+        )
+
+    # ── setup ─────────────────────────────────────────────────────────────
+
+    @property
+    def database_path(self) -> Path:
+        return Path(self.hass.config.path(STORAGE_DIR)) / STORAGE_FILE
+
+    def retention_policy(self) -> RetentionPolicy:
+        options = self.entry.options
+        default = RetentionPolicy()
+        return RetentionPolicy(
+            observation_days=int(options.get(CONF_OBSERVATION_DAYS, default.observation_days)),
+            max_observations=int(options.get(CONF_MAX_OBSERVATIONS, default.max_observations)),
+            scan_history=int(options.get(CONF_SCAN_HISTORY, default.scan_history)),
+            vacuum_every=default.vacuum_every,
+        )
+
+    async def async_prepare(self) -> None:
+        """Open the store and load the domain rules. Both touch the disk."""
+        policy = self.retention_policy()
+        path = self.database_path
+        self._store = await self.hass.async_add_executor_job(
+            lambda: TalosStore(path, policy)
+        )
+
+        rules_path = self.entry.options.get(CONF_DOMAIN_RULES)
+        self._classifier = await self.hass.async_add_executor_job(
+            self._load_classifier, rules_path
+        )
+        self._engine = await self.hass.async_add_executor_job(
+            self._load_engine, self.entry.options.get(CONF_CHECK_RULES)
+        )
+        self._zones = ZoneMap.from_dict(
+            {
+                "trusted_lan": self.entry.options.get(CONF_ZONE_TRUSTED, ""),
+                "iot_vlan": self.entry.options.get(CONF_ZONE_IOT, ""),
+                "guest": self.entry.options.get(CONF_ZONE_GUEST, ""),
+            }
+        )
+
+    def _load_classifier(self, rules_path: str | None) -> DomainClassifier:
+        classifier = DomainClassifier.load()
+        if not rules_path:
+            return classifier
+        try:
+            extra = DomainClassifier.load(rules_path)
+        except Exception as err:  # noqa: BLE001 - a bad user file must not stop the scan
+            _LOGGER.warning("Lista domini personalizzata non caricata (%s): %s", rules_path, err)
+            return classifier
+        # The user's rules layer on top of the shipped ones, never replace them.
+        return classifier.merged_with(extra)
+
+    def _load_engine(self, rules_path: str | None) -> CheckEngine:
+        if not rules_path:
+            return CheckEngine.load()
+        try:
+            return CheckEngine.load(rules_path)
+        except Exception as err:  # noqa: BLE001 - a bad user file must not stop the scan
+            _LOGGER.warning("Regole di controllo personalizzate non caricate (%s): %s", rules_path, err)
+            return CheckEngine.load()
+
+    async def async_shutdown_store(self) -> None:
+        if self._store is not None:
+            store = self._store
+            self._store = None
+            await self.hass.async_add_executor_job(store.close)
+
+    # ── the run ───────────────────────────────────────────────────────────
+
+    async def _async_update_data(self) -> TalosData:
+        if self._store is None or self._classifier is None:
+            await self.async_prepare()
+        assert self._store is not None and self._classifier is not None
+        store = self._store
+
+        try:
+            scan = await NativeSource(self.hass).fetch()
+        except Exception as err:  # noqa: BLE001
+            raise UpdateFailed(f"lettura dei registry fallita: {err}") from err
+
+        observed_available = False
+        observed_error: str | None = None
+        url = self.entry.data.get(CONF_ADGUARD_URL)
+
+        if url:
+            try:
+                scan = await self._merge_observed(scan, store, url)
+                observed_available = True
+            except ObservedAuthError as err:
+                observed_error = f"credenziali AdGuard rifiutate: {err}"
+            except ObservedError as err:
+                observed_error = f"AdGuard non raggiungibile: {err}"
+            except Exception as err:  # noqa: BLE001
+                observed_error = f"raccolta osservativa fallita: {err}"
+
+            if observed_error:
+                # Say it in the report, not only in the log: a scan that
+                # silently lost half its evidence reads like a clean one.
+                _LOGGER.warning("Talos: %s", observed_error)
+                scan.unverified.append(
+                    UnverifiedCheck(
+                        id="unv.observed_source_unavailable",
+                        title="Lato osservativo non disponibile in questa scansione",
+                        reason="missing_data",
+                        detail=(
+                            f"{observed_error}. Questa scansione contiene solo cio' che"
+                            " Home Assistant dichiara di se': nessuna colonna 'egress"
+                            " osservato' e' stata verificata. Le caselle vuote non"
+                            " significano assenza di traffico."
+                        ),
+                    )
+                )
+
+        derived = await self.hass.async_add_executor_job(derive, scan, self._engine)
+
+        def persist() -> tuple[dict[str, Any], dict[str, Any]]:
+            store.save_scan(scan)
+            report = store.prune()
+            return store.stats().to_dict(), {
+                "policy": store.policy.to_dict(),
+                "last_prune": {
+                    "observations_expired": report.observations_expired,
+                    "observations_over_cap": report.observations_over_cap,
+                    "scans_removed": report.scans_removed,
+                    "vacuumed": report.vacuumed,
+                },
+            }
+
+        store_stats, retention = await self.hass.async_add_executor_job(persist)
+
+        return TalosData(
+            scan=scan,
+            derived=derived,
+            store_stats=store_stats,
+            retention=retention,
+            observed_available=observed_available,
+            observed_error=observed_error,
+        )
+
+    async def _merge_observed(self, scan: Scan, store: TalosStore, url: str) -> Scan:
+        transport = HassHttpTransport(
+            self.hass,
+            url,
+            self.entry.data.get(CONF_ADGUARD_USERNAME, ""),
+            self.entry.data.get(CONF_ADGUARD_PASSWORD, ""),
+            bool(self.entry.data.get(CONF_VERIFY_SSL, True)),
+        )
+        collector = AdGuardCollector(
+            transport,
+            page_size=int(self.entry.options.get(CONF_PAGE_SIZE, DEFAULT_PAGE_SIZE)),
+            max_pages=int(self.entry.options.get(CONF_MAX_PAGES, DEFAULT_MAX_PAGES)),
+        )
+
+        cursor, previous = await self.hass.async_add_executor_job(
+            lambda: (store.get_cursor(), store.load_observations())
+        )
+        facts = await collector.fetch(since=cursor, previous=previous)
+
+        # Totals are folded on our side because AdGuard's retention is limited
+        # and the log rolls over; persist before deriving anything from them.
+        def save() -> None:
+            store.save_observations(facts.observations)
+            store.save_leases(facts.leases)
+            store.set_cursor(facts.cursor)
+
+        await self.hass.async_add_executor_job(save)
+
+        classifier = self._classifier
+        assert classifier is not None
+        return await self.hass.async_add_executor_job(
+            merge_observed, scan, facts, classifier, self._zones
+        )

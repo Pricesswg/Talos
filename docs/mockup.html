@@ -1,0 +1,1006 @@
+<title>Talos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────────
+   Token layer. Stessa cascata di Chronos: variabile HA prima,
+   valore nostro come fallback finale, così l'integrazione segue
+   il tema installato dall'utente senza sapere quale sia.
+   Nel mockup le var HA non esistono e vince sempre il fallback.
+   ───────────────────────────────────────────────────────────── */
+:root {
+  --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --font-serif: "IBM Plex Serif", Georgia, serif;
+
+  --bg:        var(--primary-background-color, #f4f6f6);
+  --surface:   var(--ha-card-background, var(--card-background-color, #ffffff));
+  --sunken:    var(--secondary-background-color, #e9ecec);
+  --border:    var(--divider-color, #dbe0e1);
+  --border-soft: var(--divider-color, #e6eaea);
+  --ink:       var(--primary-text-color, #172022);
+  --ink-soft:  var(--secondary-text-color, #5b696c);
+  --ink-mute:  var(--disabled-text-color, #8b9698);
+
+  /* Identità Talos: teal da strumento. Il bronzo compare solo nel marchio. */
+  --accent:      #16697f;
+  --accent-soft: #e2eff2;
+  --accent-ink:  #0f4a5b;
+  --bronze:      #9a6b34;
+
+  /* Tassonomia delle destinazioni. Questo è il budget di colore. */
+  --k-local:   #2f7d6a;
+  --k-infra:   #64768c;
+  --k-vendor:  #8a4a86;
+  --k-unknown: #868d8e;
+
+  /* Semantico, usato con parsimonia. --alert è riservato a un solo
+     significato in tutta l'interfaccia: locale + egress osservato. */
+  --alert:      #b3261e;
+  --alert-soft: #fbe9e7;
+  --attention:  #8a6516;
+
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(16,32,34,.06), 0 1px 3px rgba(16,32,34,.04);
+  --shadow-md: 0 4px 16px rgba(16,32,34,.09), 0 1px 4px rgba(16,32,34,.05);
+
+  --grid-line: rgba(23,32,34,.07);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:        var(--primary-background-color, #12191a);
+    --surface:   var(--ha-card-background, var(--card-background-color, #1a2223));
+    --sunken:    var(--secondary-background-color, #0e1415);
+    --border:    var(--divider-color, #2b3436);
+    --border-soft: var(--divider-color, #232b2d);
+    --ink:       var(--primary-text-color, #e7ecec);
+    --ink-soft:  var(--secondary-text-color, #98a6a8);
+    --ink-mute:  var(--disabled-text-color, #6d7a7c);
+
+    --accent:      #52b2c8;
+    --accent-soft: #16303a;
+    --accent-ink:  #9ad6e5;
+    --bronze:      #c99a5f;
+
+    --k-local:   #52b195;
+    --k-infra:   #93a5bd;
+    --k-vendor:  #c07dbb;
+    --k-unknown: #8d9799;
+
+    --alert:      #ff6f60;
+    --alert-soft: #331816;
+    --attention:  #d5a343;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,.32);
+    --shadow-md: 0 6px 20px rgba(0,0,0,.4);
+    --grid-line: rgba(231,236,236,.08);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #12191a; --surface: #1a2223; --sunken: #0e1415;
+  --border: #2b3436; --border-soft: #232b2d;
+  --ink: #e7ecec; --ink-soft: #98a6a8; --ink-mute: #6d7a7c;
+  --accent: #52b2c8; --accent-soft: #16303a; --accent-ink: #9ad6e5; --bronze: #c99a5f;
+  --k-local: #52b195; --k-infra: #93a5bd; --k-vendor: #c07dbb; --k-unknown: #8d9799;
+  --alert: #ff6f60; --alert-soft: #331816; --attention: #d5a343;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.32);
+  --shadow-md: 0 6px 20px rgba(0,0,0,.4);
+  --grid-line: rgba(231,236,236,.08);
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-sm); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ── Shell ───────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 226px 1fr;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 22px 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 8px 18px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.brand__mark {
+  width: 30px; height: 30px; flex: none;
+  border-radius: 8px;
+  display: grid; place-items: center;
+  background: linear-gradient(150deg, var(--bronze), color-mix(in srgb, var(--bronze) 60%, var(--accent)));
+  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 16px; line-height: 1;
+  padding-bottom: 1px;
+}
+.brand__name {
+  font-family: var(--font-serif);
+  font-size: 17px; letter-spacing: .01em;
+}
+.brand__ver { font-size: 11px; color: var(--ink-mute); letter-spacing: .04em; }
+
+.nav-label {
+  font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink-mute); padding: 12px 10px 6px;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 9px 10px;
+  border-radius: var(--r-md);
+  color: var(--ink-soft);
+  transition: background 120ms, color 120ms;
+}
+.nav-item:hover { background: var(--sunken); color: var(--ink); }
+.nav-item[aria-current="page"] { background: var(--accent-soft); color: var(--accent-ink); font-weight: 500; }
+.nav-item svg { flex: none; opacity: .85; }
+.nav-item .count {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 11px;
+  color: var(--ink-mute);
+}
+.sidebar__foot {
+  margin-top: auto; padding: 12px 10px 0;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px; color: var(--ink-mute); line-height: 1.45;
+}
+
+/* ── Topbar ──────────────────────────────────────────────── */
+.main { min-width: 0; display: flex; flex-direction: column; }
+.topbar {
+  display: flex; align-items: center; gap: 20px;
+  padding: 16px 28px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.topbar__title { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.topbar__meta { font-size: 12px; color: var(--ink-mute); }
+.spacer { flex: 1; }
+
+.seg {
+  display: inline-flex; padding: 3px; gap: 3px;
+  background: var(--sunken); border-radius: var(--r-pill);
+  border: 1px solid var(--border-soft);
+}
+.seg button {
+  padding: 6px 16px; border-radius: var(--r-pill);
+  font-size: 13px; color: var(--ink-soft);
+  transition: background 140ms, color 140ms, box-shadow 140ms;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--surface); color: var(--ink);
+  font-weight: 500; box-shadow: var(--shadow-sm);
+}
+
+.content { padding: 26px 28px 60px; max-width: 1180px; }
+.view[hidden] { display: none; }
+.stack { display: flex; flex-direction: column; gap: 26px; }
+
+h1.page { font-size: 22px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 4px; text-wrap: balance; }
+p.page-sub { margin: 0; color: var(--ink-soft); font-size: 13.5px; max-width: 62ch; }
+h2.sec {
+  font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-mute); font-weight: 500; margin: 0 0 12px;
+  display: flex; align-items: center; gap: 10px;
+}
+h2.sec::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+
+/* ── Card di stato (vista base) ──────────────────────────── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(255px, 1fr)); gap: 14px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 18px 18px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+  box-shadow: var(--shadow-sm);
+}
+.stat__label {
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-mute); display: flex; align-items: center; gap: 7px;
+}
+.stat__value { font-family: var(--font-mono); font-size: 30px; line-height: 1; letter-spacing: -.02em; }
+.stat__value small { font-size: 15px; color: var(--ink-mute); margin-left: 4px; letter-spacing: 0; }
+.stat__note { font-size: 12.5px; color: var(--ink-soft); }
+.bar { height: 5px; border-radius: var(--r-pill); background: var(--sunken); overflow: hidden; display: flex; }
+.bar span { display: block; height: 100%; }
+
+/* ── Finding (vista base) ────────────────────────────────── */
+.find {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px 18px;
+  display: grid; grid-template-columns: 26px 1fr; gap: 14px;
+  box-shadow: var(--shadow-sm);
+}
+.find + .find { margin-top: 10px; }
+.find__icon { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; }
+.find__icon--alert { background: var(--alert-soft); color: var(--alert); }
+.find__icon--att   { background: color-mix(in srgb, var(--attention) 15%, transparent); color: var(--attention); }
+.find__icon--info  { background: var(--accent-soft); color: var(--accent-ink); }
+.find__title { font-weight: 600; font-size: 14.5px; margin: 2px 0 6px; }
+.find__body { color: var(--ink-soft); font-size: 13.5px; max-width: 68ch; }
+.find__body strong { color: var(--ink); font-weight: 500; }
+.find__do {
+  margin-top: 10px; padding: 9px 12px;
+  background: var(--sunken); border-radius: var(--r-md);
+  font-size: 13px; color: var(--ink-soft);
+  border-left: 2px solid var(--accent);
+}
+.find__do b { color: var(--ink); font-weight: 500; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 9px; border-radius: var(--r-pill);
+  font-size: 11.5px; border: 1px solid var(--border);
+  color: var(--ink-soft); background: var(--surface); white-space: nowrap;
+}
+.chip__dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip--vendor  { color: var(--k-vendor); border-color: color-mix(in srgb, var(--k-vendor) 40%, transparent); }
+.chip--local   { color: var(--k-local);  border-color: color-mix(in srgb, var(--k-local) 40%, transparent); }
+.chip--infra   { color: var(--k-infra);  border-color: color-mix(in srgb, var(--k-infra) 40%, transparent); }
+.chip--unknown { color: var(--k-unknown); border-style: dashed; }
+.chip--alert   { color: var(--alert); border-color: color-mix(in srgb, var(--alert) 45%, transparent); background: var(--alert-soft); }
+
+/* ── Nota sui limiti ─────────────────────────────────────── */
+.limits {
+  border: 1px dashed var(--border); border-radius: var(--r-lg);
+  padding: 14px 18px; font-size: 12.5px; color: var(--ink-soft);
+  background: color-mix(in srgb, var(--sunken) 55%, transparent);
+  max-width: 74ch;
+}
+.limits b { color: var(--ink); font-weight: 500; }
+
+/* ── Matrice (vista avanzata) ────────────────────────────── */
+.matrix-wrap { display: grid; grid-template-columns: minmax(0,1fr) minmax(230px, 300px); gap: 18px; align-items: start; }
+table.matrix { border-collapse: collapse; width: 100%; }
+table.matrix th, table.matrix td { border: 1px solid var(--border); padding: 0; }
+table.matrix thead th {
+  background: var(--sunken); font-size: 11px; letter-spacing: .07em;
+  text-transform: uppercase; color: var(--ink-mute); font-weight: 500;
+  padding: 9px 12px; text-align: left;
+}
+table.matrix tbody th {
+  background: var(--sunken); font-weight: 500; font-size: 12.5px;
+  padding: 12px; text-align: left; color: var(--ink-soft); width: 168px;
+}
+table.matrix tbody th span { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--ink-mute); }
+.cell { padding: 16px 14px; background: var(--surface); min-height: 96px; }
+.cell__n { font-family: var(--font-mono); font-size: 26px; line-height: 1; }
+.cell__t { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; max-width: 30ch; }
+.cell--key { background: var(--alert-soft); }
+.cell--key .cell__n { color: var(--alert); }
+.cell--key .cell__t { color: color-mix(in srgb, var(--alert) 70%, var(--ink)); }
+
+.aside-note {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 16px; box-shadow: var(--shadow-sm);
+}
+.aside-note h3 { margin: 0 0 8px; font-size: 13px; font-weight: 600; }
+.aside-note p { margin: 0 0 10px; font-size: 12.5px; color: var(--ink-soft); }
+.aside-note .mono { font-size: 12px; }
+
+/* ── Grafo ───────────────────────────────────────────────── */
+.graph-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.graph-head {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-soft);
+}
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-soft); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend svg { flex: none; }
+.graph-scroll { overflow-x: auto; }
+#graph { display: block; min-width: 880px; }
+#graph text { font-family: var(--font-sans); fill: var(--ink); }
+#graph .col-title {
+  font-size: 10px; letter-spacing: .11em; text-transform: uppercase;
+  fill: var(--ink-mute);
+}
+#graph .n-label { font-size: 11.5px; }
+#graph .n-sub { font-size: 10px; fill: var(--ink-mute); font-family: var(--font-mono); }
+#graph .node rect { transition: opacity 160ms; }
+#graph .edge { fill: none; transition: opacity 160ms, stroke-width 160ms; }
+#graph .band { fill: var(--grid-line); }
+#graph .dim { opacity: .12; }
+#graph .node { cursor: default; }
+
+/* ── Tabella condotti ────────────────────────────────────── */
+.tbl-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); overflow-x: auto; box-shadow: var(--shadow-sm);
+}
+table.data { border-collapse: collapse; width: 100%; min-width: 780px; font-size: 13px; }
+table.data th {
+  text-align: left; font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--ink-mute); font-weight: 500; padding: 11px 14px;
+  border-bottom: 1px solid var(--border); background: var(--sunken);
+  white-space: nowrap;
+}
+table.data td { padding: 11px 14px; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+table.data tr:last-child td { border-bottom: none; }
+table.data tr.is-key td { background: color-mix(in srgb, var(--alert-soft) 55%, transparent); }
+.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.src-sub { display: block; font-size: 11px; color: var(--ink-mute); }
+.ev {
+  font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .03em;
+  padding: 2px 7px; border-radius: var(--r-sm); white-space: nowrap;
+  border: 1px solid var(--border); color: var(--ink-soft);
+}
+.ev--obs { border-style: dashed; color: var(--accent-ink); border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: var(--accent-soft); }
+.ev--inh { border-style: dotted; }
+
+/* ── Liste controlli ─────────────────────────────────────── */
+.checks { display: grid; gap: 8px; }
+.check {
+  display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 12px 14px;
+}
+.check__t { font-size: 13.5px; }
+.check__w { font-size: 12.5px; color: var(--ink-mute); margin-top: 3px; max-width: 72ch; }
+.check--unver { border-left: 3px solid var(--ink-mute); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { flex-direction: row; align-items: center; overflow-x: auto; padding: 10px 12px; border-right: none; border-bottom: 1px solid var(--border); }
+  .brand { border-bottom: none; padding: 0 14px 0 4px; margin: 0; }
+  .nav-label, .sidebar__foot { display: none; }
+  .nav-item { width: auto; white-space: nowrap; }
+  .matrix-wrap { grid-template-columns: 1fr; }
+  .content { padding: 20px 16px 48px; }
+  .topbar { padding: 12px 16px; }
+}
+</style>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand__mark">T</div>
+      <div>
+        <div class="brand__name">Talos</div>
+        <div class="brand__ver mono">v0.1 · mockup</div>
+      </div>
+    </div>
+
+    <div class="nav-label" id="navLabel">Vista base</div>
+    <nav id="nav"></nav>
+
+    <div class="sidebar__foot">
+      Ultima analisi<br>
+      <span class="mono">30 ago 2026 · 09:14</span>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="topbar__title">Casa di Alessandro</div>
+        <div class="topbar__meta mono">31 dispositivi · 128 entità · 9 integrazioni</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg" role="group" aria-label="Livello di dettaglio">
+        <button id="btnBase" aria-pressed="true">Base</button>
+        <button id="btnAdv" aria-pressed="false">Avanzata</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ══════════════ VISTA BASE ══════════════ -->
+      <section class="view stack" id="viewBase">
+        <div>
+          <h1 class="page">Come sta messa la tua casa</h1>
+          <p class="page-sub">
+            Due domande, tenute separate perché hanno rimedi diversi: cosa smette di
+            funzionare se salta internet, e quali dispositivi parlano con server fuori casa.
+          </p>
+        </div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="stat__label">Se salta internet</div>
+            <div class="stat__value">94<small>/128 entità</small></div>
+            <div class="bar">
+              <span style="width:73.4%;background:var(--k-local)"></span>
+              <span style="width:26.6%;background:var(--k-vendor)"></span>
+            </div>
+            <div class="stat__note">
+              34 entità si fermano. Si fermano anche <strong>7 automazioni su 19</strong>,
+              fra cui “Risveglio” e “Rientro serale”.
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="stat__label">Parlano fuori casa</div>
+            <div class="stat__value">11<small>/31 dispositivi</small></div>
+            <div class="bar">
+              <span style="width:35.5%;background:var(--k-vendor)"></span>
+              <span style="width:64.5%;background:var(--sunken)"></span>
+            </div>
+            <div class="stat__note">
+              7 lo fanno perché li hai configurati così. <strong>4 no</strong>: risultano
+              locali a Home Assistant ma contattano comunque il produttore.
+            </div>
+          </div>
+
+          <div class="stat">
+            <div class="stat__label">Non ho potuto verificare</div>
+            <div class="stat__value">6<small>controlli</small></div>
+            <div class="bar"><span style="width:100%;background:repeating-linear-gradient(90deg,var(--ink-mute) 0 4px,transparent 4px 8px)"></span></div>
+            <div class="stat__note">
+              Non sono passati, non sono falliti: non ho i dati per dirlo.
+              <strong>Non contano come “tutto a posto”.</strong>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="sec">Cosa guarderei per primo</h2>
+
+          <div class="find">
+            <div class="find__icon find__icon--alert" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 4.5v4M8 11.2v.1"/><circle cx="8" cy="8" r="6.2"/></svg>
+            </div>
+            <div>
+              <div class="find__title">Le due telecamere Reolink contattano i server Reolink</div>
+              <div class="find__body">
+                Home Assistant le controlla <strong>in locale</strong>, senza passare dal cloud.
+                Ma in parallelo le telecamere hanno contattato <span class="mono">p2p2.reolink.com</span>
+                <strong>2.412 volte negli ultimi 7 giorni</strong>, per conto proprio.
+                So con chi hanno parlato, non cosa si sono detti.
+              </div>
+              <div class="find__do">
+                <b>Se non ti serve</b> vedere le telecamere da fuori casa con l'app Reolink,
+                la funzione si chiama P2P/UID e si spegne dall'app del produttore.
+                Home Assistant continuerà a funzionare come adesso.
+              </div>
+            </div>
+          </div>
+
+          <div class="find">
+            <div class="find__icon find__icon--att" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 8h3l2-4.5 2 9L11 8h3"/></svg>
+            </div>
+            <div>
+              <div class="find__title">Senza internet perdi le notifiche sul telefono</div>
+              <div class="find__body">
+                Le notifiche di Home Assistant passano dai server di Google e Apple, sempre.
+                Insieme a loro si fermerebbero <strong>14 entità Tuya</strong> (luci del piano
+                terra e presa della lavatrice), i <strong>comandi vocali</strong> e le
+                <strong>previsioni meteo</strong> da cui dipendono 3 automazioni.
+              </div>
+              <div class="find__do">
+                <b>Nessuna azione urgente.</b> È il funzionamento normale di questi servizi.
+                Vale la pena saperlo se conti sulle notifiche per qualcosa di importante,
+                tipo un allarme perdita d'acqua.
+              </div>
+            </div>
+          </div>
+
+          <div class="find">
+            <div class="find__icon find__icon--info" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 8s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4Z"/><path d="m3 3 10 10"/></svg>
+            </div>
+            <div>
+              <div class="find__title">Un dispositivo non passa dal tuo AdGuard</div>
+              <div class="find__body">
+                <span class="mono">192.168.1.203</span> è sulla rete ma non chiede mai a
+                AdGuard dove trovare i siti: usa un server DNS suo, scritto nel firmware.
+                Su questo dispositivo <strong>Talos è cieco</strong>: non posso dirti niente
+                di dove va il suo traffico.
+              </div>
+              <div class="find__do">
+                <b>Non è di per sé un problema</b>, ma è un buco nella mappa.
+                Se riconosci l'indirizzo e sai cos'è, puoi ignorarlo.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="limits">
+          <b>Cosa questa pagina non sa dirti.</b> Talos guarda a chi i dispositivi chiedono
+          gli indirizzi, non cosa mandano né quanto. Non apre il traffico, non prova password,
+          non tocca niente. Un dispositivo che cifra anche le richieste DNS
+          (<span class="mono">DoH</span>, porta 443) resta invisibile: è un limite della
+          tecnica, non un controllo che ho saltato.
+        </div>
+      </section>
+
+      <!-- ══════════════ VISTA AVANZATA ══════════════ -->
+      <section class="view stack" id="viewAdv" hidden>
+        <div>
+          <h1 class="page">Provenienza e destinazione dei dati</h1>
+          <p class="page-sub">
+            Ogni riga di questa vista è etichettata con la sua prova.
+            <span class="ev">dichiarata</span> viene dal registry di Home Assistant,
+            <span class="ev ev--obs">osservata</span> dal query log di AdGuard,
+            <span class="ev ev--inh">ereditata</span> dal comportamento di un hub padre.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="sec">Matrice</h2>
+          <div class="matrix-wrap">
+            <table class="matrix">
+              <thead>
+                <tr>
+                  <th scope="col">Classe HA / rete</th>
+                  <th scope="col">Nessun egress osservato</th>
+                  <th scope="col">Egress osservato</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Locale <span>local_push · local_polling</span></th>
+                  <td><div class="cell"><div class="cell__n">17</div><div class="cell__t">Pienamente locali. Nessuna richiesta DNS verso l'esterno.</div></div></td>
+                  <td><div class="cell cell--key"><div class="cell__n">4</div><div class="cell__t">Telefonano a casa alle spalle di HA. Reolink ×2, Hue Bridge, Shelly Plug S.</div></div></td>
+                </tr>
+                <tr>
+                  <th scope="row">Cloud <span>cloud_push · cloud_polling</span></th>
+                  <td><div class="cell"><div class="cell__n">3</div><div class="cell__t">Anomalia: dichiarati cloud ma silenziosi. Da indagare, non è un merito.</div></div></td>
+                  <td><div class="cell"><div class="cell__n">7</div><div class="cell__t">Dipendenza dichiarata e confermata. Censita, non allarmante.</div></div></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="aside-note">
+              <h3>Copertura della correlazione</h3>
+              <p>
+                Il join fra registry HA e query log passa da MAC/IP.
+                <strong class="mono">24 di 31</strong> dispositivi correlati.
+              </p>
+              <div class="bar" style="margin-bottom:10px">
+                <span style="width:77.4%;background:var(--accent)"></span>
+                <span style="width:22.6%;background:var(--ink-mute)"></span>
+              </div>
+              <p>
+                I 7 non correlati non hanno un MAC nel registry: potrebbero avere egress
+                che non vedo. La casella in alto a destra è un <em>minimo</em>, non un totale.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="sec">Flussi</h2>
+          <div class="graph-card">
+            <div class="graph-head">
+              <div class="legend">
+                <span><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--ink-soft)" stroke-width="1.6"/></svg>dichiarata</span>
+                <span><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--ink-soft)" stroke-width="1.6" stroke-dasharray="5 3"/></svg>osservata</span>
+                <span><svg width="26" height="8"><line x1="1" y1="4" x2="25" y2="4" stroke="var(--ink-soft)" stroke-width="1.6" stroke-dasharray="1.5 3" stroke-linecap="round"/></svg>ereditata</span>
+              </div>
+              <div class="spacer"></div>
+              <div class="legend">
+                <span><span class="chip__dot" style="background:var(--k-local)"></span>locale</span>
+                <span><span class="chip__dot" style="background:var(--k-infra)"></span>infrastruttura</span>
+                <span><span class="chip__dot" style="background:var(--k-vendor)"></span>cloud produttore</span>
+                <span><span class="chip__dot" style="background:var(--alert)"></span>locale con egress</span>
+              </div>
+            </div>
+            <div class="graph-scroll">
+              <svg id="graph" viewBox="0 0 980 560" role="img"
+                   aria-label="Grafo a colonne: dispositivi, trasporto, integrazione in Home Assistant, destinazione esterna. Quattro archi in rosso collegano dispositivi locali direttamente a cloud di produttori, scavalcando Home Assistant."></svg>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="sec">Condotti</h2>
+          <div class="tbl-wrap">
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Origine</th><th>Destinazione</th><th>Tipo</th><th>Prova</th>
+                  <th class="num">7 gg</th><th>Filtro AdGuard</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr class="is-key">
+                  <td>Reolink Giardino<span class="src-sub mono">local_push · 192.168.1.42</span></td>
+                  <td class="mono">p2p2.reolink.com</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">2.412</td>
+                  <td>consentito</td>
+                </tr>
+                <tr class="is-key">
+                  <td>Reolink Ingresso<span class="src-sub mono">local_push · 192.168.1.43</span></td>
+                  <td class="mono">p2p2.reolink.com</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">2.388</td>
+                  <td>consentito</td>
+                </tr>
+                <tr class="is-key">
+                  <td>Hue Bridge<span class="src-sub mono">local_push · 192.168.1.30</span></td>
+                  <td class="mono">ws.meethue.com</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">1.204</td>
+                  <td>consentito</td>
+                </tr>
+                <tr>
+                  <td>Luci salotto ×9<span class="src-sub mono">zigbee · via Hue Bridge</span></td>
+                  <td class="mono">ws.meethue.com</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev ev--inh">ereditata</span></td>
+                  <td class="num">—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Telecamera cucina<span class="src-sub mono">cloud_push · 192.168.1.61</span></td>
+                  <td class="mono">a3.tuyaeu.com</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev">dichiarata</span> <span class="ev ev--obs">osservata</span></td>
+                  <td class="num">8.104</td>
+                  <td>consentito</td>
+                </tr>
+                <tr class="is-key">
+                  <td>Shelly Plug S<span class="src-sub mono">local_push · 192.168.1.77</span></td>
+                  <td class="mono">shelly-45-eu.shelly.cloud</td>
+                  <td><span class="chip chip--vendor"><span class="chip__dot"></span>cloud produttore</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">96</td>
+                  <td><strong>bloccato ×96</strong></td>
+                </tr>
+                <tr>
+                  <td>Home Assistant<span class="src-sub mono">core · 192.168.1.10</span></td>
+                  <td class="mono">version.home-assistant.io</td>
+                  <td><span class="chip chip--infra"><span class="chip__dot"></span>infrastruttura</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">168</td>
+                  <td>consentito</td>
+                </tr>
+                <tr>
+                  <td>Notifiche app<span class="src-sub mono">mobile_app · nessun device</span></td>
+                  <td class="mono">fcm.googleapis.com</td>
+                  <td><span class="chip chip--infra"><span class="chip__dot"></span>infrastruttura</span></td>
+                  <td><span class="ev">dichiarata</span></td>
+                  <td class="num">—</td>
+                  <td>—</td>
+                </tr>
+                <tr>
+                  <td>Client non identificato<span class="src-sub mono">assente dal registry HA</span></td>
+                  <td class="mono">tbc.mt.hicloud.com</td>
+                  <td><span class="chip chip--unknown"><span class="chip__dot"></span>non classificato</span></td>
+                  <td><span class="ev ev--obs">osservata</span></td>
+                  <td class="num">341</td>
+                  <td>consentito</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="sec">Controllo zero · punti ciechi del resolver</h2>
+          <div class="checks">
+            <div class="check">
+              <div>
+                <div class="check__t"><span class="mono">192.168.1.203</span> — lease DHCP presente, nessuna query a AdGuard in 24 h</div>
+                <div class="check__w">Resolver scritto nel firmware. Il traffico di questo host non compare in nessuna vista di Talos.</div>
+              </div>
+              <span class="chip chip--alert"><span class="chip__dot"></span>punto cieco</span>
+            </div>
+            <div class="check">
+              <div>
+                <div class="check__t"><span class="mono">192.168.1.87</span> — query a AdGuard, nessuna lease DHCP</div>
+                <div class="check__w">IP statico o DHCP servito da un altro apparato. Non correlabile a un dispositivo HA.</div>
+              </div>
+              <span class="chip"><span class="chip__dot"></span>da identificare</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h2 class="sec">Non verificato · 6</h2>
+          <div class="checks">
+            <div class="check check--unver"><div>
+              <div class="check__t">Esposizione di Home Assistant su internet</div>
+              <div class="check__w">Un'istanza non può testare la propria raggiungibilità dall'esterno. Sostituibile con un controllo su <span class="mono">trusted_proxies</span> e reverse proxy dichiarato.</div>
+            </div><span class="chip">non eseguibile</span></div>
+            <div class="check check--unver"><div>
+              <div class="check__t">Broker MQTT con accesso anonimo</div>
+              <div class="check__w">Nessuna credenziale fornita nel config flow. Il controllo richiede un tentativo di connessione senza autenticazione.</div>
+            </div><span class="chip">dati mancanti</span></div>
+            <div class="check check--unver"><div>
+              <div class="check__t">Egress dei 7 dispositivi non correlati</div>
+              <div class="check__w">Nessun MAC nel device registry per queste integrazioni. Il join con il query log non è possibile.</div>
+            </div><span class="chip">dati mancanti</span></div>
+            <div class="check check--unver"><div>
+              <div class="check__t">Service call di 4 automazioni su 19</div>
+              <div class="check__w">Definite in <span class="mono">automations.yaml</span> con template Jinja che scelgono il servizio a runtime. Non analizzabili staticamente.</div>
+            </div><span class="chip">non eseguibile</span></div>
+            <div class="check check--unver"><div>
+              <div class="check__t">Classe di sicurezza dei nodi Z-Wave</div>
+              <div class="check__w"><span class="mono">security_class</span> non esposto dalla versione di Z-Wave JS installata.</div>
+            </div><span class="chip">dati mancanti</span></div>
+            <div class="check check--unver"><div>
+              <div class="check__t">Traffico DNS su HTTPS</div>
+              <div class="check__w">Indistinguibile dal normale traffico sulla porta 443. Buco strutturale dichiarato, non copribile con questo approccio.</div>
+            </div><span class="chip">limite di metodo</span></div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  /* ── Navigazione: cambia con il livello, non si limita a filtrare ──
+     Le due modalità rispondono a domande diverse, quindi espongono
+     voci diverse. Non è la stessa vista con meno colonne.            */
+  const NAV = {
+    base: [
+      ["home",  "Come sta la casa", null, true],
+      ["eye",   "Cosa guardare",    "3",  false],
+      ["book",  "Come leggo questo", null, false]
+    ],
+    adv: [
+      ["home",  "Panoramica",   null, true],
+      ["grid",  "Matrice",      "31", false],
+      ["flow",  "Flussi",       "42", false],
+      ["check", "Controlli",    "9",  false],
+      ["dns",   "Query DNS",    null, false],
+      ["warn",  "Non verificato", "6", false]
+    ]
+  };
+
+  const ICON = {
+    home: '<path d="M2.5 7 8 2.8 13.5 7v6a.7.7 0 0 1-.7.7H3.2a.7.7 0 0 1-.7-.7Z"/>',
+    eye:  '<path d="M2.5 8s2.2-4 5.5-4 5.5 4 5.5 4-2.2 4-5.5 4-5.5-4-5.5-4Z"/><circle cx="8" cy="8" r="1.6"/>',
+    book: '<path d="M3 3.2h4a1.6 1.6 0 0 1 1.6 1.6v8A1.2 1.2 0 0 0 7.4 11.6H3Z"/><path d="M13 3.2H9a1.6 1.6 0 0 0-1.6 1.6v8A1.2 1.2 0 0 1 8.6 11.6H13Z"/>',
+    grid: '<rect x="2.6" y="2.6" width="4.6" height="4.6" rx=".8"/><rect x="8.8" y="2.6" width="4.6" height="4.6" rx=".8"/><rect x="2.6" y="8.8" width="4.6" height="4.6" rx=".8"/><rect x="8.8" y="8.8" width="4.6" height="4.6" rx=".8"/>',
+    flow: '<circle cx="3.6" cy="4" r="1.6"/><circle cx="3.6" cy="12" r="1.6"/><circle cx="12.4" cy="8" r="1.6"/><path d="M5.2 4.6 10.9 7.4M5.2 11.4 10.9 8.6"/>',
+    check:'<path d="m3.4 8.4 3 3 6.2-6.8"/>',
+    dns:  '<rect x="2.4" y="3" width="11.2" height="4" rx="1"/><rect x="2.4" y="9" width="11.2" height="4" rx="1"/><path d="M4.8 5h.01M4.8 11h.01"/>',
+    warn: '<path d="M8 2.8 14 13.2H2Z"/><path d="M8 6.8v2.6M8 11.4v.1"/>'
+  };
+
+  const navEl = document.getElementById("nav");
+  const navLabel = document.getElementById("navLabel");
+
+  function renderNav(mode) {
+    navLabel.textContent = mode === "base" ? "Vista base" : "Vista avanzata";
+    navEl.innerHTML = NAV[mode].map(([ic, label, count, current]) => `
+      <button class="nav-item" ${current ? 'aria-current="page"' : ""}>
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICON[ic]}</svg>
+        <span>${label}</span>
+        ${count ? `<span class="count">${count}</span>` : ""}
+      </button>`).join("");
+  }
+
+  const btnBase = document.getElementById("btnBase");
+  const btnAdv  = document.getElementById("btnAdv");
+  const viewBase = document.getElementById("viewBase");
+  const viewAdv  = document.getElementById("viewAdv");
+
+  function setMode(mode) {
+    const isBase = mode === "base";
+    btnBase.setAttribute("aria-pressed", String(isBase));
+    btnAdv.setAttribute("aria-pressed", String(!isBase));
+    viewBase.hidden = !isBase;
+    viewAdv.hidden = isBase;
+    renderNav(mode);
+    if (!isBase) drawGraph();
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
+  btnBase.addEventListener("click", () => setMode("base"));
+  btnAdv.addEventListener("click", () => setMode("adv"));
+
+  /* ── Grafo a colonne ──────────────────────────────────────────
+     Quattro bande: dispositivo → trasporto → integrazione → destinazione.
+     Gli archi che partono dalla prima banda e arrivano alla quarta
+     scavalcando l'integrazione sono il punto del disegno: è il
+     dispositivo che parla da solo, senza passare da Home Assistant.  */
+
+  const COLS = [
+    { x: 30,  w: 176, title: "Dispositivi" },
+    { x: 268, w: 108, title: "Trasporto" },
+    { x: 438, w: 176, title: "Integrazione HA" },
+    { x: 676, w: 200, title: "Destinazione" }
+  ];
+
+  const NODES = [
+    // col 0 — dispositivi raggruppati
+    { id: "d.reolink", c: 0, l: "Reolink",        s: "2 · local_push", k: "alert" },
+    { id: "d.hue",     c: 0, l: "Hue Bridge",     s: "1 · local_push", k: "alert" },
+    { id: "d.hueL",    c: 0, l: "Luci Hue",       s: "9 · zigbee",     k: "local" },
+    { id: "d.tuya",    c: 0, l: "Tuya",           s: "5 · cloud_push", k: "vendor" },
+    { id: "d.shelly",  c: 0, l: "Shelly",         s: "4 · local_push", k: "alert" },
+    { id: "d.z2m",     c: 0, l: "Zigbee2MQTT",    s: "12 · local_push", k: "local" },
+    { id: "d.esph",    c: 0, l: "ESPHome",        s: "3 · local_push", k: "local" },
+
+    // col 1 — trasporto
+    { id: "t.wifi", c: 1, l: "Wi-Fi",    s: "", k: "neutral" },
+    { id: "t.eth",  c: 1, l: "Ethernet", s: "", k: "neutral" },
+    { id: "t.zig",  c: 1, l: "Zigbee",   s: "", k: "neutral" },
+    { id: "t.zw",   c: 1, l: "Z-Wave",   s: "", k: "neutral" },
+
+    // col 2 — integrazioni
+    { id: "i.reolink", c: 2, l: "reolink",    s: "core",   k: "local" },
+    { id: "i.hue",     c: 2, l: "hue",        s: "core",   k: "local" },
+    { id: "i.tuya",    c: 2, l: "tuya",       s: "core",   k: "vendor" },
+    { id: "i.shelly",  c: 2, l: "shelly",     s: "core",   k: "local" },
+    { id: "i.mqtt",    c: 2, l: "mqtt",       s: "core",   k: "local" },
+    { id: "i.esph",    c: 2, l: "esphome",    s: "core",   k: "local" },
+    { id: "i.mob",     c: 2, l: "mobile_app", s: "core · 0 device", k: "vendor" },
+
+    // col 3 — destinazioni
+    { id: "x.reolink", c: 3, l: "p2p2.reolink.com",  s: "cloud produttore", k: "vendor" },
+    { id: "x.hue",     c: 3, l: "ws.meethue.com",    s: "cloud produttore", k: "vendor" },
+    { id: "x.tuya",    c: 3, l: "a3.tuyaeu.com",     s: "cloud produttore", k: "vendor" },
+    { id: "x.shelly",  c: 3, l: "shelly.cloud",      s: "bloccato ×96",     k: "vendor" },
+    { id: "x.fcm",     c: 3, l: "fcm.googleapis.com", s: "infrastruttura",  k: "infra" },
+    { id: "x.ver",     c: 3, l: "version.home-assistant.io", s: "infrastruttura", k: "infra" },
+    { id: "x.mqttL",   c: 3, l: "broker locale",     s: "resta in casa",    k: "local" }
+  ];
+
+  // e = evidence: "decl" | "obs" | "inh"; bypass = scavalca HA
+  const EDGES = [
+    ["d.reolink","t.wifi","decl"], ["d.hue","t.eth","decl"], ["d.hueL","t.zig","decl"],
+    ["d.tuya","t.wifi","decl"], ["d.shelly","t.wifi","decl"],
+    ["d.z2m","t.zig","decl"], ["d.esph","t.wifi","decl"],
+
+    ["t.wifi","i.reolink","decl"], ["t.eth","i.hue","decl"], ["t.zig","i.hue","decl"],
+    ["t.wifi","i.tuya","decl"], ["t.wifi","i.shelly","decl"],
+    ["t.zig","i.mqtt","decl"], ["t.wifi","i.esph","decl"], ["t.zw","i.mqtt","decl"],
+
+    ["i.tuya","x.tuya","decl"], ["i.mob","x.fcm","decl"], ["i.mqtt","x.mqttL","decl"],
+    ["i.esph","x.ver","decl"],
+
+    // gli archi che contano: dispositivo → cloud, senza passare da HA
+    ["d.reolink","x.reolink","obs",true],
+    ["d.hue","x.hue","obs",true],
+    ["d.shelly","x.shelly","obs",true],
+    ["d.hueL","x.hue","inh",true]
+  ];
+
+  const KCOL = { local: "--k-local", infra: "--k-infra", vendor: "--k-vendor",
+                 alert: "--alert", neutral: "--ink-mute" };
+
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n, a) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]); return e; };
+
+  let drawn = false;
+  function drawGraph() {
+    if (drawn) return;
+    drawn = true;
+
+    const svg = document.getElementById("graph");
+    const H = 560, TOP = 62, BOT = 34, NH = 40;
+    const pos = {};
+
+    // posizione: colonne distribuite verticalmente, centrate
+    COLS.forEach((col, ci) => {
+      const list = NODES.filter(n => n.c === ci);
+      const span = H - TOP - BOT;
+      const step = span / list.length;
+      list.forEach((n, i) => {
+        pos[n.id] = { x: col.x, y: TOP + step * i + (step - NH) / 2, w: col.w, h: NH, k: n.k };
+      });
+    });
+
+    // bande di sfondo
+    COLS.forEach(col => {
+      svg.appendChild(el("rect", { class: "band", x: col.x - 12, y: 40,
+        width: col.w + 24, height: H - 40 - 12, rx: 10 }));
+      const t = el("text", { class: "col-title", x: col.x, y: 28 });
+      t.textContent = col.title;
+      svg.appendChild(t);
+    });
+
+    // archi sotto i nodi
+    const gEdges = el("g", {});
+    svg.appendChild(gEdges);
+
+    const edgeEls = [];
+    EDGES.forEach(([a, b, ev, bypass]) => {
+      const A = pos[a], B = pos[b];
+      if (!A || !B) return;
+      const x1 = A.x + A.w, y1 = A.y + A.h / 2;
+      const x2 = B.x,       y2 = B.y + B.h / 2;
+      let d;
+      if (bypass) {
+        // arco ampio che passa sopra la colonna delle integrazioni
+        const lift = 34;
+        d = `M${x1},${y1} C${x1 + 130},${y1 - lift} ${x2 - 130},${y2 - lift} ${x2},${y2}`;
+      } else {
+        const cx = (x2 - x1) * 0.55;
+        d = `M${x1},${y1} C${x1 + cx},${y1} ${x2 - cx},${y2} ${x2},${y2}`;
+      }
+      const stroke = bypass && ev !== "inh" ? "var(--alert)"
+                   : bypass ? "var(--k-vendor)"
+                   : "var(--ink-mute)";
+      const p = el("path", { class: "edge", d,
+        stroke, "stroke-width": bypass ? 2 : 1.2,
+        "stroke-opacity": bypass ? 0.95 : 0.5 });
+      if (ev === "obs") p.setAttribute("stroke-dasharray", "6 4");
+      if (ev === "inh") { p.setAttribute("stroke-dasharray", "1.5 4");
+                          p.setAttribute("stroke-linecap", "round"); }
+      p.dataset.a = a; p.dataset.b = b;
+      gEdges.appendChild(p);
+      edgeEls.push(p);
+    });
+
+    // nodi
+    const nodeEls = [];
+    NODES.forEach(n => {
+      const p = pos[n.id];
+      const g = el("g", { class: "node" });
+      g.dataset.id = n.id;
+      const col = `var(${KCOL[n.k]})`;
+      g.appendChild(el("rect", { x: p.x, y: p.y, width: p.w, height: p.h, rx: 8,
+        fill: "var(--surface)", stroke: col,
+        "stroke-width": n.k === "alert" ? 1.6 : 1 }));
+      g.appendChild(el("rect", { x: p.x, y: p.y, width: 3, height: p.h,
+        rx: 1.5, fill: col }));
+      const t1 = el("text", { class: "n-label", x: p.x + 13, y: p.y + (n.s ? 17 : 24) });
+      t1.textContent = n.l;
+      g.appendChild(t1);
+      if (n.s) {
+        const t2 = el("text", { class: "n-sub", x: p.x + 13, y: p.y + 30 });
+        t2.textContent = n.s;
+        g.appendChild(t2);
+      }
+      svg.appendChild(g);
+      nodeEls.push(g);
+
+      g.addEventListener("mouseenter", () => focus(n.id));
+      g.addEventListener("mouseleave", clearFocus);
+    });
+
+    function focus(id) {
+      const keep = new Set([id]);
+      edgeEls.forEach(e => {
+        if (e.dataset.a === id || e.dataset.b === id) { keep.add(e.dataset.a); keep.add(e.dataset.b); }
+      });
+      edgeEls.forEach(e => e.classList.toggle("dim",
+        !(e.dataset.a === id || e.dataset.b === id)));
+      nodeEls.forEach(g => g.classList.toggle("dim", !keep.has(g.dataset.id)));
+    }
+    function clearFocus() {
+      edgeEls.forEach(e => e.classList.remove("dim"));
+      nodeEls.forEach(g => g.classList.remove("dim"));
+    }
+  }
+
+  renderNav("base");
+})();
+</script>

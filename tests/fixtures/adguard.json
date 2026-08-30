@@ -1,0 +1,49 @@
+{
+  "_comment": "AdGuard Home control API, shaped as the appliance answers. Two query log pages so the older_than cursor gets exercised.",
+  "querylog_pages": [
+    {
+      "oldest": "2026-08-30T08:40:00.000+02:00",
+      "data": [
+        { "time": "2026-08-30T08:57:41.512+02:00", "client": "192.168.1.42", "question": { "name": "p2p2.reolink.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:55:02.100+02:00", "client": "192.168.1.42", "question": { "name": "p2p2.reolink.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:52:19.004+02:00", "client": "192.168.1.30", "question": { "name": "ws.meethue.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:49:00.771+02:00", "client": "192.168.1.61", "question": { "name": "a3.tuyaeu.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:47:33.210+02:00", "client": "192.168.1.42", "question": { "name": "analytics.home-assistant.io", "type": "A" }, "reason": "FilteredBlackList" },
+        { "time": "2026-08-30T08:44:12.880+02:00", "client": "192.168.1.30", "question": { "name": "hub.local", "type": "A" }, "reason": "NotFilteredNotFound" }
+      ]
+    },
+    {
+      "oldest": "2026-08-30T08:10:00.000+02:00",
+      "data": [
+        { "time": "2026-08-30T08:38:55.001+02:00", "client": "192.168.1.42", "question": { "name": "p2p2.reolink.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:33:41.400+02:00", "client": "192.168.1.61", "question": { "name": "a3.tuyaeu.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:30:07.900+02:00", "client": "192.168.1.87", "question": { "name": "tbc.mt.hicloud.com", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:22:44.330+02:00", "client": "192.168.1.61", "question": { "name": "weird.example.net", "type": "A" }, "reason": "NotFilteredNotFound" },
+        { "time": "2026-08-30T08:15:10.002+02:00", "client": "192.168.1.42", "question": { "name": "pool.ntp.org", "type": "A" }, "reason": "NotFilteredWhiteList" },
+        { "time": "2026-08-30T08:12:00.000+02:00", "client": "192.168.1.30", "question": { "name": "ws.meethue.com", "type": "A" }, "reason": "NotFilteredNotFound" }
+      ]
+    },
+    { "oldest": "2026-08-30T08:10:00.000+02:00", "data": [] }
+  ],
+
+  "clients": {
+    "clients": [
+      { "name": "Telecamera giardino", "ids": ["192.168.1.42", "ec:71:db:11:22:33"] },
+      { "name": "Hue Bridge", "ids": ["192.168.1.30"] }
+    ],
+    "auto_clients": [
+      { "name": "sconosciuto-87", "ip": "192.168.1.87" }
+    ]
+  },
+
+  "dhcp": {
+    "enabled": true,
+    "leases": [
+      { "mac": "EC:71:DB:11:22:33", "ip": "192.168.1.42", "hostname": "reolink-giardino" },
+      { "mac": "00:17:88:AA:BB:CC", "ip": "192.168.1.30", "hostname": "hue-bridge" },
+      { "mac": "68:57:2D:99:88:77", "ip": "192.168.1.61", "hostname": "smartcam" },
+      { "mac": "3C:6A:9D:00:11:22", "ip": "192.168.1.203", "hostname": "tv-salotto" }
+    ],
+    "static_leases": []
+  }
+}

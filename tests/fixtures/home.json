@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-30T09:14:02+02:00",
+  "collector": "native",
+  "ha_version": "2026.8.1",
+
+  "integrations": [
+    { "id": "int.reolink", "domain": "reolink", "title": "Reolink", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 18 },
+    { "id": "int.hue", "domain": "hue", "title": "Philips Hue", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 4 },
+    { "id": "int.tuya", "domain": "tuya", "title": "Tuya", "iot_class": "cloud_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 6 },
+    { "id": "int.shelly", "domain": "shelly", "title": "Shelly", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 5 },
+    { "id": "int.mqtt", "domain": "mqtt", "title": "MQTT", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 4 },
+    { "id": "int.esphome", "domain": "esphome", "title": "ESPHome", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 7 },
+    { "id": "int.zwave_js", "domain": "zwave_js", "title": "Z-Wave JS", "iot_class": "local_push", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 3 },
+    { "id": "int.mobile_app", "domain": "mobile_app", "title": "Mobile App", "iot_class": "cloud_push", "is_built_in": true, "state": "loaded", "dependencies": ["http"], "entity_count": 4 },
+    { "id": "int.met", "domain": "met", "title": "Meteorologisk institutt", "iot_class": "cloud_polling", "is_built_in": true, "state": "loaded", "dependencies": [], "entity_count": 2 }
+  ],
+
+  "devices": [
+    { "id": "dev.reolink.garden", "integration_id": "int.reolink", "name": "Telecamera giardino", "transport": "wifi", "manufacturer": "Reolink", "model": "RLC-810A", "area": "Giardino", "mac": "ec:71:db:11:22:33", "ip": "192.168.1.42", "zone": "trusted_lan", "via_device_id": null, "entity_count": 9 },
+    { "id": "dev.reolink.door", "integration_id": "int.reolink", "name": "Telecamera ingresso", "transport": "wifi", "manufacturer": "Reolink", "model": "RLC-520A", "area": "Ingresso", "mac": "ec:71:db:11:22:34", "ip": "192.168.1.43", "zone": "trusted_lan", "via_device_id": null, "entity_count": 9 },
+
+    { "id": "dev.hue.bridge", "integration_id": "int.hue", "name": "Hue Bridge", "transport": "ethernet", "manufacturer": "Signify", "model": "BSB002", "area": "Studio", "mac": "00:17:88:aa:bb:cc", "ip": "192.168.1.30", "zone": "trusted_lan", "via_device_id": null, "entity_count": 2 },
+    { "id": "dev.hue.lamp.living", "integration_id": "int.hue", "name": "Luce salotto", "transport": "zigbee", "manufacturer": "Signify", "model": "LCA001", "area": "Salotto", "mac": null, "ip": null, "zone": "unknown", "via_device_id": "dev.hue.bridge", "entity_count": 1 },
+    { "id": "dev.hue.lamp.hall", "integration_id": "int.hue", "name": "Luce corridoio", "transport": "zigbee", "manufacturer": "Signify", "model": "LCA001", "area": "Corridoio", "mac": null, "ip": null, "zone": "unknown", "via_device_id": "dev.hue.bridge", "entity_count": 1 },
+
+    { "id": "dev.tuya.cam", "integration_id": "int.tuya", "name": "Telecamera cucina", "transport": "wifi", "manufacturer": "Tuya", "model": "SmartCam C2", "area": "Cucina", "mac": "68:57:2d:99:88:77", "ip": "192.168.1.61", "zone": "trusted_lan", "via_device_id": null, "entity_count": 6 },
+    { "id": "dev.shelly.plug", "integration_id": "int.shelly", "name": "Presa lavatrice", "transport": "wifi", "manufacturer": "Allterco", "model": "Shelly Plug S", "area": "Bagno", "mac": "b4:e6:2d:44:55:66", "ip": "192.168.1.77", "zone": "trusted_lan", "via_device_id": null, "entity_count": 5 },
+
+    { "id": "dev.z2m.motion", "integration_id": "int.mqtt", "name": "Sensore movimento scale", "transport": "zigbee", "manufacturer": "Aqara", "model": "RTCGQ11LM", "area": "Scale", "mac": null, "ip": null, "zone": "unknown", "via_device_id": null, "entity_count": 4 },
+    { "id": "dev.esphome.garage", "integration_id": "int.esphome", "name": "Garage controller", "transport": "wifi", "manufacturer": "ESPHome", "model": "ESP32", "area": "Garage", "mac": "a0:b7:65:12:34:56", "ip": "192.168.1.55", "zone": "iot_vlan", "via_device_id": null, "entity_count": 7 },
+    { "id": "dev.zwave.lock", "integration_id": "int.zwave_js", "name": "Serratura ingresso", "transport": "zwave", "manufacturer": "Danalock", "model": "V3", "area": "Ingresso", "mac": null, "ip": null, "zone": "unknown", "via_device_id": null, "entity_count": 3 }
+  ],
+
+  "destinations": [
+    { "id": "dst.reolink.p2p", "fqdn": "p2p2.reolink.com", "kind": "vendor_cloud", "vendor": "Reolink" },
+    { "id": "dst.hue.remote", "fqdn": "ws.meethue.com", "kind": "vendor_cloud", "vendor": "Signify" },
+    { "id": "dst.tuya.api", "fqdn": "a3.tuyaeu.com", "kind": "vendor_cloud", "vendor": "Tuya" },
+    { "id": "dst.shelly.cloud", "fqdn": "shelly-45-eu.shelly.cloud", "kind": "vendor_cloud", "vendor": "Allterco" },
+    { "id": "dst.fcm", "fqdn": "fcm.googleapis.com", "kind": "push_service", "vendor": "Google" },
+    { "id": "dst.met.api", "fqdn": "api.met.no", "kind": "vendor_cloud", "vendor": "MET Norway" },
+    { "id": "dst.ha.version", "fqdn": "version.home-assistant.io", "kind": "ota_update", "vendor": "Home Assistant" },
+    { "id": "dst.ntp", "fqdn": "pool.ntp.org", "kind": "ntp", "vendor": null },
+    { "id": "dst.mqtt.local", "fqdn": "192.168.1.10", "kind": "local_broker", "vendor": null },
+    { "id": "dst.hicloud", "fqdn": "tbc.mt.hicloud.com", "kind": "unknown", "vendor": null }
+  ],
+
+  "conduits": [
+    { "id": "cnd.reolink.garden.p2p", "source": { "kind": "device", "id": "dev.reolink.garden" }, "destination_id": "dst.reolink.p2p", "evidence": "observed", "protocol": "udp", "port": null, "encrypted": "unknown", "first_seen": "2026-08-23T00:11:04+02:00", "last_seen": "2026-08-30T08:57:41+02:00", "query_count": 2412, "filter_status": "allowed" },
+    { "id": "cnd.reolink.door.p2p", "source": { "kind": "device", "id": "dev.reolink.door" }, "destination_id": "dst.reolink.p2p", "evidence": "observed", "protocol": "udp", "port": null, "encrypted": "unknown", "first_seen": "2026-08-23T00:11:09+02:00", "last_seen": "2026-08-30T08:57:44+02:00", "query_count": 2388, "filter_status": "allowed" },
+
+    { "id": "cnd.hue.bridge.remote", "source": { "kind": "device", "id": "dev.hue.bridge" }, "destination_id": "dst.hue.remote", "evidence": "observed", "protocol": "tcp", "port": 443, "encrypted": true, "first_seen": "2026-08-23T01:02:00+02:00", "last_seen": "2026-08-30T09:01:12+02:00", "query_count": 1204, "filter_status": "allowed" },
+    { "id": "cnd.hue.lamp.living.remote", "source": { "kind": "device", "id": "dev.hue.lamp.living" }, "destination_id": "dst.hue.remote", "evidence": "inherited", "protocol": "tcp", "port": 443, "encrypted": true, "inherited_from": "dev.hue.bridge" },
+    { "id": "cnd.hue.lamp.hall.remote", "source": { "kind": "device", "id": "dev.hue.lamp.hall" }, "destination_id": "dst.hue.remote", "evidence": "inherited", "protocol": "tcp", "port": 443, "encrypted": true, "inherited_from": "dev.hue.bridge" },
+
+    { "id": "cnd.tuya.declared", "source": { "kind": "integration", "id": "int.tuya" }, "destination_id": "dst.tuya.api", "evidence": "declared", "protocol": "tcp", "port": 443, "encrypted": true },
+    { "id": "cnd.tuya.cam.observed", "source": { "kind": "device", "id": "dev.tuya.cam" }, "destination_id": "dst.tuya.api", "evidence": "observed", "protocol": "tcp", "port": 443, "encrypted": true, "first_seen": "2026-08-23T00:00:31+02:00", "last_seen": "2026-08-30T09:12:55+02:00", "query_count": 8104, "filter_status": "allowed" },
+
+    { "id": "cnd.shelly.plug.cloud", "source": { "kind": "device", "id": "dev.shelly.plug" }, "destination_id": "dst.shelly.cloud", "evidence": "observed", "protocol": "tcp", "port": 6012, "encrypted": "unknown", "first_seen": "2026-08-23T04:20:10+02:00", "last_seen": "2026-08-30T07:40:02+02:00", "query_count": 96, "filter_status": "blocked" },
+
+    { "id": "cnd.mobile_app.fcm", "source": { "kind": "integration", "id": "int.mobile_app" }, "destination_id": "dst.fcm", "evidence": "declared", "protocol": "tcp", "port": 443, "encrypted": true },
+    { "id": "cnd.met.api", "source": { "kind": "integration", "id": "int.met" }, "destination_id": "dst.met.api", "evidence": "declared", "protocol": "tcp", "port": 443, "encrypted": true },
+    { "id": "cnd.mqtt.local", "source": { "kind": "integration", "id": "int.mqtt" }, "destination_id": "dst.mqtt.local", "evidence": "declared", "protocol": "tcp", "port": 1883, "encrypted": false },
+
+    { "id": "cnd.ha.version", "source": { "kind": "ha_core", "id": null }, "destination_id": "dst.ha.version", "evidence": "observed", "protocol": "tcp", "port": 443, "encrypted": true, "first_seen": "2026-08-23T00:05:00+02:00", "last_seen": "2026-08-30T08:05:00+02:00", "query_count": 168, "filter_status": "allowed" },
+    { "id": "cnd.ha.ntp", "source": { "kind": "ha_core", "id": null }, "destination_id": "dst.ntp", "evidence": "observed", "protocol": "udp", "port": 123, "encrypted": false, "first_seen": "2026-08-23T00:00:02+02:00", "last_seen": "2026-08-30T09:00:02+02:00", "query_count": 336, "filter_status": "allowed" },
+
+    { "id": "cnd.unknown.hicloud", "source": { "kind": "unknown_host", "id": "192.168.1.87" }, "destination_id": "dst.hicloud", "evidence": "observed", "protocol": "tcp", "port": 443, "encrypted": "unknown", "first_seen": "2026-08-24T18:33:12+02:00", "last_seen": "2026-08-30T09:10:47+02:00", "query_count": 341, "filter_status": "allowed" }
+  ],
+
+  "correlation": {
+    "devices_total": 10,
+    "devices_correlated": 6,
+    "method": "mac_ip"
+  },
+
+  "unverified": [
+    { "id": "unv.wan_exposure", "title": "Esposizione di Home Assistant su internet", "reason": "not_executable", "detail": "Un'istanza non puo' testare la propria raggiungibilita' dall'esterno." },
+    { "id": "unv.mqtt_anonymous", "title": "Broker MQTT con accesso anonimo", "reason": "missing_data", "detail": "Nessuna credenziale fornita nel config flow." },
+    { "id": "unv.uncorrelated_egress", "title": "Egress dei dispositivi non correlati", "reason": "missing_data", "detail": "4 dispositivi su 10 non hanno un IP nel registry." },
+    { "id": "unv.doh", "title": "Traffico DNS su HTTPS", "reason": "method_limit", "detail": "Indistinguibile dal traffico normale sulla porta 443." }
+  ]
+}

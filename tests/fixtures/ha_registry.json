@@ -1,0 +1,66 @@
+{
+  "_comment": "Registry payloads shaped like the Home Assistant WebSocket API answers them.",
+  "ha_version": "2026.8.1",
+  "responses": {
+    "config_entries/get": [
+      { "entry_id": "e_reolink", "domain": "reolink", "title": "Reolink", "state": "loaded", "source": "user", "disabled_by": null },
+      { "entry_id": "e_hue", "domain": "hue", "title": "Philips Hue", "state": "loaded", "source": "ssdp", "disabled_by": null },
+      { "entry_id": "e_tuya", "domain": "tuya", "title": "Tuya", "state": "loaded", "source": "user", "disabled_by": null },
+      { "entry_id": "e_mqtt", "domain": "mqtt", "title": "Mosquitto", "state": "loaded", "source": "user", "disabled_by": null },
+      { "entry_id": "e_mobileapp", "domain": "mobile_app", "title": "iPhone di Alessandro", "state": "loaded", "source": "user", "disabled_by": null },
+      { "entry_id": "e_custom", "domain": "dodgy_custom", "title": "Integrazione senza manifest", "state": "loaded", "source": "user", "disabled_by": null },
+      { "entry_id": "e_off", "domain": "demo", "title": "Demo disattivata", "state": "not_loaded", "source": "user", "disabled_by": "user" }
+    ],
+
+    "config/device_registry/list": [
+      { "id": "d_cam1", "name": "RLC-810A", "name_by_user": "Telecamera giardino", "manufacturer": "Reolink", "model": "RLC-810A", "area_id": "a_garden", "config_entries": ["e_reolink"], "primary_config_entry": "e_reolink", "connections": [["mac", "EC:71:DB:11:22:33"]], "via_device_id": null, "disabled_by": null },
+      { "id": "d_bridge", "name": "Hue Bridge", "name_by_user": null, "manufacturer": "Signify", "model": "BSB002", "area_id": "a_studio", "config_entries": ["e_hue"], "primary_config_entry": "e_hue", "connections": [["mac", "00:17:88:AA:BB:CC"]], "via_device_id": null, "disabled_by": null },
+      { "id": "d_lamp", "name": "Hue color lamp", "name_by_user": "Luce salotto", "manufacturer": "Signify", "model": "LCA001", "area_id": null, "config_entries": ["e_hue"], "primary_config_entry": "e_hue", "connections": [], "via_device_id": "d_bridge", "disabled_by": null },
+      { "id": "d_tuya", "name": "SmartCam C2", "name_by_user": null, "manufacturer": "Tuya", "model": "C2", "area_id": null, "config_entries": ["e_tuya"], "primary_config_entry": "e_tuya", "connections": [["mac", "68:57:2D:99:88:77"]], "via_device_id": null, "disabled_by": null },
+      { "id": "d_z2m", "name": "Aqara motion", "name_by_user": null, "manufacturer": "Aqara", "model": "RTCGQ11LM", "area_id": null, "config_entries": ["e_mqtt"], "primary_config_entry": "e_mqtt", "connections": [["zigbee", "0x00158d0001a2b3c4"]], "via_device_id": null, "disabled_by": null },
+      { "id": "d_child_of_disabled", "name": "Sensore dietro un hub spento", "name_by_user": null, "manufacturer": "Generic", "model": "X", "area_id": null, "config_entries": ["e_mqtt"], "primary_config_entry": "e_mqtt", "connections": [], "via_device_id": "d_disabled", "disabled_by": null },
+      { "id": "d_disabled", "name": "Telecamera dismessa", "name_by_user": null, "manufacturer": "Reolink", "model": "RLC-410", "area_id": null, "config_entries": ["e_reolink"], "primary_config_entry": "e_reolink", "connections": [["mac", "EC:71:DB:99:99:99"]], "via_device_id": null, "disabled_by": "user" },
+      { "id": "d_orphan", "name": "Device di una entry rimossa", "name_by_user": null, "manufacturer": null, "model": null, "area_id": null, "config_entries": ["e_gone"], "primary_config_entry": "e_gone", "connections": [["mac", "aa:bb:cc:dd:ee:ff"]], "via_device_id": null, "disabled_by": null }
+    ],
+
+    "config/entity_registry/list": [
+      { "entity_id": "camera.giardino", "device_id": "d_cam1", "config_entry_id": "e_reolink", "platform": "reolink", "disabled_by": null },
+      { "entity_id": "binary_sensor.giardino_movimento", "device_id": "d_cam1", "config_entry_id": "e_reolink", "platform": "reolink", "disabled_by": null },
+      { "entity_id": "switch.giardino_ir", "device_id": "d_cam1", "config_entry_id": "e_reolink", "platform": "reolink", "disabled_by": null },
+      { "entity_id": "select.giardino_profilo", "device_id": "d_cam1", "config_entry_id": "e_reolink", "platform": "reolink", "disabled_by": "integration" },
+
+      { "entity_id": "sensor.hue_bridge_ip", "device_id": "d_bridge", "config_entry_id": "e_hue", "platform": "hue", "disabled_by": null },
+      { "entity_id": "update.hue_bridge_firmware", "device_id": "d_bridge", "config_entry_id": "e_hue", "platform": "hue", "disabled_by": null },
+      { "entity_id": "light.salotto", "device_id": "d_lamp", "config_entry_id": "e_hue", "platform": "hue", "disabled_by": null },
+
+      { "entity_id": "camera.cucina", "device_id": "d_tuya", "config_entry_id": "e_tuya", "platform": "tuya", "disabled_by": null },
+      { "entity_id": "switch.cucina_privacy", "device_id": "d_tuya", "config_entry_id": "e_tuya", "platform": "tuya", "disabled_by": null },
+
+      { "entity_id": "binary_sensor.scale_movimento", "device_id": "d_z2m", "config_entry_id": "e_mqtt", "platform": "mqtt", "disabled_by": null },
+      { "entity_id": "sensor.scale_batteria", "device_id": "d_z2m", "config_entry_id": "e_mqtt", "platform": "mqtt", "disabled_by": null },
+      { "entity_id": "sensor.dietro_hub", "device_id": "d_child_of_disabled", "config_entry_id": "e_mqtt", "platform": "mqtt", "disabled_by": null },
+
+      { "entity_id": "sensor.dismessa_stato", "device_id": "d_disabled", "config_entry_id": "e_reolink", "platform": "reolink", "disabled_by": null },
+
+      { "entity_id": "device_tracker.iphone", "device_id": null, "config_entry_id": "e_mobileapp", "platform": "mobile_app", "disabled_by": null },
+      { "entity_id": "sensor.iphone_batteria", "device_id": null, "config_entry_id": "e_mobileapp", "platform": "mobile_app", "disabled_by": null },
+      { "entity_id": "notify.mobile_app_iphone", "device_id": null, "config_entry_id": "e_mobileapp", "platform": "mobile_app", "disabled_by": null },
+
+      { "entity_id": "sensor.template_consumo", "device_id": null, "config_entry_id": null, "platform": "template", "disabled_by": null }
+    ],
+
+    "config/area_registry/list": [
+      { "area_id": "a_garden", "name": "Giardino" },
+      { "area_id": "a_studio", "name": "Studio" }
+    ],
+
+    "manifest/list": [
+      { "domain": "reolink", "name": "Reolink", "iot_class": "local_push", "is_built_in": true, "dependencies": [] },
+      { "domain": "hue", "name": "Philips Hue", "iot_class": "local_push", "is_built_in": true, "dependencies": [] },
+      { "domain": "tuya", "name": "Tuya", "iot_class": "cloud_push", "is_built_in": true, "dependencies": [] },
+      { "domain": "mqtt", "name": "MQTT", "iot_class": "local_push", "is_built_in": true, "dependencies": [] },
+      { "domain": "mobile_app", "name": "Mobile App", "iot_class": "cloud_push", "is_built_in": true, "dependencies": ["http"] },
+      { "domain": "demo", "name": "Demo", "iot_class": "calculated", "is_built_in": true, "dependencies": [] }
+    ]
+  }
+}
