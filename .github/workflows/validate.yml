@@ -47,6 +47,13 @@ jobs:
   hacs:
     name: HACS
     runs-on: ubuntu-latest
+    # Skipped while the repository is private, and only then. The HACS action
+    # reads hacs.json and manifest.json through raw.githubusercontent, which
+    # answers 404 for a private repository: those two checks fail on the
+    # fetch, not on the files, which hassfest validates from the checkout on
+    # every run anyway. The job re-enables itself the moment the repository
+    # goes public - there is nothing to remember to switch back on.
+    if: github.event.repository.private == false
     steps:
       - uses: actions/checkout@v4
       - uses: hacs/action@main
