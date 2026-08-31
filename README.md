@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="custom_components/talos/brand/logo.png" alt="Talos - HA Security scanner" width="512">
+</p>
+
 # Talos - HA Security scanner
 
 Talos maps where the data in my house comes from and where it goes. It reads what Home Assistant
