@@ -181,6 +181,29 @@ const I18N = {
     "settings.system.oldest": "Osservazione piu' vecchia",
     "settings.system.dbSize": "Dimensione del database",
     "settings.system.pruned": "Righe rimosse all'ultima potatura",
+    "mode.map": "Mappa",
+    "map.title": "Mappa dei collegamenti",
+    "map.lead":
+      "Come i dispositivi arrivano a Home Assistant, raggruppati per trasporto e per integrazione. Questa vista usa solo dati dichiarati dal registry: non richiede AdGuard e non dipende dalle osservazioni.",
+    "map.summary": "{devices} dispositivi · {integrations} integrazioni · {transports} trasporti",
+    "map.devices": "{n} dispositivi",
+    "map.entities": "{n} entita'",
+    "map.hubs": "Hub e dispositivi collegati",
+    "map.hubs.lead":
+      "Dispositivi che ne servono altri. Un figlio non ha un indirizzo proprio: raggiunge la rete attraverso il padre, ed e' da li' che eredita la propria esposizione.",
+    "map.hub.children": "{n} collegati",
+    "map.empty": "Nessun dispositivo nel registry.",
+    "map.noHubs": "Nessuna gerarchia via_device dichiarata dalle integrazioni.",
+    "map.showDevices": "Mostra i dispositivi",
+    "transport.zigbee": "Zigbee",
+    "transport.zwave": "Z-Wave",
+    "transport.wifi": "Wi-Fi",
+    "transport.ethernet": "Ethernet",
+    "transport.thread": "Thread",
+    "transport.matter": "Matter",
+    "transport.ble": "Bluetooth LE",
+    "transport.virtual": "Virtuale",
+    "transport.unknown": "Non determinato",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -361,6 +384,29 @@ const I18N = {
     "settings.system.oldest": "Oldest observation",
     "settings.system.dbSize": "Database size",
     "settings.system.pruned": "Rows removed at the last prune",
+    "mode.map": "Map",
+    "map.title": "Connection map",
+    "map.lead":
+      "How devices reach Home Assistant, grouped by transport and by integration. This view uses declared registry data only: it needs no AdGuard and does not depend on observations.",
+    "map.summary": "{devices} devices · {integrations} integrations · {transports} transports",
+    "map.devices": "{n} devices",
+    "map.entities": "{n} entities",
+    "map.hubs": "Hubs and the devices behind them",
+    "map.hubs.lead":
+      "Devices that serve others. A child has no address of its own: it reaches the network through its parent, and that is where its exposure is inherited from.",
+    "map.hub.children": "{n} behind it",
+    "map.empty": "No devices in the registry.",
+    "map.noHubs": "No via_device hierarchy declared by the integrations.",
+    "map.showDevices": "Show the devices",
+    "transport.zigbee": "Zigbee",
+    "transport.zwave": "Z-Wave",
+    "transport.wifi": "Wi-Fi",
+    "transport.ethernet": "Ethernet",
+    "transport.thread": "Thread",
+    "transport.matter": "Matter",
+    "transport.ble": "Bluetooth LE",
+    "transport.virtual": "Virtual",
+    "transport.unknown": "Undetermined",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -406,6 +452,16 @@ const STYLES = `
   --k-vendor: #8a4a86;
   --k-unknown: #868d8e;
 
+  --t-zigbee: #2f7d6a;
+  --t-zwave: #64768c;
+  --t-wifi: #16697f;
+  --t-ethernet: #6b5aa0;
+  --t-thread: #4a7d3f;
+  --t-matter: #2b7f8c;
+  --t-ble: #3f6ea0;
+  --t-virtual: #8a7f6a;
+  --t-unknown: #868d8e;
+
   --alert: #b3261e;
   --alert-soft: color-mix(in srgb, #b3261e 10%, transparent);
   --attention: #8a6516;
@@ -426,6 +482,9 @@ const STYLES = `
     --accent: #52b2c8; --accent-ink: #9ad6e5;
     --k-local: #52b195; --k-infra: #93a5bd; --k-vendor: #c07dbb; --k-unknown: #8d9799;
     --alert: #ff6f60; --attention: #d5a343;
+    --t-zigbee: #52b195; --t-zwave: #93a5bd; --t-wifi: #52b2c8;
+    --t-ethernet: #a396d6; --t-thread: #7fbb70; --t-matter: #63c3d1;
+    --t-ble: #7ba3d8; --t-virtual: #bdae94; --t-unknown: #8d9799;
   }
 }
 * { box-sizing: border-box; }
@@ -559,6 +618,44 @@ table.data tr.is-key td { background: var(--alert-soft); }
 }
 .empty { padding: 60px 24px; text-align: center; color: var(--ink-mute); }
 
+.tgroup {
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: var(--r-lg);
+  margin-bottom: 12px; overflow: hidden;
+}
+.tgroup__head {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding: 14px 18px 10px;
+}
+.tgroup__name { font-size: 15px; font-weight: 600; }
+.tgroup__count { font-family: var(--font-mono); font-size: 13px; color: var(--ink-soft); }
+.tgroup__share { flex: 1; min-width: 90px; height: 4px; border-radius: var(--r-pill); background: var(--sunken); overflow: hidden; }
+.tgroup__share span { display: block; height: 100%; }
+.tgroup details { border-top: 1px solid var(--border); }
+.tgroup summary {
+  cursor: pointer; padding: 10px 18px; font-size: 13px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.tgroup summary::-webkit-details-marker { display: none; }
+.tgroup summary::before {
+  content: "›"; display: inline-block; transition: transform 120ms;
+  color: var(--ink-mute); font-size: 15px; line-height: 1;
+}
+.tgroup details[open] > summary::before { transform: rotate(90deg); }
+.tgroup summary:hover { background: var(--sunken); }
+.tgroup__domain { font-family: var(--font-mono); font-size: 12px; color: var(--ink-mute); }
+.tgroup__n { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--ink-mute); }
+.devlist {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 6px 18px; padding: 4px 18px 16px 34px;
+}
+.dev { font-size: 12.5px; }
+.dev span { display: block; font-size: 11px; color: var(--ink-mute); font-family: var(--font-mono); }
+.hub { display: flex; justify-content: space-between; gap: 14px; align-items: baseline;
+  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.hub:last-child { border-bottom: none; }
+.hub__meta { font-size: 11.5px; color: var(--ink-mute); }
+
 .panel-card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--r-lg); padding: 18px 20px;
@@ -603,6 +700,8 @@ const SEVERITY_TONE = { high: "alert", medium: "attention", low: "info" };
  * grouped one that shows it. */
 const GROUP_THRESHOLD = 10;
 const MAX_ROWS = 10;
+
+const byName = (a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id));
 
 const esc = (value) =>
   String(value == null ? "" : value).replace(/[&<>"']/g, (c) => ({
@@ -750,9 +849,11 @@ class TalosPanel extends HTMLElement {
       `<div class="wrap">` +
       (this._mode === "base"
         ? this.viewBase()
-        : this._mode === "settings"
-          ? this.viewSettings()
-          : this.viewAdvanced()) +
+        : this._mode === "map"
+          ? this.viewMap()
+          : this._mode === "settings"
+            ? this.viewSettings()
+            : this.viewAdvanced()) +
       `</div>`;
 
     host.querySelectorAll("[data-mode]").forEach((button) => {
@@ -787,6 +888,7 @@ class TalosPanel extends HTMLElement {
         <div class="spacer"></div>
         <div class="seg" role="group">
           <button data-mode="base" aria-pressed="${this._mode === "base"}">${esc(this.t("mode.base"))}</button>
+          <button data-mode="map" aria-pressed="${this._mode === "map"}">${esc(this.t("mode.map"))}</button>
           <button data-mode="advanced" aria-pressed="${this._mode === "advanced"}">${esc(this.t("mode.advanced"))}</button>
           <button data-mode="settings" aria-pressed="${this._mode === "settings"}">${esc(this.t("mode.settings"))}</button>
         </div>
@@ -1151,6 +1253,152 @@ class TalosPanel extends HTMLElement {
       <th class="num">${esc(this.t("table.queries"))}</th><th>${esc(this.t("table.filter"))}</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="6">${esc(this.t("adv.conduits.none"))}</td></tr>`}</tbody>
     </table>`;
+  }
+
+  /* ── map ─────────────────────────────────────────────────────────────── */
+
+  /** Devices grouped by transport, and inside that by integration. */
+  topology() {
+    const devices = (this._data && this._data.labels.devices) || {};
+    const byTransport = new Map();
+    const children = new Map();
+
+    Object.entries(devices).forEach(([id, device]) => {
+      const transport = device.transport || "unknown";
+      if (!byTransport.has(transport)) byTransport.set(transport, new Map());
+      const integrations = byTransport.get(transport);
+      const key = device.integration_id || "?";
+      if (!integrations.has(key)) integrations.set(key, []);
+      integrations.get(key).push({ id, ...device });
+
+      if (device.via_device_id) {
+        if (!children.has(device.via_device_id)) children.set(device.via_device_id, []);
+        children.get(device.via_device_id).push(id);
+      }
+    });
+
+    // Busiest transport first: that is the shape of the install.
+    const groups = [...byTransport.entries()]
+      .map(([transport, integrations]) => ({
+        transport,
+        total: [...integrations.values()].reduce((sum, list) => sum + list.length, 0),
+        integrations: [...integrations.entries()]
+          .map(([id, list]) => ({ id, devices: list.slice().sort(byName) }))
+          .sort((a, b) => b.devices.length - a.devices.length),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    return { groups, children, total: Object.keys(devices).length };
+  }
+
+  viewMap() {
+    const d = this._data;
+    const { groups, children, total } = this.topology();
+    if (!total) {
+      return `<div class="stack"><div>
+        <h1 class="page">${esc(this.t("map.title"))}</h1>
+        <p class="page-sub">${esc(this.t("map.empty"))}</p>
+      </div></div>`;
+    }
+
+    const integrationCount = Object.keys(d.labels.integrations || {}).length;
+    const hubs = [...children.entries()]
+      .map(([id, list]) => ({ id, count: list.length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 25);
+
+    return `<div class="stack">
+      <div>
+        <h1 class="page">${esc(this.t("map.title"))}</h1>
+        <p class="page-sub">${esc(this.t("map.lead"))}</p>
+      </div>
+
+      <div class="panel-card">
+        <span class="mono">${esc(
+          this.t("map.summary", {
+            devices: this.num(total),
+            integrations: this.num(integrationCount),
+            transports: groups.length,
+          })
+        )}</span>
+      </div>
+
+      <div>
+        ${groups.map((group) => this.transportGroup(group, total)).join("")}
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("map.hubs"))}</h2>
+        <p class="page-sub" style="margin-bottom:12px">${esc(this.t("map.hubs.lead"))}</p>
+        <div class="panel-card">
+          ${
+            hubs.length
+              ? hubs
+                  .map((hub) => {
+                    const device = d.labels.devices[hub.id] || {};
+                    const integration = d.labels.integrations[device.integration_id] || {};
+                    return `<div class="hub">
+                      <div>
+                        <div>${esc(device.name || hub.id)}</div>
+                        <div class="hub__meta mono">${esc(
+                          [integration.domain, device.transport, device.ip].filter(Boolean).join(" · ")
+                        )}</div>
+                      </div>
+                      <span class="chip">${esc(this.t("map.hub.children", { n: hub.count }))}</span>
+                    </div>`;
+                  })
+                  .join("")
+              : `<p class="status">${esc(this.t("map.noHubs"))}</p>`
+          }
+        </div>
+      </div>
+    </div>`;
+  }
+
+  transportGroup(group, total) {
+    const d = this._data;
+    const share = total ? (group.total / total) * 100 : 0;
+    const colour = `var(--t-${group.transport.replace(/[^a-z]/g, "") || "unknown"}, var(--t-unknown))`;
+
+    return `<div class="tgroup" style="border-left-color:${colour}">
+      <div class="tgroup__head">
+        <span class="tgroup__name">${esc(this.t(`transport.${group.transport}`))}</span>
+        <span class="tgroup__count">${esc(this.t("map.devices", { n: this.num(group.total) }))}</span>
+        <span class="tgroup__share"><span style="width:${share}%;background:${colour}"></span></span>
+      </div>
+      ${group.integrations
+        .map((entry) => {
+          const integration = d.labels.integrations[entry.id] || {};
+          return `<details>
+            <summary>
+              <span>${esc(integration.title || entry.id)}</span>
+              <span class="tgroup__domain">${esc(integration.domain || "")}</span>
+              ${
+                integration.iot_class
+                  ? `<span class="chip">${esc(integration.iot_class)}</span>`
+                  : ""
+              }
+              ${integration.is_built_in === false ? `<span class="chip">HACS</span>` : ""}
+              <span class="tgroup__n">${entry.devices.length}</span>
+            </summary>
+            <div class="devlist">
+              ${entry.devices
+                .map(
+                  (device) => `<div class="dev">${esc(device.name || device.id)}
+                    <span>${esc(
+                      [device.area, device.ip || device.model, device.entity_count
+                        ? this.t("map.entities", { n: device.entity_count })
+                        : ""]
+                        .filter(Boolean)
+                        .join(" · ")
+                    )}</span></div>`
+                )
+                .join("")}
+            </div>
+          </details>`;
+        })
+        .join("")}
+    </div>`;
   }
 
   /* ── settings ────────────────────────────────────────────────────────── */

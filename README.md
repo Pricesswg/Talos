@@ -21,8 +21,10 @@ separate everywhere, and crosses them only in one place, the matrix below.
 
 A single admin-only panel provides:
 
-- Basic and Advanced views, split by question rather than by density of data, both derived from the
-  same computation so they cannot drift apart
+- Basic, Map, Advanced and Settings views, split by question rather than by density of data, all
+  derived from the same computation so they cannot drift apart
+- A connection map grouping every device by transport and by integration, with the hub hierarchy
+  spelled out. Declared data only, so it works with no AdGuard configured
 - The declared / observed matrix, with the quadrant that matters (local to Home Assistant, yet caught
   phoning home) highlighted as the only red thing in the interface
 - Offline autonomy: entities and integrations that keep working with the uplink down, grouped by
@@ -147,9 +149,18 @@ count sits next to the other two in the panel and cannot be hidden.
 Findings are the high and medium severity checks with the remediation next to each one, written
 without network jargon, plus the explicit count of what could not be verified.
 
+**Map** answers how devices reach Home Assistant: every device grouped by transport (Zigbee, Wi-Fi,
+Z-Wave, Thread, Matter, Bluetooth, Ethernet) and inside that by integration, with the hubs and the
+devices behind them listed separately. It reads the registry only, so it populates even with no
+AdGuard configured.
+
 **Advanced** answers who talks to whom and on what evidence: the matrix, the flow graph, the full
 conduit table with its evidence labels, the check results with their subjects, and the unverified
-list with each reason.
+list with each reason. The flow graph draws observed egress, so it stays empty until AdGuard is
+connected, and says so rather than showing empty bands.
+
+**Settings** holds the language, the AdGuard connection shown read only, and the editable options:
+interval, retention, network ranges and rule file paths.
 
 ## Installation
 

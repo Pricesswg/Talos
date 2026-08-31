@@ -15,6 +15,7 @@ from pathlib import Path
 from talos_core.const import (
     DESTINATION_KINDS,
     EVIDENCE,
+    TRANSPORTS,
     UNVERIFIED_REASONS,
 )
 from talos_core.checks import SEVERITIES
@@ -98,6 +99,7 @@ class TestTranslations(unittest.TestCase):
             ("evidence", EVIDENCE),
             ("kind", DESTINATION_KINDS),
             ("reason", UNVERIFIED_REASONS),
+            ("transport", TRANSPORTS),
         ):
             for value in values:
                 with self.subTest(key=f"{prefix}.{value}"):
@@ -108,7 +110,10 @@ class TestTranslations(unittest.TestCase):
         # If a new `this.t(\`x.${...}\`)` appears, this test must be taught
         # about it rather than silently ignoring it.
         found = set(re.findall(r"this\.t\(`([\w.]+)\.\$\{", SOURCE))
-        self.assertEqual(found, {"severity", "evidence", "kind", "reason", "opt", "opt.hint"})
+        self.assertEqual(
+            found,
+            {"severity", "evidence", "kind", "reason", "opt", "opt.hint", "transport"},
+        )
 
     def test_every_editable_option_has_a_label(self) -> None:
         # The settings screen builds `opt.<key>` at runtime from the option

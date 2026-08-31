@@ -134,6 +134,10 @@ def ws_derived(
                         "model": device.model,
                         "ip": device.ip,
                         "integration_id": device.integration_id,
+                        # The map draws the hub hierarchy and the weight of
+                        # each branch from these two.
+                        "via_device_id": device.via_device_id,
+                        "entity_count": device.entity_count,
                     }
                     for device in data.scan.devices
                 },
