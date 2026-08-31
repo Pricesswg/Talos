@@ -54,18 +54,25 @@ _LOGGER = logging.getLogger(__name__)
 
 STATUS_PATH = "/control/status"
 
-USER_SCHEMA = vol.Schema(
-    {
-        vol.Optional(CONF_ADGUARD_URL, default=""): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.URL)
-        ),
-        vol.Optional(CONF_ADGUARD_USERNAME, default=""): str,
-        vol.Optional(CONF_ADGUARD_PASSWORD, default=""): TextSelector(
-            TextSelectorConfig(type=TextSelectorType.PASSWORD)
-        ),
-        vol.Optional(CONF_VERIFY_SSL, default=True): bool,
-    }
-)
+def _connection_schema(current: dict[str, Any] | None = None) -> vol.Schema:
+    """The AdGuard endpoint, pre-filled when reconfiguring."""
+    current = current or {}
+    return vol.Schema(
+        {
+            vol.Optional(
+                CONF_ADGUARD_URL, default=current.get(CONF_ADGUARD_URL, "")
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
+            vol.Optional(
+                CONF_ADGUARD_USERNAME, default=current.get(CONF_ADGUARD_USERNAME, "")
+            ): str,
+            vol.Optional(
+                CONF_ADGUARD_PASSWORD, default=current.get(CONF_ADGUARD_PASSWORD, "")
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+            vol.Optional(
+                CONF_VERIFY_SSL, default=current.get(CONF_VERIFY_SSL, True)
+            ): bool,
+        }
+    )
 
 
 def _number(minimum: int, maximum: int, unit: str | None = None) -> NumberSelector:
@@ -102,8 +109,46 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
                 )
 
         return self.async_show_form(
-            step_id="user", data_schema=USER_SCHEMA, errors=errors
+            step_id="user", data_schema=_connection_schema(), errors=errors
         )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Change the AdGuard endpoint after setup.
+
+        Without this the endpoint could only be set while adding the
+        integration: anyone who set Talos up before knowing the address had to
+        delete the entry and start over.
+        """
+        entry = self._reconfigure_entry()
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            url = (user_input.get(CONF_ADGUARD_URL) or "").strip()
+            if url:
+                error = await self._test_adguard(user_input, url)
+                if error:
+                    errors["base"] = error
+            if not errors:
+                return self.async_update_reload_and_abort(
+                    entry, data_updates={**user_input, CONF_ADGUARD_URL: url}
+                )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_connection_schema(user_input or dict(entry.data)),
+            errors=errors,
+        )
+
+    def _reconfigure_entry(self) -> ConfigEntry:
+        # _get_reconfigure_entry landed in 2024.11; fall back to the context.
+        getter = getattr(self, "_get_reconfigure_entry", None)
+        if getter is not None:
+            return getter()
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert entry is not None
+        return entry
 
     async def _test_adguard(self, user_input: dict[str, Any], url: str) -> str | None:
         transport = HassHttpTransport(

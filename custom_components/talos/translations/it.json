@@ -14,6 +14,19 @@
           "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser, <url>/control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati.",
           "adguard_username": "Lascia vuoto se AdGuard non ha autenticazione."
         }
+      },
+      "reconfigure": {
+        "title": "Talos: connessione ad AdGuard Home",
+        "description": "Cambia l'indirizzo di AdGuard Home o le credenziali. Lascia l'indirizzo vuoto per tornare a un report solo dichiarativo, senza il lato osservativo.",
+        "data": {
+          "adguard_url": "Indirizzo di AdGuard Home",
+          "adguard_username": "Utente",
+          "adguard_password": "Password",
+          "verify_ssl": "Verifica il certificato SSL"
+        },
+        "data_description": {
+          "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser, <url>/control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati."
+        }
       }
     },
     "error": {
@@ -22,7 +35,8 @@
       "unknown": "Errore inatteso. Controlla i log."
     },
     "abort": {
-      "already_configured": "Talos è già configurato. Una sola istanza mappa tutta la casa."
+      "already_configured": "Talos è già configurato. Una sola istanza mappa tutta la casa.",
+      "reconfigure_successful": "Connessione ad AdGuard aggiornata. Talos la usera' dalla prossima scansione."
     }
   },
   "options": {

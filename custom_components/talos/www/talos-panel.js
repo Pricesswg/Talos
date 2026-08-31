@@ -105,6 +105,7 @@ const I18N = {
     "col.destination": "Destinazione",
     "graph.grouped": "raggruppati per integrazione: {n} dispositivi",
     "graph.hidden": "+{n} dispositivi senza condotti non disegnati",
+    "graph.empty": "Nessun flusso da disegnare: questa scansione non contiene osservazioni, quindi non ci sono destinazioni note.",
     "graph.devices": "{n} dispositivi",
 
     "legend.local": "locale",
@@ -203,7 +204,7 @@ const I18N = {
     "adv.cell.localEgress": "Phoning home behind Home Assistant's back.",
     "adv.cell.cloudSilent": "Declared cloud but silent. Worth investigating, not a merit.",
     "adv.cell.cloudEgress": "Declared dependency, confirmed.",
-    "adv.cell.unclassified": "Manifest unreadable: counted neither as local nor as cloud.",
+    "adv.cell.unclassified": "iot_class calculated, assumed_state or missing: counted neither as local nor as cloud.",
     "adv.correlation":
       "Correlated <strong class=\"mono\">{done}/{total}</strong> devices ({pct}%, method <span class=\"mono\">{method}</span>). The uncorrelated ones may have egress I cannot see: the top-right cell is a <em>minimum</em>, not a total.",
     "adv.correlation.infra":
@@ -226,6 +227,7 @@ const I18N = {
     "col.destination": "Destination",
     "graph.grouped": "grouped by integration: {n} devices",
     "graph.hidden": "+{n} devices with no conduit not drawn",
+    "graph.empty": "Nothing to draw: this scan holds no observations, so there are no known destinations.",
     "graph.devices": "{n} devices",
 
     "legend.local": "local",
@@ -1030,6 +1032,16 @@ class TalosPanel extends HTMLElement {
       return node;
     };
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    // Four empty bands look like a broken widget. Say what is missing instead.
+    if (!model.origins.length && !model.destinations.length) {
+      const note = el("text", {
+        class: "n-sub", x: 490, y: 280, "text-anchor": "middle",
+      });
+      note.textContent = this.t("graph.empty");
+      svg.appendChild(note);
+      return;
+    }
 
     const columns = model.grouped
       ? [
