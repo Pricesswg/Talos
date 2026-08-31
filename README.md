@@ -175,6 +175,20 @@ against `/control/status` before creating the entry. The endpoint is asked for a
 AdGuard often runs on the same machine as Home Assistant and just as often does not, and a wrong
 assumption produces an empty report that looks like a clean one.
 
+### Which address to use for AdGuard
+
+| Setup | Address |
+|---|---|
+| AdGuard Home add-on on HAOS or Supervised | `http://a0d7b954-adguard:3000`, the add-on's internal hostname, which survives an IP change |
+| Anything else | The LAN address of the machine, `http://192.168.1.10:3000` |
+
+Do not use `127.0.0.1` unless Home Assistant runs with host networking. Inside a container that
+address is the container itself, not the machine. The port is the one you open the AdGuard web
+interface on, 3000 by default but often moved to 80 after the first setup.
+
+Check the address in a browser before typing it into the config flow: `<url>/control/status` must
+return JSON with `running` and `dns_addresses`. That is the exact endpoint the config flow probes.
+
 **AdGuard is optional.** Without it Talos still answers the autonomy question from what Home
 Assistant declares. It cannot answer the exposure question, and it writes that into the report rather
 than leaving the column blank.

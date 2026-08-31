@@ -11,7 +11,7 @@
           "verify_ssl": "Verifica il certificato SSL"
         },
         "data_description": {
-          "adguard_url": "Per esempio http://192.168.1.10:3000. Lascia vuoto per funzionare senza dati osservati.",
+          "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser, <url>/control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati.",
           "adguard_username": "Lascia vuoto se AdGuard non ha autenticazione."
         }
       }
