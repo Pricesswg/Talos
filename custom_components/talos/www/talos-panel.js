@@ -204,6 +204,26 @@ const I18N = {
     "transport.ble": "Bluetooth LE",
     "transport.virtual": "Virtuale",
     "transport.unknown": "Non determinato",
+    "map.search": "Cerca un dispositivo o un'integrazione",
+    "map.reset": "Reimposta la vista",
+    "map.hint":
+      "Rotella per lo zoom, trascina per spostarti. Clicca un'integrazione per aprirne i dispositivi.",
+    "map.legend.core": "Home Assistant",
+    "map.legend.transport": "Trasporto",
+    "map.legend.integration": "Integrazione",
+    "map.legend.device": "Dispositivo",
+    "map.legend.hub": "Hub con dispositivi collegati",
+    "map.truncated": "+{n} non disegnati",
+    "map.fullList": "Elenco completo per trasporto",
+    "map.matches": "{n} corrispondenze",
+    "map.noMatches": "Nessuna corrispondenza",
+    "map.detail": "Dettaglio",
+    "map.detail.less": "Meno dettaglio",
+    "map.detail.more": "Piu' dettaglio",
+    "map.detail.1": "Trasporti",
+    "map.detail.2": "Integrazioni",
+    "map.detail.3": "Dispositivi",
+    "map.zoomHint": "Le etichette dei dispositivi compaiono avvicinando lo zoom.",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -407,6 +427,26 @@ const I18N = {
     "transport.ble": "Bluetooth LE",
     "transport.virtual": "Virtual",
     "transport.unknown": "Undetermined",
+    "map.search": "Search a device or an integration",
+    "map.reset": "Reset the view",
+    "map.hint":
+      "Wheel to zoom, drag to pan. Click an integration to open its devices.",
+    "map.legend.core": "Home Assistant",
+    "map.legend.transport": "Transport",
+    "map.legend.integration": "Integration",
+    "map.legend.device": "Device",
+    "map.legend.hub": "Hub with devices behind it",
+    "map.truncated": "+{n} not drawn",
+    "map.fullList": "Full list by transport",
+    "map.matches": "{n} matches",
+    "map.noMatches": "No match",
+    "map.detail": "Detail",
+    "map.detail.less": "Less detail",
+    "map.detail.more": "More detail",
+    "map.detail.1": "Transports",
+    "map.detail.2": "Integrations",
+    "map.detail.3": "Devices",
+    "map.zoomHint": "Device labels appear as you zoom in.",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -651,6 +691,36 @@ table.data tr.is-key td { background: var(--alert-soft); }
 }
 .dev { font-size: 12.5px; }
 .dev span { display: block; font-size: 11px; color: var(--ink-mute); font-family: var(--font-mono); }
+.mapwrap { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
+svg.map { display: block; width: 100%; height: clamp(560px, 76vh, 920px); cursor: grab; touch-action: none; }
+svg.map.dragging { cursor: grabbing; }
+svg.map text { font-family: var(--font-sans); fill: var(--ink); pointer-events: none; }
+svg.map .lbl { font-size: 12px; }
+svg.map .lbl--device, svg.map .sub--device { display: none; }
+svg.map[data-zoom="mid"] .lbl--device { display: inline; }
+svg.map[data-zoom="near"] .lbl--device, svg.map[data-zoom="near"] .sub--device { display: inline; }
+svg.map .node--match .lbl--device, svg.map .node--match .sub--device { display: inline; }
+svg.map .lbl--core { font-size: 15px; font-weight: 600; }
+svg.map .lbl--transport { font-size: 13.5px; font-weight: 500; }
+svg.map .sub { font-size: 10px; fill: var(--ink-mute); font-family: var(--font-mono); }
+svg.map .link { fill: none; stroke-opacity: .45; }
+svg.map .node { cursor: pointer; }
+svg.map .dim { opacity: .12; }
+svg.map .hit { fill: transparent; }
+.maptools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.maptools input[type="search"] {
+  font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--border);
+  border-radius: var(--r-md); padding: 7px 10px; min-width: 240px; flex: 1;
+}
+.maptools .hint { font-size: 11.5px; color: var(--ink-mute); }
+.btn--ghost { background: none; color: var(--ink-soft); border: 1px solid var(--border); padding: 7px 12px; }
+.detail { display: inline-flex; align-items: center; gap: 8px; }
+.detail__level { font-size: 12px; color: var(--ink-soft); min-width: 130px; text-align: center; }
+.maplegend { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--ink-soft); }
+.maplegend span { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; }
+.swatch--round { border-radius: 50%; }
+
 .hub { display: flex; justify-content: space-between; gap: 14px; align-items: baseline;
   padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
 .hub:last-child { border-bottom: none; }
@@ -721,6 +791,10 @@ class TalosPanel extends HTMLElement {
     this._lang = FALLBACK_LANG;
     this._saving = false;
     this._saveStatus = null;
+    this._mapQuery = "";
+    this._detail = 2;
+    this._expanded = new Set();
+    this._view = { k: 1, x: 0, y: 0 };
     // Reading storage can throw in a private window or with site data blocked.
     try {
       this._langOverride = window.localStorage.getItem("talos.lang") || "";
@@ -867,6 +941,42 @@ class TalosPanel extends HTMLElement {
 
     const svg = host.querySelector("svg.graph");
     if (svg) this.drawGraph(svg);
+
+    const map = host.querySelector("svg.map");
+    if (map) {
+      this.drawMap(map);
+      const search = host.querySelector("[data-action='map-search']");
+      if (search) {
+        // Redraw only the map, so the field keeps focus while typing.
+        search.addEventListener("input", (event) => {
+          this._mapQuery = event.target.value;
+          this.drawMap(map);
+        });
+      }
+      const setDetail = (delta) => {
+        this._detail = Math.min(3, Math.max(1, (this._detail || 2) + delta));
+        this._view = { k: 1, x: 0, y: 0 };
+        this._mapBox = null;
+        this._expanded.clear();
+        this.render();
+      };
+      const less = host.querySelector("[data-action='map-less']");
+      if (less) less.addEventListener("click", () => setDetail(-1));
+      const more = host.querySelector("[data-action='map-more']");
+      if (more) more.addEventListener("click", () => setDetail(1));
+
+      const reset = host.querySelector("[data-action='map-reset']");
+      if (reset) {
+        reset.addEventListener("click", () => {
+          this._view = { k: 1, x: 0, y: 0 };
+          this._mapBox = null;
+          this._expanded.clear();
+          this._mapQuery = "";
+          this._detail = 2;
+          this.render();
+        });
+      }
+    }
 
     const language = host.querySelector("[data-action='language']");
     if (language) language.addEventListener("change", (event) => this.setLanguage(event.target.value));
@@ -1292,67 +1402,398 @@ class TalosPanel extends HTMLElement {
   }
 
   viewMap() {
-    const d = this._data;
-    const { groups, children, total } = this.topology();
+    const { total } = this.topology();
     if (!total) {
       return `<div class="stack"><div>
         <h1 class="page">${esc(this.t("map.title"))}</h1>
         <p class="page-sub">${esc(this.t("map.empty"))}</p>
       </div></div>`;
     }
-
-    const integrationCount = Object.keys(d.labels.integrations || {}).length;
-    const hubs = [...children.entries()]
-      .map(([id, list]) => ({ id, count: list.length }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 25);
-
     return `<div class="stack">
       <div>
         <h1 class="page">${esc(this.t("map.title"))}</h1>
         <p class="page-sub">${esc(this.t("map.lead"))}</p>
       </div>
 
-      <div class="panel-card">
-        <span class="mono">${esc(
-          this.t("map.summary", {
-            devices: this.num(total),
-            integrations: this.num(integrationCount),
-            transports: groups.length,
-          })
-        )}</span>
-      </div>
-
-      <div>
-        ${groups.map((group) => this.transportGroup(group, total)).join("")}
-      </div>
-
-      <div>
-        <h2 class="sec">${esc(this.t("map.hubs"))}</h2>
-        <p class="page-sub" style="margin-bottom:12px">${esc(this.t("map.hubs.lead"))}</p>
-        <div class="panel-card">
-          ${
-            hubs.length
-              ? hubs
-                  .map((hub) => {
-                    const device = d.labels.devices[hub.id] || {};
-                    const integration = d.labels.integrations[device.integration_id] || {};
-                    return `<div class="hub">
-                      <div>
-                        <div>${esc(device.name || hub.id)}</div>
-                        <div class="hub__meta mono">${esc(
-                          [integration.domain, device.transport, device.ip].filter(Boolean).join(" · ")
-                        )}</div>
-                      </div>
-                      <span class="chip">${esc(this.t("map.hub.children", { n: hub.count }))}</span>
-                    </div>`;
-                  })
-                  .join("")
-              : `<p class="status">${esc(this.t("map.noHubs"))}</p>`
-          }
+      <div class="mapwrap">
+        <div class="maptools">
+          <input type="search" data-action="map-search" placeholder="${esc(this.t("map.search"))}"
+                 value="${esc(this._mapQuery || "")}" spellcheck="false">
+          <span class="detail">
+            <button class="btn btn--ghost" data-action="map-less"
+                    title="${esc(this.t("map.detail.less"))}" ${(this._detail || 2) <= 1 ? "disabled" : ""}>&minus;</button>
+            <span class="detail__level">${esc(this.t("map.detail"))}: ${esc(
+              this.t(`map.detail.${this._detail || 2}`)
+            )}</span>
+            <button class="btn btn--ghost" data-action="map-more"
+                    title="${esc(this.t("map.detail.more"))}" ${(this._detail || 2) >= 3 ? "disabled" : ""}>+</button>
+          </span>
+          <button class="btn btn--ghost" data-action="map-reset">${esc(this.t("map.reset"))}</button>
+          <span class="hint">${esc(this.t("map.hint"))} ${esc(this.t("map.zoomHint"))}</span>
+        </div>
+        <svg class="map" role="img" aria-label="${esc(this.t("map.title"))}"></svg>
+        <div class="maplegend">
+          <span><span class="swatch" style="background:var(--accent)"></span>${esc(this.t("map.legend.core"))}</span>
+          <span><span class="swatch swatch--round" style="background:var(--t-zigbee)"></span>${esc(this.t("map.legend.transport"))}</span>
+          <span><span class="swatch swatch--round" style="background:var(--ink-mute)"></span>${esc(this.t("map.legend.integration"))}</span>
+          <span><span class="swatch swatch--round" style="background:var(--ink-soft);width:6px;height:6px"></span>${esc(this.t("map.legend.device"))}</span>
+          <span><span class="swatch" style="background:none;border:2px solid var(--ink-soft);border-radius:50%"></span>${esc(this.t("map.legend.hub"))}</span>
         </div>
       </div>
+
+      ${this.hubSection()}
+
+      <div>
+        <h2 class="sec">${esc(this.t("map.fullList"))}</h2>
+        ${this.topology().groups.map((group) => this.transportGroup(group, total)).join("")}
+      </div>
     </div>`;
+  }
+
+  hubSection() {
+    const d = this._data;
+    const { children } = this.topology();
+    const hubs = [...children.entries()]
+      .map(([id, list]) => ({ id, count: list.length }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 25);
+
+    return `<div>
+      <h2 class="sec">${esc(this.t("map.hubs"))}</h2>
+      <p class="page-sub" style="margin-bottom:12px">${esc(this.t("map.hubs.lead"))}</p>
+      <div class="panel-card">
+        ${
+          hubs.length
+            ? hubs
+                .map((hub) => {
+                  const device = d.labels.devices[hub.id] || {};
+                  const integration = d.labels.integrations[device.integration_id] || {};
+                  return `<div class="hub">
+                    <div>
+                      <div>${esc(device.name || hub.id)}</div>
+                      <div class="hub__meta mono">${esc(
+                        [integration.domain, device.transport, device.ip].filter(Boolean).join(" · ")
+                      )}</div>
+                    </div>
+                    <span class="chip">${esc(this.t("map.hub.children", { n: hub.count }))}</span>
+                  </div>`;
+                })
+                .join("")
+            : `<p class="status">${esc(this.t("map.noHubs"))}</p>`
+        }
+      </div>
+    </div>`;
+  }
+
+  /* ── radial layout ───────────────────────────────────────────────────────
+   * Deterministic on purpose, not a force simulation: the same house always
+   * produces the same picture, which is the only way two people can talk
+   * about it. The angular width of a branch is its share of the devices, so
+   * the shape of the drawing is the shape of the install.
+   */
+
+  mapLayout(stretch = 1) {
+    const detail = this._detail || 2;
+    const d = this._data;
+    const { groups, children, total } = this.topology();
+    const query = (this._mapQuery || "").trim().toLowerCase();
+    const expanded = this._expanded || (this._expanded = new Set());
+
+    const matches = (text) => Boolean(query) && String(text || "").toLowerCase().includes(query);
+
+    const nodes = [];
+    const links = [];
+    const CX = 0;
+    const CY = 0;
+    const R_TRANSPORT = 170;
+    const R_INTEGRATION = 330;
+    const R_DEVICE = 470;
+    const MAX_DEVICES = (this._detail || 2) >= 3 ? 24 : 60;
+
+    nodes.push({
+      id: "core", kind: "core", x: CX, y: CY, label: "Home Assistant",
+      colour: "var(--accent)", angle: 0,
+    });
+
+    // Angles are allocated by weight, decided at the leaf level. A collapsed
+    // integration takes one slot plus a little for its size; an open one takes
+    // a slot per device it shows. So opening a branch is what gives it room,
+    // and the rest of the circle makes way instead of being squashed.
+    const MIN_OPEN_SLOTS = 6;
+    const plan = groups.map((group) => {
+      const integrations = detail < 2 ? [] : group.integrations.map((entry) => {
+        const deviceMatch = entry.devices.some((device) => matches(device.name));
+        const integration = d.labels.integrations[entry.id] || {};
+        // Level 3 opens every branch; below that, only what was clicked or
+        // what the search matched.
+        const open =
+          detail >= 3 || expanded.has(entry.id) || (Boolean(query) && deviceMatch);
+        const shown = open ? entry.devices.slice(0, MAX_DEVICES) : [];
+        return {
+          entry,
+          integration,
+          open,
+          shown,
+          deviceMatch,
+          weight: open
+            ? Math.max(MIN_OPEN_SLOTS, shown.length)
+            : 1 + Math.sqrt(entry.devices.length) / 3,
+        };
+      });
+      const weight = integrations.reduce((sum, item) => sum + item.weight, 0);
+      return { group, integrations, weight: Math.max(weight, 1) };
+    });
+
+    const totalWeight = plan.reduce((sum, item) => sum + item.weight, 0) || 1;
+
+    let cursor = -Math.PI / 2;
+    plan.forEach(({ group, integrations, weight }) => {
+      const span = (weight / totalWeight) * Math.PI * 2;
+      const mid = cursor + span / 2;
+      const colour = `var(--t-${group.transport.replace(/[^a-z]/g, "") || "unknown"}, var(--t-unknown))`;
+
+      const tNode = {
+        id: `t:${group.transport}`, kind: "transport", angle: mid,
+        x: CX + Math.cos(mid) * R_TRANSPORT * stretch, y: CY + Math.sin(mid) * R_TRANSPORT,
+        label: this.t(`transport.${group.transport}`),
+        sub: String(group.total), colour,
+        hit: matches(this.t(`transport.${group.transport}`)),
+      };
+      nodes.push(tNode);
+      links.push({ from: "core", to: tNode.id, colour, width: 1 + Math.sqrt(group.total) / 3 });
+
+      let inner = cursor;
+      integrations.forEach((item) => {
+        const { entry, integration, open, shown } = item;
+        const iSpan = span * (item.weight / weight);
+        const iMid = inner + iSpan / 2;
+        inner += iSpan;
+
+        const label = integration.title || entry.id;
+        const iNode = {
+          id: `i:${entry.id}`, kind: "integration", angle: iMid,
+          x: CX + Math.cos(iMid) * R_INTEGRATION * stretch,
+          y: CY + Math.sin(iMid) * R_INTEGRATION,
+          label, sub: integration.domain || "", colour,
+          count: entry.devices.length, open, ref: entry.id,
+          hit: matches(label) || matches(integration.domain) || item.deviceMatch,
+        };
+        nodes.push(iNode);
+        links.push({
+          from: tNode.id, to: iNode.id, colour,
+          width: 0.8 + Math.sqrt(entry.devices.length) / 4,
+        });
+
+        if (!open) return;
+
+        const step = iSpan / Math.max(shown.length, 1);
+        shown.forEach((device, position) => {
+          const angle = iMid - iSpan / 2 + step * (position + 0.5);
+          nodes.push({
+            id: `d:${device.id}`, kind: "device", angle,
+            x: CX + Math.cos(angle) * R_DEVICE * stretch,
+            y: CY + Math.sin(angle) * R_DEVICE,
+            label: device.name || device.id,
+            sub: device.area || device.ip || "",
+            colour, isHub: children.has(device.id),
+            hit: matches(device.name) || matches(device.area),
+          });
+          links.push({ from: iNode.id, to: `d:${device.id}`, colour, width: 0.7 });
+        });
+        if (entry.devices.length > shown.length) {
+          const angle = iMid + iSpan / 2;
+          nodes.push({
+            id: `more:${entry.id}`, kind: "more", angle,
+            x: CX + Math.cos(angle) * R_DEVICE * stretch,
+            y: CY + Math.sin(angle) * R_DEVICE,
+            label: this.t("map.truncated", { n: entry.devices.length - shown.length }),
+            colour, sub: "",
+          });
+        }
+      });
+
+      cursor += span;
+    });
+
+    return { nodes, links, query, hits: nodes.filter((n) => n.hit).length };
+  }
+
+  drawMap(svg) {
+    const NS = "http://www.w3.org/2000/svg";
+    const el = (name, attrs) => {
+      const node = document.createElementNS(NS, name);
+      Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, value));
+      return node;
+    };
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+    const view = this._view || (this._view = { k: 1, x: 0, y: 0 });
+    const root = el("g", {});
+    svg.appendChild(root);
+    const applyView = () => {
+      root.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+      // Label density follows the zoom, the way a map reveals street names.
+      // A class swap, so panning stays cheap.
+      svg.dataset.zoom = view.k >= 2.2 ? "near" : view.k >= 1.4 ? "mid" : "far";
+    };
+    applyView();
+
+    const rect = svg.getBoundingClientRect();
+    const stretch = Math.min(1.7, Math.max(1, (rect.width || 1200) / (rect.height || 620) / 1.25));
+    const { nodes, links, query } = this.mapLayout(stretch);
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const dimmed = Boolean(query);
+
+    // Fit the box to what is actually drawn, so a collapsed map is not a
+    // small dot in a large empty square. Once the user has panned or zoomed,
+    // the box stays put: refitting under their hands would be maddening.
+    const untouched = view.k === 1 && view.x === 0 && view.y === 0;
+    if (untouched || !this._mapBox) {
+      const pad = 200;
+      const xs = nodes.map((node) => node.x);
+      const ys = nodes.map((node) => node.y);
+      const minX = Math.min(...xs) - pad;
+      const minY = Math.min(...ys) - pad;
+      this._mapBox = [minX, minY, Math.max(...xs) + pad - minX, Math.max(...ys) + pad - minY];
+    }
+    svg.setAttribute("viewBox", this._mapBox.join(" "));
+
+    const linkLayer = el("g", {});
+    root.appendChild(linkLayer);
+    links.forEach((link) => {
+      const from = byId.get(link.from);
+      const to = byId.get(link.to);
+      if (!from || !to) return;
+      // Curved towards the centre so the branches read as branches.
+      const path = el("path", {
+        class: "link",
+        d: `M${from.x},${from.y} Q${(from.x + to.x) / 2 * 0.72},${(from.y + to.y) / 2 * 0.72} ${to.x},${to.y}`,
+        stroke: link.colour,
+        "stroke-width": link.width,
+      });
+      if (dimmed && !(to.hit || from.hit)) path.classList.add("dim");
+      linkLayer.appendChild(path);
+    });
+
+    nodes.forEach((node) => {
+      const group = el("g", { class: "node" });
+      if (dimmed && !node.hit) group.classList.add("dim");
+      if (node.hit) group.classList.add("node--match");
+
+      if (node.kind === "core") {
+        group.appendChild(el("rect", {
+          x: node.x - 22, y: node.y - 22, width: 44, height: 44, rx: 12,
+          fill: node.colour,
+        }));
+      } else if (node.kind === "more") {
+        // Nothing but the label: it is a note, not a thing on the network.
+      } else {
+        const radius = node.kind === "transport" ? 13 : node.kind === "integration" ? 8 : 4.5;
+        group.appendChild(el("circle", {
+          cx: node.x, cy: node.y, r: radius,
+          fill: node.kind === "device" && node.isHub ? "var(--surface)" : node.colour,
+          stroke: node.colour,
+          "stroke-width": node.kind === "device" && node.isHub ? 2.5 : 0,
+        }));
+        if (node.kind === "integration" && node.open) {
+          group.appendChild(el("circle", {
+            cx: node.x, cy: node.y, r: radius + 4,
+            fill: "none", stroke: node.colour, "stroke-width": 1, "stroke-opacity": .5,
+          }));
+        }
+      }
+
+      // Labels sit horizontally under the node. Radial text reads badly on
+      // the left half and is worse to scan than a straight line of names.
+      const below = node.kind === "core" ? 40
+        : node.kind === "transport" ? 26
+        : node.kind === "integration" ? 20 : 13;
+      const isDevice = node.kind === "device" || node.kind === "more";
+
+      const label = el("text", {
+        class:
+          (node.kind === "core"
+            ? "lbl lbl--core"
+            : node.kind === "transport"
+              ? "lbl lbl--transport"
+              : "lbl") + (isDevice ? " lbl--device" : ""),
+        x: node.x,
+        y: node.y + below,
+        "text-anchor": "middle",
+      });
+      const text = String(node.label || "");
+      label.textContent = text.length > 24 ? `${text.slice(0, 23)}…` : text;
+      group.appendChild(label);
+
+      if (node.sub && node.kind !== "core") {
+        const sub = el("text", {
+          class: "sub" + (isDevice ? " sub--device" : ""),
+          x: node.x,
+          y: node.y + below + 12,
+          "text-anchor": "middle",
+        });
+        sub.textContent = node.kind === "integration" ? `${node.sub} · ${node.count}` : node.sub;
+        group.appendChild(sub);
+      }
+
+      if (node.kind === "integration") {
+        // A generous invisible target: the dot itself is 8px.
+        const hit = el("circle", { class: "hit", cx: node.x, cy: node.y, r: 16 });
+        group.appendChild(hit);
+        group.addEventListener("click", () => {
+          const expanded = this._expanded;
+          if (expanded.has(node.ref)) expanded.delete(node.ref);
+          else expanded.add(node.ref);
+          this._mapBox = null;
+          this.drawMap(svg);
+        });
+      }
+
+      root.appendChild(group);
+    });
+
+    this.attachMapControls(svg, view, applyView);
+  }
+
+  attachMapControls(svg, view, applyView) {
+    if (svg.dataset.wired === "1") return;
+    svg.dataset.wired = "1";
+
+    svg.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const factor = Math.exp(-event.deltaY * 0.0015);
+      const next = Math.min(6, Math.max(0.35, view.k * factor));
+      // Zoom towards the pointer rather than the origin.
+      const rect = svg.getBoundingClientRect();
+      const px = event.clientX - rect.left - rect.width / 2;
+      const py = event.clientY - rect.top - rect.height / 2;
+      view.x = px - ((px - view.x) * next) / view.k;
+      view.y = py - ((py - view.y) * next) / view.k;
+      view.k = next;
+      applyView();
+    }, { passive: false });
+
+    let dragging = null;
+    svg.addEventListener("pointerdown", (event) => {
+      dragging = { x: event.clientX - view.x, y: event.clientY - view.y };
+      svg.classList.add("dragging");
+      svg.setPointerCapture(event.pointerId);
+    });
+    svg.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      view.x = event.clientX - dragging.x;
+      view.y = event.clientY - dragging.y;
+      applyView();
+    });
+    const stop = () => {
+      dragging = null;
+      svg.classList.remove("dragging");
+    };
+    svg.addEventListener("pointerup", stop);
+    svg.addEventListener("pointercancel", stop);
+    svg.addEventListener("pointerleave", stop);
   }
 
   transportGroup(group, total) {

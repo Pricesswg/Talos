@@ -149,10 +149,19 @@ count sits next to the other two in the panel and cannot be hidden.
 Findings are the high and medium severity checks with the remediation next to each one, written
 without network jargon, plus the explicit count of what could not be verified.
 
-**Map** answers how devices reach Home Assistant: every device grouped by transport (Zigbee, Wi-Fi,
-Z-Wave, Thread, Matter, Bluetooth, Ethernet) and inside that by integration, with the hubs and the
-devices behind them listed separately. It reads the registry only, so it populates even with no
-AdGuard configured.
+**Map** answers how devices reach Home Assistant. A graph centred on Home Assistant branches out to
+the transports (Zigbee, Wi-Fi, Z-Wave, Thread, Matter, Bluetooth, Ethernet) and then to the
+integrations and their devices. The layout is deterministic rather than a force simulation, so the
+same house always draws the same picture and two people can talk about it; the angular width of a
+branch is its share of the devices, so the shape of the drawing is the shape of the install.
+
+Three detail levels, stepped with the plus and minus buttons: transports, integrations, devices.
+Clicking a single integration opens just that branch, and the rest of the circle makes way instead
+of being squashed. Wheel to zoom, drag to pan, and device labels appear as you zoom in. The search
+box highlights matches and opens the branches that contain them. Below the graph, the hubs and the
+devices behind them, then the full list by transport.
+
+It reads the registry only, so it populates even with no AdGuard configured.
 
 **Advanced** answers who talks to whom and on what evidence: the matrix, the flow graph, the full
 conduit table with its evidence labels, the check results with their subjects, and the unverified

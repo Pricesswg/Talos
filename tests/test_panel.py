@@ -112,8 +112,24 @@ class TestTranslations(unittest.TestCase):
         found = set(re.findall(r"this\.t\(`([\w.]+)\.\$\{", SOURCE))
         self.assertEqual(
             found,
-            {"severity", "evidence", "kind", "reason", "opt", "opt.hint", "transport"},
+            {
+                "severity",
+                "evidence",
+                "kind",
+                "reason",
+                "opt",
+                "opt.hint",
+                "transport",
+                "map.detail",
+            },
         )
+
+    def test_every_map_detail_level_has_a_label(self) -> None:
+        # The map builds map.detail.<n> from its own level counter.
+        for level in (1, 2, 3):
+            with self.subTest(level=level):
+                self.assertIn(f"map.detail.{level}", self.en)
+                self.assertIn(f"map.detail.{level}", self.it)
 
     def test_every_editable_option_has_a_label(self) -> None:
         # The settings screen builds `opt.<key>` at runtime from the option
