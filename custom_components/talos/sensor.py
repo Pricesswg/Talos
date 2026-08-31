@@ -1,7 +1,7 @@
 """Summary sensors.
 
 Two orthogonal numbers, never merged into one score, plus the count of checks
-that could not run — which is the figure most products hide and the one an
+that could not run, which is the figure most products hide and the one an
 "everything is fine" reading would otherwise conceal.
 """
 

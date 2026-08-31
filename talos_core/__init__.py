@@ -1,4 +1,4 @@
-"""Talos core — data model, schema and validator.
+"""Talos core: data model, schema and validator.
 
 Deliberately free of any `homeassistant.*` import. The logic has to be
 testable against JSON fixtures without a running Home Assistant, or it stops

@@ -1,7 +1,7 @@
 """WebSocket commands for the panel.
 
 Every command is admin only. The report is a reconnaissance map of the house
-— addresses, MACs, topology, blind spots — and it must not be reachable by a
+(addresses, MACs, topology, blind spots) and it must not be reachable by a
 non-admin session any more than the panel itself is.
 """
 
@@ -40,7 +40,7 @@ def _coordinator(hass: HomeAssistant) -> TalosCoordinator | None:
 
 
 def _not_ready(connection: websocket_api.ActiveConnection, msg_id: int) -> None:
-    connection.send_error(msg_id, "not_ready", "Talos non ha ancora completato una scansione")
+    connection.send_error(msg_id, "not_ready", "Talos has not completed a scan yet")
 
 
 @websocket_api.require_admin

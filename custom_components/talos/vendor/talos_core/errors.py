@@ -4,9 +4,9 @@ Codes are part of the public contract: the panel, the CLI and any downstream
 tooling key off them. Never renumber a code and never change what one means.
 Retire a code by leaving it in RETIRED and allocating a new number.
 
-    S — schema: shape, types, enums, duplicate identifiers
-    R — references: an identifier that points at nothing, or at a cycle
-    C — coherence: the document parses and resolves but contradicts itself
+    S: schema, shape, types, enums, duplicate identifiers
+    R: references, an identifier that points at nothing, or at a cycle
+    C: coherence, the document parses and resolves but contradicts itself
 """
 
 from __future__ import annotations

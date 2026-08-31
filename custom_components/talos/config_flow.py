@@ -120,7 +120,7 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
         except ObservedError:
             return "cannot_connect"
         except Exception:  # noqa: BLE001
-            _LOGGER.exception("Verifica AdGuard fallita in modo inatteso")
+            _LOGGER.exception("AdGuard check failed unexpectedly")
             return "unknown"
         return None
 

@@ -4,25 +4,25 @@
   "checks": [
     {
       "id": "chk.local_with_egress",
-      "title": "Dispositivo locale con egress verso il produttore",
+      "title": "Local device reaching its vendor's cloud",
       "severity": "high",
       "requires": ["observed_evidence"],
       "selector": { "type": "matrix_quadrant", "quadrant": "local_egress" },
-      "detail": "Home Assistant li controlla in locale, ma il query log li ha visti contattare il cloud del produttore per conto proprio. So con chi hanno parlato, non cosa si sono detti.",
-      "remediation": "Verifica nell'app del produttore se esiste un servizio cloud attivo in parallelo (spesso chiamato P2P, UID o accesso remoto). Disattivarlo non tocca il funzionamento locale con Home Assistant."
+      "detail": "Home Assistant drives these locally, but the query log caught them contacting the vendor cloud on their own. This says who they spoke to, not what was said.",
+      "remediation": "Check the vendor's own app for a cloud service running in parallel, often called P2P, UID or remote access. Turning it off does not affect local control from Home Assistant."
     },
     {
       "id": "chk.resolver_bypass",
-      "title": "Dispositivo che non passa dal resolver",
+      "title": "Device bypassing the resolver",
       "severity": "high",
       "requires": ["dhcp_leases"],
       "selector": { "type": "unverified_present", "check_id": "unv.resolver_bypassed" },
-      "detail": "Ha una lease DHCP ma non ha mai interrogato AdGuard: usa un DNS scritto nel firmware. Su questo host ogni controllo basato sul DNS e' cieco.",
-      "remediation": "Se l'apparecchio lo consente, imposta il DNS della rete. Altrimenti si puo' forzare la redirezione della porta 53 sul router. Resta scoperto il DNS su HTTPS."
+      "detail": "Holds a DHCP lease but has never queried AdGuard: it uses a DNS server hardcoded in its firmware. Every DNS-based check is blind on this host.",
+      "remediation": "Set the network DNS on the device if it allows it. Otherwise redirect port 53 at the router. DNS over HTTPS stays out of reach either way."
     },
     {
       "id": "chk.custom_integration_cloud",
-      "title": "Integrazione non ufficiale con accesso cloud",
+      "title": "Third-party integration with cloud access",
       "severity": "medium",
       "requires": ["manifests"],
       "selector": {
@@ -30,12 +30,12 @@
         "is_built_in": false,
         "iot_class_in": ["cloud_push", "cloud_polling"]
       },
-      "detail": "Integrazioni installate a mano o via HACS che parlano con un servizio esterno. Non sono revisionate da Home Assistant e le credenziali che gestiscono passano da codice di terze parti.",
-      "remediation": "Controlla che il repository sia mantenuto e che l'installazione sia stata una tua scelta. Non e' un difetto in se': e' una superficie di fiducia in piu' da tenere a mente."
+      "detail": "Integrations installed by hand or through HACS that talk to an external service. They are not reviewed by Home Assistant, and the credentials they hold pass through third-party code.",
+      "remediation": "Check that the repository is maintained and that installing it was your own decision. Not a flaw in itself: one more surface you are choosing to trust."
     },
     {
       "id": "chk.device_on_trusted_lan",
-      "title": "Dispositivo che parla fuori pur stando sulla LAN di fiducia",
+      "title": "Device talking outside from the trusted LAN",
       "severity": "medium",
       "requires": ["zones_configured", "observed_evidence"],
       "selector": {
@@ -43,62 +43,62 @@
         "zone_in": ["trusted_lan"],
         "has_phone_home_egress": true
       },
-      "detail": "Sta sulla rete dove tieni anche computer e telefoni, e contatta l'esterno per conto proprio.",
-      "remediation": "Spostalo sulla VLAN IoT se ne hai una. Se non ce l'hai, questo controllo e' il motivo migliore per farne una."
+      "detail": "It sits on the network that also holds your computers and phones, and it reaches the outside on its own.",
+      "remediation": "Move it to the IoT VLAN if you have one. If you do not, this check is the best argument for building one."
     },
     {
       "id": "chk.cloud_declared_silent",
-      "title": "Integrazione cloud che non ha mai contattato nessuno",
+      "title": "Cloud integration that has contacted nobody",
       "severity": "low",
       "requires": ["observed_evidence"],
       "selector": { "type": "matrix_quadrant", "quadrant": "cloud_silent" },
-      "detail": "Dichiarati cloud dal manifest ma silenziosi nel query log. Non e' un merito: o il dispositivo non e' correlato, o usa un resolver suo, o l'integrazione non sta funzionando.",
-      "remediation": "Controlla che il dispositivo sia effettivamente correlato a un IP e che l'integrazione sia carica. Un cloud che non parla di solito significa che qualcosa non va."
+      "detail": "Declared cloud by the manifest yet silent in the query log. Not a merit: either the device is not correlated, or it uses its own resolver, or the integration is not working.",
+      "remediation": "Check that the device is actually correlated to an IP and that the integration is loaded. A cloud that never speaks usually means something is wrong."
     },
 
     {
       "id": "chk.mqtt_anonymous",
-      "title": "Broker MQTT con accesso anonimo",
+      "title": "MQTT broker allowing anonymous access",
       "severity": "high",
       "unverifiable": {
         "reason": "missing_data",
-        "detail": "Richiede un tentativo di connessione al broker senza credenziali. Talos non ha oggi un client MQTT: il controllo non e' implementato, quindi non e' ne' passato ne' fallito."
+        "detail": "Requires an attempt to connect to the broker without credentials. Talos has no MQTT client today: the check is not implemented, so it is neither passed nor failed."
       }
     },
     {
       "id": "chk.mqtt_unknown_client",
-      "title": "Client MQTT non associato ad alcun asset noto",
+      "title": "MQTT client matching no known asset",
       "severity": "high",
       "unverifiable": {
         "reason": "missing_data",
-        "detail": "Richiede la sottoscrizione a $SYS/broker/clients/# e il confronto con il registry. Sorgente non ancora implementata."
+        "detail": "Requires subscribing to $SYS/broker/clients/# and comparing against the registry. Source not implemented yet."
       }
     },
     {
       "id": "chk.zwave_s2",
-      "title": "Nodo Z-Wave senza S2",
+      "title": "Z-Wave node without S2",
       "severity": "medium",
       "unverifiable": {
         "reason": "missing_data",
-        "detail": "Richiede security_class dalla WebSocket di Z-Wave JS. Sorgente non ancora implementata."
+        "detail": "Requires security_class from the Z-Wave JS WebSocket. Source not implemented yet."
       }
     },
     {
       "id": "chk.rtsp_cleartext",
-      "title": "Stream RTSP in chiaro",
+      "title": "RTSP stream in cleartext",
       "severity": "medium",
       "unverifiable": {
         "reason": "method_limit",
-        "detail": "Richiede di sapere su quali porte parlano i dispositivi. Il DNS non lo dice e un port scan e' escluso per scelta di progetto. Verificabile solo leggendo la configurazione delle singole integrazioni video."
+        "detail": "Requires knowing which ports devices speak on. DNS does not say, and a port scan is excluded by design. Only verifiable by reading the configuration of each video integration."
       }
     },
     {
       "id": "chk.arp_unknown",
-      "title": "Dispositivo in ARP assente dal registry di Home Assistant",
+      "title": "Device in ARP absent from the Home Assistant registry",
       "severity": "medium",
       "unverifiable": {
         "reason": "method_limit",
-        "detail": "Dentro il container di Home Assistant la cache ARP contiene solo i peer con cui HA ha parlato di recente, non tutta la LAN. Le lease DHCP restano la fonte migliore e coprono gia' il caso: vedi il controllo zero."
+        "detail": "Inside the Home Assistant container the ARP cache holds only the peers HA spoke to recently, not the whole LAN. DHCP leases remain the better source and already cover the case: see the zero check."
       }
     }
   ]

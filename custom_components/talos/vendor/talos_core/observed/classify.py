@@ -55,7 +55,7 @@ class DomainClassifier:
         """Load rules from JSON, or from YAML when PyYAML is available.
 
         The core declares no dependencies, so YAML is read only if the parser
-        happens to be installed — inside Home Assistant it always is.
+        happens to be installed. Inside Home Assistant it always is.
         """
         source = Path(path) if path else DEFAULT_RULES_PATH
         text = source.read_text(encoding="utf-8")

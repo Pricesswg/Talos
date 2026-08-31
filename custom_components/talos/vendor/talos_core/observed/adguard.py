@@ -115,7 +115,7 @@ class AdGuardCollector(ObservedSource):
 
     async def _read_optional(self, path: str) -> Any:
         """DHCP served by the router, or an appliance with clients hidden, is
-        a normal setup — not an error. The caller degrades from an empty
+        a normal setup, not an error. The caller degrades from an empty
         answer and says so."""
         try:
             return await self._get(path)
@@ -167,7 +167,7 @@ class AiohttpJsonTransport:
 
         async with self._session.get(f"{self._base_url}{path}", params=params) as response:
             if response.status in (401, 403):
-                raise ObservedAuthError(f"{path}: credenziali rifiutate ({response.status})")
+                raise ObservedAuthError(f"{path}: credentials rejected ({response.status})")
             if response.status >= 400:
                 raise ObservedError(f"{path}: HTTP {response.status}")
             return await response.json()

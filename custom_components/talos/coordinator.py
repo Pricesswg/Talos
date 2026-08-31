@@ -5,7 +5,7 @@ walk over the registries, the derivations. The query log is paginated and can
 be long, so nothing here may sit on the event loop.
 
 A scan is always produced, even when the observed side fails. Losing AdGuard
-must degrade the report to `declared` only, with a note saying so — never
+must degrade the report to `declared` only, with a note saying so, never
 leave the panel showing yesterday's numbers as if they were today's.
 """
 
@@ -141,7 +141,7 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         try:
             extra = DomainClassifier.load(rules_path)
         except Exception as err:  # noqa: BLE001 - a bad user file must not stop the scan
-            _LOGGER.warning("Lista domini personalizzata non caricata (%s): %s", rules_path, err)
+            _LOGGER.warning("Custom domain list not loaded (%s): %s", rules_path, err)
             return classifier
         # The user's rules layer on top of the shipped ones, never replace them.
         return classifier.merged_with(extra)
@@ -152,7 +152,7 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         try:
             return CheckEngine.load(rules_path)
         except Exception as err:  # noqa: BLE001 - a bad user file must not stop the scan
-            _LOGGER.warning("Regole di controllo personalizzate non caricate (%s): %s", rules_path, err)
+            _LOGGER.warning("Custom check rules not loaded (%s): %s", rules_path, err)
             return CheckEngine.load()
 
     async def async_shutdown_store(self) -> None:
@@ -172,7 +172,7 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         try:
             scan = await NativeSource(self.hass).fetch()
         except Exception as err:  # noqa: BLE001
-            raise UpdateFailed(f"lettura dei registry fallita: {err}") from err
+            raise UpdateFailed(f"reading the registries failed: {err}") from err
 
         observed_available = False
         observed_error: str | None = None
@@ -183,11 +183,11 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
                 scan = await self._merge_observed(scan, store, url)
                 observed_available = True
             except ObservedAuthError as err:
-                observed_error = f"credenziali AdGuard rifiutate: {err}"
+                observed_error = f"AdGuard credentials rejected: {err}"
             except ObservedError as err:
-                observed_error = f"AdGuard non raggiungibile: {err}"
+                observed_error = f"AdGuard unreachable: {err}"
             except Exception as err:  # noqa: BLE001
-                observed_error = f"raccolta osservativa fallita: {err}"
+                observed_error = f"observed collection failed: {err}"
 
             if observed_error:
                 # Say it in the report, not only in the log: a scan that
@@ -196,13 +196,13 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
                 scan.unverified.append(
                     UnverifiedCheck(
                         id="unv.observed_source_unavailable",
-                        title="Lato osservativo non disponibile in questa scansione",
+                        title="Observed side unavailable in this scan",
                         reason="missing_data",
                         detail=(
-                            f"{observed_error}. Questa scansione contiene solo cio' che"
-                            " Home Assistant dichiara di se': nessuna colonna 'egress"
-                            " osservato' e' stata verificata. Le caselle vuote non"
-                            " significano assenza di traffico."
+                            f"{observed_error}. This scan holds only what Home"
+                            " Assistant declares about itself: no 'egress observed'"
+                            " column has been verified, so an empty cell does not"
+                            " mean an absence of traffic."
                         ),
                     )
                 )

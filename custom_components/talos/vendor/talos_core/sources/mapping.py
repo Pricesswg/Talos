@@ -101,13 +101,13 @@ def build_scan(
         unverified.append(
             UnverifiedCheck(
                 id="unv.manifests_unavailable",
-                title="Classe iot_class di alcune integrazioni",
+                title="iot_class of some integrations",
                 reason="missing_data",
                 detail=(
-                    "Manifest non leggibile per: "
+                    "Manifest unreadable for: "
                     + ", ".join(sorted(missing_manifests))
-                    + ". Queste integrazioni restano 'unknown' e non sono contate"
-                    " ne' fra le locali ne' fra le cloud."
+                    + ". These integrations stay 'unknown' and are counted neither"
+                    " as local nor as cloud."
                 ),
             )
         )
@@ -123,12 +123,12 @@ def build_scan(
         unverified.append(
             UnverifiedCheck(
                 id="unv.entities_outside_registry",
-                title="Entita' non riconducibili a una config entry",
+                title="Entities that map to no config entry",
                 reason="missing_data",
                 detail=(
-                    f"{orphan_entities} entita' senza config entry ne' device"
-                    " (tipicamente definite in YAML). Non entrano nel conteggio"
-                    " di autonomia."
+                    f"{orphan_entities} entities with neither a config entry nor a"
+                    " device, typically defined in YAML. They are left out of the"
+                    " autonomy count."
                 ),
             )
         )

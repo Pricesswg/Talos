@@ -2,7 +2,7 @@
 
 Same normalised output as the WebSocket source, and for the same reason: the
 CLI and the panel must never start disagreeing about the same house. Only the
-first step differs — the registries are read in process, so there is no token,
+first step differs: the registries are read in process, so there is no token,
 no socket, and the data is always fresh.
 
 The conversion below is a pure function over duck-typed registry objects, so

@@ -2,7 +2,7 @@
 
 Used when Talos runs outside Home Assistant: a container on another machine, a
 cron job, the CLI. Inside HA the registries are read directly and this file is
-not involved — same normalised output either way, which is the whole reason
+not involved. Same normalised output either way, which is the whole reason
 `mapping.build_scan` is a pure function both paths call.
 
 Command names on this API have moved before. Every call goes through an
@@ -67,28 +67,28 @@ class WebSocketSource(DeclarativeSource):
             ENTITY_COMMANDS,
             notes,
             check_id="unv.entity_registry_unreadable",
-            title="Registro delle entita'",
+            title="Entity registry",
             detail=(
-                "Nessun comando accettato dal server. Senza registro entita' i"
-                " conteggi di autonomia restano a zero e non vanno letti come"
-                " 'nessuna entita' a rischio'."
+                "The server accepted no command for it. Without the entity"
+                " registry the autonomy counts stay at zero, and zero must not be"
+                " read as 'nothing at risk'."
             ),
         )
         areas = await self._optional(
             AREA_COMMANDS,
             notes,
             check_id="unv.area_registry_unreadable",
-            title="Registro delle aree",
-            detail="I dispositivi restano senza area. Nessun altro effetto.",
+            title="Area registry",
+            detail="Devices are left without an area. No other effect.",
         )
         manifests = await self._optional(
             MANIFEST_COMMANDS,
             notes,
             check_id="unv.manifest_list_unreadable",
-            title="Elenco dei manifest",
+            title="Manifest list",
             detail=(
-                "Senza manifest ogni integrazione resta 'unknown': non e'"
-                " possibile dire quali dipendono dal cloud."
+                "Without manifests every integration stays 'unknown': there is no"
+                " way to say which ones depend on the cloud."
             ),
         )
 
@@ -126,7 +126,7 @@ class WebSocketSource(DeclarativeSource):
                     id=check_id,
                     title=title,
                     reason="missing_data",
-                    detail=f"{detail} (errore: {error})",
+                    detail=f"{detail} (error: {error})",
                 )
             )
             return []

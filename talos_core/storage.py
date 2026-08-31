@@ -7,7 +7,7 @@ never be able to take somebody's energy dashboard with it.
 **Why anything is stored at all.** AdGuard's query log is a rolling buffer
 with limited retention. If the running totals are not kept on this side, a
 device that phoned home four thousand times last week reads as a handful of
-queries today. The observations table *is* the history — `first_seen` answers
+queries today. The observations table *is* the history: `first_seen` answers
 "since when has this been happening", which is the question a scan snapshot
 would otherwise be kept around to answer.
 
@@ -15,7 +15,7 @@ would otherwise be kept around to answer.
 grows without bound: a browser on the network can invent thousands of domains
 in a week. Two limits, both enforced on every save, because either one alone
 fails: a time window does not bound a busy network, and a row cap alone keeps
-stale rows forever while dropping fresh ones. Space is reclaimed for real —
+stale rows forever while dropping fresh ones. Space is reclaimed for real:
 SQLite does not return pages to the filesystem on DELETE, so the database is
 opened in incremental auto-vacuum and stepped after each prune.
 
@@ -53,7 +53,7 @@ class RetentionPolicy:
     max_observations: int = 20_000
 
     # Scan snapshots are a convenience for loading the panel without
-    # recomputing, not the historical record — that is the observations
+    # recomputing, not the historical record. That is the observations
     # table. A handful is enough to diff against; more is just weight.
     scan_history: int = 5
 

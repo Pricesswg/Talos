@@ -252,8 +252,8 @@ class TestCollectorPagination(unittest.TestCase):
 
     def test_client_names_are_read(self) -> None:
         names = parse_clients(adguard()["clients"])
-        self.assertEqual(names["192.168.1.42"], "Telecamera giardino")
-        self.assertEqual(names["192.168.1.87"], "sconosciuto-87")
+        self.assertEqual(names["192.168.1.42"], "Garden camera")
+        self.assertEqual(names["192.168.1.87"], "unknown-87")
 
 
 class TestMerge(unittest.TestCase):
@@ -331,7 +331,7 @@ class TestMergeNotes(unittest.TestCase):
         checks = {c.id: c for c in merged.unverified}
         self.assertIn("unv.dhcp_leases_unavailable", checks)
         detail = checks["unv.dhcp_leases_unavailable"].detail
-        self.assertIn("non e' stato eseguito", detail)
+        self.assertIn("it did not run", detail)
         self.assertIn("DHCP", detail)
 
         # Every observation is now attributed to nobody.
@@ -348,7 +348,7 @@ class TestMergeNotes(unittest.TestCase):
     def test_devices_without_a_mac_are_declared_uncorrelatable(self) -> None:
         merged = merge_observed(declared_scan(), collect(FakeHttp(adguard())))
         check = next(c for c in merged.unverified if c.id == "unv.devices_without_identifier")
-        self.assertIn("minimo, non un totale", check.detail)
+        self.assertIn("a minimum, not a total", check.detail)
 
     def test_doh_limit_is_always_declared(self) -> None:
         merged = merge_observed(declared_scan(), collect(FakeHttp(adguard())))

@@ -3,8 +3,8 @@
 The canonical unit is the **config entry**, not the device. A config entry
 always has an integration, an iot_class and a built-in flag; devices are zero,
 one or a hundred underneath it. Keying on the device would lose every cloud
-dependency that has no device at all — mobile_app push, TTS, weather, the
-version check Home Assistant makes about itself — which is exactly the
+dependency that has no device at all (mobile_app push, TTS, weather, the
+version check Home Assistant makes about itself) which is exactly the
 category most likely to be cloud-bound.
 
 Loading assumes the document already passed `validate()`. The model does not
@@ -157,7 +157,7 @@ class Destination:
 @dataclass(frozen=True, slots=True)
 class SourceRef:
     """Where a conduit starts. `unknown_host` holds a bare IP seen by the
-    resolver that matches nothing in the registry — the zero check's output."""
+    resolver that matches nothing in the registry, the zero check's output."""
 
     kind: str
     id: str | None = None

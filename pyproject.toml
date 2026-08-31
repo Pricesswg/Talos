@@ -1,7 +1,7 @@
 [project]
 name = "talos-core"
 version = "0.1.0"
-description = "Data provenance and offline-autonomy mapping for Home Assistant — standalone core"
+description = "Talos, HA Security scanner: data provenance and offline autonomy, standalone core"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 readme = "README.md"

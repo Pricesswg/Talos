@@ -115,8 +115,8 @@ class TestWebSocketCollection(unittest.TestCase):
     def test_user_given_name_wins(self) -> None:
         camera = self.scan.device("d_cam1")
         assert camera is not None
-        self.assertEqual(camera.name, "Telecamera giardino")
-        self.assertEqual(camera.area, "Giardino")
+        self.assertEqual(camera.name, "Garden camera")
+        self.assertEqual(camera.area, "Garden")
 
     def test_mac_is_normalised_and_ip_is_never_invented(self) -> None:
         camera = self.scan.device("d_cam1")
@@ -190,7 +190,7 @@ class TestCommandFallbacks(unittest.TestCase):
         self.assertTrue(all(i.entity_count == 0 for i in scan.integrations))
         check = next(c for c in scan.unverified if c.id == "unv.entity_registry_unreadable")
         # The point of the note: zero must not read as "nothing at risk".
-        self.assertIn("nessuna entita'", check.detail)
+        self.assertIn("nothing at risk", check.detail)
 
     def test_missing_device_registry_is_fatal(self) -> None:
         data = registry()
@@ -207,7 +207,7 @@ class TestCommandFallbacks(unittest.TestCase):
             "entries": responses["config/area_registry/list"]
         }
         scan = collect(FakeTransport(responses, data["ha_version"]))
-        self.assertEqual(scan.device("d_cam1").area, "Giardino")  # type: ignore[union-attr]
+        self.assertEqual(scan.device("d_cam1").area, "Garden")  # type: ignore[union-attr]
 
 
 class TestDeclaredOnlyDerivations(unittest.TestCase):
@@ -234,7 +234,7 @@ class TestDeclaredOnlyDerivations(unittest.TestCase):
         # Nothing declares a destination yet, so the vendor label is the name
         # the user would recognise rather than an invented hostname.
         vendors = {loss.vendor for loss in self.derived.autonomy.losses}
-        self.assertEqual(vendors, {"Tuya", "iPhone di Alessandro"})
+        self.assertEqual(vendors, {"Tuya", "Alessandro's iPhone"})
 
     def test_exposure_is_empty_not_reassuring(self) -> None:
         self.assertEqual(self.derived.exposure.vendors, ())

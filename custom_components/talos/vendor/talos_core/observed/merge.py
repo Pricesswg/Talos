@@ -117,7 +117,7 @@ def _inherit_through_hubs(
     through it.
 
     A Zigbee lamp has no IP and therefore no direct egress, but its traffic
-    does leave the house — through the bridge. Recording that as `inherited`
+    does leave the house, through the bridge. Recording that as `inherited`
     keeps it visible without pretending it was observed first-hand.
     """
     by_id = {device.id: device for device in devices}
@@ -181,20 +181,18 @@ def _notes(
         notes.append(
             UnverifiedCheck(
                 id="unv.dhcp_leases_unavailable",
-                title="Lease DHCP non disponibili: controllo zero non eseguibile",
+                title="DHCP leases unavailable: the zero check cannot run",
                 reason="missing_data",
                 detail=(
-                    "Il registro di Home Assistant conosce i MAC, il query log conosce"
-                    " gli IP: le lease DHCP sono l'unico punto in cui i due si"
-                    " incontrano. Senza, ogni osservazione resta attribuita a un host"
-                    " sconosciuto e Talos puo' dire che qualcuno ha contattato un"
-                    " produttore, ma non quale dispositivo sia. Non e' possibile"
-                    " nemmeno confrontare i client visti dal resolver con i"
-                    " dispositivi presenti in rete, quindi un apparecchio con DNS"
-                    " scritto nel firmware non emerge. Per una copertura piena:"
-                    " attiva il server DHCP di AdGuard Home, oppure fornisci le lease"
-                    " del router. Questo controllo non e' fallito, non e' stato"
-                    " eseguito."
+                    "The Home Assistant registry knows MACs, the query log knows IPs:"
+                    " DHCP leases are the only place the two meet. Without them every"
+                    " observation stays attributed to an unknown host, and Talos can"
+                    " say that somebody contacted a vendor but not which device it"
+                    " was. Nor can the resolver's clients be compared against the"
+                    " devices on the network, so an appliance with a hardcoded DNS"
+                    " server never surfaces. For full coverage: enable AdGuard Home's"
+                    " DHCP server, or supply the router's leases. This check did not"
+                    " fail, it did not run."
                 ),
             )
         )
@@ -203,12 +201,13 @@ def _notes(
         notes.append(
             UnverifiedCheck(
                 id="unv.resolver_bypassed",
-                title="Dispositivi che non passano dal resolver",
+                title="Devices bypassing the resolver",
                 reason="method_limit",
                 detail=(
-                    f"Hanno una lease DHCP ma non hanno mai interrogato AdGuard: {hosts}."
-                    " Usano un DNS scritto nel firmware. Su questi host ogni controllo"
-                    " basato sul DNS e' cieco: non sono risultati puliti, sono invisibili."
+                    f"They hold a DHCP lease but have never queried AdGuard: {hosts}."
+                    " They use a DNS server hardcoded in their firmware. Every"
+                    " DNS-based check is blind on these hosts: they are not clean"
+                    " results, they are invisible."
                 ),
                 subjects=[lease.ip for lease in facts.zero.silent_leases],
             )
@@ -219,13 +218,13 @@ def _notes(
         notes.append(
             UnverifiedCheck(
                 id="unv.devices_without_identifier",
-                title="Dispositivi senza MAC nel registry",
+                title="Devices with no MAC in the registry",
                 reason="missing_data",
                 detail=(
-                    f"{without_mac} dispositivi su {len(devices)} non espongono un MAC:"
-                    " la correlazione con il query log non e' possibile. Un eventuale"
-                    " egress diretto di questi dispositivi non sarebbe visto. Il"
-                    " quadrante 'locale con egress' e' quindi un minimo, non un totale."
+                    f"{without_mac} of {len(devices)} devices expose no MAC: they"
+                    " cannot be correlated against the query log. Any direct egress"
+                    " from them would go unseen, so the 'local with egress' quadrant"
+                    " is a minimum, not a total."
                 ),
             )
         )
@@ -236,12 +235,12 @@ def _notes(
         notes.append(
             UnverifiedCheck(
                 id="unv.unclassified_domains",
-                title="Domini non classificati",
+                title="Unclassified domains",
                 reason="missing_data",
                 detail=(
-                    f"{len(classifier.unknown)} domini senza una regola: {sample}{more}."
-                    " Restano contati e visibili invece di finire in un catch-all."
-                    " Estendibili aggiungendo regole alla lista domini."
+                    f"{len(classifier.unknown)} domains with no rule: {sample}{more}."
+                    " They stay counted and visible rather than falling into a"
+                    " catch-all. Extend the domain list to name them."
                 ),
             )
         )
@@ -249,12 +248,12 @@ def _notes(
     notes.append(
         UnverifiedCheck(
             id="unv.doh",
-            title="Traffico DNS su HTTPS",
+            title="DNS over HTTPS traffic",
             reason="method_limit",
             detail=(
-                "Un dispositivo che cifra anche le proprie richieste DNS (DoH, porta"
-                " 443) e' indistinguibile dal traffico normale. Buco strutturale"
-                " dichiarato: questo approccio non lo copre."
+                "A device that encrypts its DNS queries too (DoH, port 443) is"
+                " indistinguishable from ordinary traffic. A declared structural"
+                " gap: this approach does not cover it."
             ),
         )
     )

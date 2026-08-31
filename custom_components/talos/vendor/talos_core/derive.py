@@ -119,7 +119,7 @@ class Autonomy:
     entities_unclassified: int = 0
     integrations_cloud: tuple[str, ...] = ()
     # Per vendor, worst first. Vendors can overlap if one integration talks to
-    # several, so these do not sum to entities_cloud — that total is the one
+    # several, so these do not sum to entities_cloud. That total is the one
     # to quote, these are for deciding what to replace first.
     losses: tuple[VendorLoss, ...] = ()
 

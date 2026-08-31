@@ -8,7 +8,7 @@ language wearing a configuration file's clothes, and it would be worse at
 being either.
 
 The part that matters most is `requires`. A check whose precondition is not
-met is **not** a pass — it goes to the unverified list with the reason. An
+met is **not** a pass: it goes to the unverified list with the reason. An
 empty "local with egress" quadrant means nothing at all until something has
 actually been observed, and reporting it as green would be the exact failure
 this project exists to avoid.
@@ -33,20 +33,20 @@ SEVERITIES: tuple[str, ...] = ("high", "medium", "low")
 # when a check could not run.
 PRECONDITION_REASONS: dict[str, str] = {
     "observed_evidence": (
-        "nessuna osservazione in questa scansione: senza query log una casella"
-        " vuota non significa assenza di traffico"
+        "nothing was observed in this scan: without a query log, an empty cell"
+        " does not mean an absence of traffic"
     ),
     "zones_configured": (
-        "nessun intervallo di rete configurato: Talos non sa quale subnet sia"
-        " la LAN di fiducia e quale la VLAN IoT"
+        "no network ranges configured: Talos does not know which subnet is the"
+        " trusted LAN and which is the IoT VLAN"
     ),
     "dhcp_leases": (
-        "lease DHCP non disponibili: non e' possibile confrontare i client del"
-        " resolver con i dispositivi presenti in rete"
+        "DHCP leases unavailable: the resolver's clients cannot be compared"
+        " against the devices present on the network"
     ),
     "manifests": (
-        "manifest delle integrazioni non leggibili: iot_class e is_built_in non"
-        " sono affidabili in questa scansione"
+        "integration manifests unreadable: iot_class and is_built_in are not"
+        " trustworthy in this scan"
     ),
 }
 
@@ -172,11 +172,11 @@ class CheckEngine:
                         title=rule.get("title") or rule["id"],
                         reason="missing_data",
                         detail=(
-                            "Controllo non eseguito: "
+                            "Check not run: "
                             + "; ".join(
                                 PRECONDITION_REASONS.get(name, name) for name in missing
                             )
-                            + ". Non e' un esito positivo."
+                            + ". This is not a pass."
                         ),
                     )
                 )

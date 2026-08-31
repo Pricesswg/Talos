@@ -108,8 +108,8 @@ class TestPreconditions(unittest.TestCase):
         self.assertNotIn("chk.local_with_egress", passed)
 
         note = next(c for c in report.unverified if c.id == "chk.local_with_egress")
-        self.assertIn("non significa assenza di traffico", note.detail)
-        self.assertIn("Non e' un esito positivo", note.detail)
+        self.assertIn("does not mean an absence of traffic", note.detail)
+        self.assertIn("This is not a pass", note.detail)
 
     def test_without_zones_the_vlan_check_cannot_run(self) -> None:
         raw = load()
@@ -118,7 +118,7 @@ class TestPreconditions(unittest.TestCase):
         report = derive(Scan.from_dict(raw)).checks
         self.assertNotIn("chk.device_on_trusted_lan", {r.id for r in report.passed})
         note = next(c for c in report.unverified if c.id == "chk.device_on_trusted_lan")
-        self.assertIn("intervallo di rete", note.detail)
+        self.assertIn("no network ranges configured", note.detail)
 
     def test_without_leases_the_zero_check_cannot_run(self) -> None:
         raw = load()

@@ -1,7 +1,7 @@
 """NativeSource tests.
 
 The integration package cannot be imported without Home Assistant, but the
-part that matters — turning registry objects into the shared payload shape —
+part that matters, turning registry objects into the shared payload shape,
 is pure and duck-typed. It is loaded here under a synthetic package name so it
 can be exercised with fakes, which is the only way this conversion stays
 tested at all.
@@ -122,7 +122,7 @@ def house() -> dict[str, list[Any]]:
                 config_entries={"e_hue"},
                 primary_config_entry="e_hue",
                 name="Hue lamp",
-                name_by_user="Luce salotto",
+                name_by_user="Living room light",
                 via_device_id="d_bridge",
             ),
             FakeDevice(
@@ -136,7 +136,7 @@ def house() -> dict[str, list[Any]]:
                 id="d_off",
                 config_entries={"e_hue"},
                 primary_config_entry="e_hue",
-                name="Lampada dismessa",
+                name="Retired lamp",
                 disabled_by=DisabledBy.USER,
             ),
         ],
@@ -217,7 +217,7 @@ class TestScanFromRegistries(unittest.TestCase):
         lamp = self.scan.device("d_lamp")
         assert bridge is not None and lamp is not None
         self.assertEqual(bridge.area, "Studio")
-        self.assertEqual(lamp.name, "Luce salotto")
+        self.assertEqual(lamp.name, "Living room light")
         self.assertEqual(lamp.via_device_id, "d_bridge")
 
     def test_transport_hints_match_the_websocket_source(self) -> None:

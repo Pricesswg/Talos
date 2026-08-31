@@ -28,11 +28,11 @@
 
   "clients": {
     "clients": [
-      { "name": "Telecamera giardino", "ids": ["192.168.1.42", "ec:71:db:11:22:33"] },
+      { "name": "Garden camera", "ids": ["192.168.1.42", "ec:71:db:11:22:33"] },
       { "name": "Hue Bridge", "ids": ["192.168.1.30"] }
     ],
     "auto_clients": [
-      { "name": "sconosciuto-87", "ip": "192.168.1.87" }
+      { "name": "unknown-87", "ip": "192.168.1.87" }
     ]
   },
 

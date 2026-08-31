@@ -3,8 +3,8 @@
 `export_report` writes the same self-contained report the CLI produces, from
 inside Home Assistant. The default target is `config/talos/`, deliberately not
 `config/www/`: that directory is served at `/local/` without authentication,
-and this report is a map of the house. Writing there is allowed — some people
-want it — but it says so out loud in the log.
+and this report is a map of the house. Writing there is allowed, some people
+want it, but it says so out loud in the log.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def async_register(hass: HomeAssistant) -> None:
         coordinator = _coordinator(hass)
         data = coordinator.data
         if data is None:
-            raise HomeAssistantError("Talos non ha ancora completato una scansione")
+            raise HomeAssistantError("Talos has not completed a scan yet")
 
         fmt = call.data.get("format", "html")
         target = _resolve(hass, call.data.get("path"), fmt)
@@ -64,7 +64,7 @@ def async_register(hass: HomeAssistant) -> None:
             return len(body)
 
         size = await hass.async_add_executor_job(write)
-        _LOGGER.info("Talos: report scritto in %s (%d byte)", target, size)
+        _LOGGER.info("Talos: report written to %s (%d bytes)", target, size)
 
         return {
             "path": str(target),
@@ -99,7 +99,7 @@ def _coordinator(hass: HomeAssistant) -> TalosCoordinator:
     for value in (hass.data.get(DOMAIN) or {}).values():
         if isinstance(value, TalosCoordinator):
             return value
-    raise HomeAssistantError("Talos non è configurato")
+    raise HomeAssistantError("Talos is not configured")
 
 
 def _resolve(hass: HomeAssistant, raw: str | None, fmt: str) -> Path:
@@ -116,20 +116,20 @@ def _resolve(hass: HomeAssistant, raw: str | None, fmt: str) -> Path:
     root = Path(hass.config.config_dir).resolve()
     if root not in candidate.parents:
         raise HomeAssistantError(
-            f"{candidate} è fuori dalla cartella di configurazione: rifiutato"
+            f"{candidate} is outside the configuration directory: refused"
         )
     if not hass.config.is_allowed_path(str(candidate.parent)):
         raise HomeAssistantError(
-            f"{candidate.parent} non è fra i percorsi consentiti"
+            f"{candidate.parent} is not among the allowed paths"
             " (allowlist_external_dirs)"
         )
     if (root / "www").resolve() in (candidate, *candidate.parents):
         # Not refused: some people want it. But /local/ is served without
         # authentication, and this file maps the whole house.
         _LOGGER.warning(
-            "Talos: %s finisce sotto config/www, che Home Assistant serve su"
-            " /local/ senza autenticazione. Il report elenca indirizzi, MAC e"
-            " topologia di rete.",
+            "Talos: %s lands under config/www, which Home Assistant serves at"
+            " /local/ without authentication. The report lists addresses, MACs"
+            " and network topology.",
             candidate,
         )
     return candidate

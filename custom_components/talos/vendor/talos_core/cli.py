@@ -38,41 +38,41 @@ EXIT_ERROR = 2
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="talos", description="Provenienza dei dati e autonomia offline per Home Assistant")
+    parser = argparse.ArgumentParser(prog="talos", description="Data provenance and offline autonomy for Home Assistant")
     parser.add_argument("--version", action="version", version=f"talos-core {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    scan = sub.add_parser("scan", help="raccogli da Home Assistant (e da AdGuard) e produci un report")
+    scan = sub.add_parser("scan", help="collect from Home Assistant (and AdGuard) and produce a report")
     scan.add_argument("--url", default=os.environ.get("TALOS_HA_URL"),
-                      help="WebSocket di Home Assistant, es. ws://host:8123/api/websocket")
+                      help="Home Assistant WebSocket, e.g. ws://host:8123/api/websocket")
     scan.add_argument("--token", default=os.environ.get("TALOS_HA_TOKEN"),
-                      help="long lived access token (meglio via TALOS_HA_TOKEN)")
+                      help="long lived access token (better via TALOS_HA_TOKEN)")
     scan.add_argument("--adguard", default=os.environ.get("TALOS_ADGUARD_URL"),
-                      help="base URL di AdGuard Home; senza, il report resta solo dichiarativo")
+                      help="AdGuard Home base URL; without it the report stays declared-only")
     scan.add_argument("--adguard-user", default=os.environ.get("TALOS_ADGUARD_USERNAME", ""))
     scan.add_argument("--adguard-password", default=os.environ.get("TALOS_ADGUARD_PASSWORD", ""))
-    scan.add_argument("--db", type=Path, help="file SQLite per i totali incrementali")
+    scan.add_argument("--db", type=Path, help="SQLite file holding the incremental totals")
     scan.add_argument("--observation-days", type=int, default=RetentionPolicy().observation_days)
     scan.add_argument("--max-observations", type=int, default=RetentionPolicy().max_observations)
     _shared_output(scan)
 
-    report = sub.add_parser("report", help="ricalcola e riesporta da uno scan salvato")
-    report.add_argument("file", type=Path, help="documento di scan in JSON")
+    report = sub.add_parser("report", help="recompute and re-export from a saved scan")
+    report.add_argument("file", type=Path, help="scan document in JSON")
     _shared_output(report)
 
-    check = sub.add_parser("validate", help="valida un documento di scan")
+    check = sub.add_parser("validate", help="validate a scan document")
     check.add_argument("file", type=Path)
     return parser
 
 
 def _shared_output(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--zone-trusted", default="", help="subnet della LAN di fiducia, es. 192.168.1.0/24")
-    parser.add_argument("--zone-iot", default="", help="subnet della VLAN IoT")
-    parser.add_argument("--domains", type=Path, help="regole domini aggiuntive (JSON o YAML)")
-    parser.add_argument("--checks", type=Path, help="elenco controlli alternativo (JSON o YAML)")
-    parser.add_argument("--json", dest="json_out", type=Path, help="scrivi scan e derivazioni in JSON")
-    parser.add_argument("--html", dest="html_out", type=Path, help="scrivi un report HTML autoconsistente")
-    parser.add_argument("--quiet", action="store_true", help="non stampare il riepilogo")
+    parser.add_argument("--zone-trusted", default="", help="trusted LAN subnet, e.g. 192.168.1.0/24")
+    parser.add_argument("--zone-iot", default="", help="IoT VLAN subnet")
+    parser.add_argument("--domains", type=Path, help="extra domain rules (JSON or YAML)")
+    parser.add_argument("--checks", type=Path, help="alternative check list (JSON or YAML)")
+    parser.add_argument("--json", dest="json_out", type=Path, help="write the scan and its derivations as JSON")
+    parser.add_argument("--html", dest="html_out", type=Path, help="write a self-contained HTML report")
+    parser.add_argument("--quiet", action="store_true", help="do not print the summary")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -86,18 +86,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:  # pragma: no cover
         return EXIT_ERROR
     except Exception as err:  # noqa: BLE001
-        print(f"errore: {err}", file=sys.stderr)
+        print(f"error: {err}", file=sys.stderr)
         return EXIT_ERROR
 
 
 def _cmd_validate(args: Any) -> int:
     findings = validate(json.loads(args.file.read_text(encoding="utf-8")))
     if not findings:
-        print(f"{args.file}: valido")
+        print(f"{args.file}: valid")
         return EXIT_OK
     for finding in findings:
         print(finding)
-    print(f"\n{len(findings)} problema/i", file=sys.stderr)
+    print(f"\n{len(findings)} problem(s)", file=sys.stderr)
     return EXIT_FINDINGS
 
 
@@ -107,7 +107,7 @@ def _cmd_report(args: Any) -> int:
     document = raw.get("scan") if isinstance(raw, dict) and "scan" in raw else raw
     findings = validate(document)
     if findings:
-        print(f"{args.file}: documento non valido ({len(findings)} problemi)", file=sys.stderr)
+        print(f"{args.file}: invalid document ({len(findings)} problems)", file=sys.stderr)
         for finding in findings[:5]:
             print(f"  {finding}", file=sys.stderr)
         return EXIT_ERROR
@@ -117,7 +117,7 @@ def _cmd_report(args: Any) -> int:
 
 async def _cmd_scan(args: Any) -> int:
     if not args.url or not args.token:
-        print("servono --url e --token (o TALOS_HA_URL e TALOS_HA_TOKEN)", file=sys.stderr)
+        print("--url and --token are required (or TALOS_HA_URL and TALOS_HA_TOKEN)", file=sys.stderr)
         return EXIT_ERROR
 
     async with AiohttpTransport(args.url, args.token) as transport:
@@ -137,14 +137,14 @@ async def _cmd_scan(args: Any) -> int:
         if args.adguard:
             scan = await _collect_observed(scan, store, args)
         elif not args.quiet:
-            print("nota: nessun AdGuard indicato, il report resta solo dichiarativo\n")
+            print("note: no AdGuard given, the report stays declared-only\n")
 
         derived = derive(scan, _engine(args))
         if store is not None:
             store.save_scan(scan)
             report = store.prune()
             if not args.quiet and report.total_removed:
-                print(f"ritenzione: rimosse {report.total_removed} righe\n")
+                print(f"retention: removed {report.total_removed} rows\n")
         return _finish(scan, derived, args)
     finally:
         if store is not None:
@@ -182,11 +182,11 @@ def _finish(scan: Scan, derived: Derived, args: Any) -> int:
     if args.json_out:
         args.json_out.write_text(render_json(scan, derived), encoding="utf-8")
         if not args.quiet:
-            print(f"scritto {args.json_out}")
+            print(f"wrote {args.json_out}")
     if args.html_out:
         args.html_out.write_text(render_html(scan, derived), encoding="utf-8")
         if not args.quiet:
-            print(f"scritto {args.html_out}")
+            print(f"wrote {args.html_out}")
     if not args.quiet:
         print(summary(scan, derived))
     # A non-zero exit when something needs attention, so cron can notice.
@@ -196,16 +196,16 @@ def _finish(scan: Scan, derived: Derived, args: Any) -> int:
 def summary(scan: Scan, derived: Derived) -> str:
     a, c, checks = derived.autonomy, derived.correlation, derived.checks
     lines = [
-        f"Talos · {scan.generated_at} · HA {scan.ha_version or 'n/d'} · raccolta {scan.collector}",
+        f"Talos · {scan.generated_at} · HA {scan.ha_version or 'n/a'} · collector {scan.collector}",
         "",
-        f"  autonomia     {a.entities_local}/{a.entities_total} entità continuano offline",
-        f"  esposizione   {len(derived.exposure.devices_direct)}/{derived.exposure.devices_total} dispositivi parlano fuori",
-        f"  correlazione  {c.devices_correlated}/{c.devices_total} dispositivi ({c.method})",
-        f"  matrice       {len(derived.matrix.local_egress)} locali con egress osservato",
+        f"  autonomy      {a.entities_local}/{a.entities_total} entities keep working offline",
+        f"  exposure      {len(derived.exposure.devices_direct)}/{derived.exposure.devices_total} devices talk outside",
+        f"  correlation   {c.devices_correlated}/{c.devices_total} devices ({c.method})",
+        f"  matrix        {len(derived.matrix.local_egress)} local with observed egress",
         "",
-        f"  rilievi       alta {checks.counts['failed_high']} · media {checks.counts['failed_medium']}"
-        f" · bassa {checks.counts['failed_low']} · superati {checks.counts['passed']}",
-        f"  NON VERIFICATI {checks.counts['unverified']} — non sono esiti positivi",
+        f"  findings      high {checks.counts['failed_high']} · medium {checks.counts['failed_medium']}"
+        f" · low {checks.counts['failed_low']} · passed {checks.counts['passed']}",
+        f"  UNVERIFIED    {checks.counts['unverified']}, these are not passes",
     ]
     if checks.failed:
         lines.append("")

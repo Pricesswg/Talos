@@ -1,6 +1,6 @@
 {
   "domain": "talos",
-  "name": "Talos",
+  "name": "Talos - HA Security scanner",
   "codeowners": [
     "@Pricesswg"
   ],

@@ -1,6 +1,6 @@
 """Network zones from IP ranges.
 
-Home Assistant does not know that 192.168.30.0/24 is the IoT VLAN — only the
+Home Assistant does not know that 192.168.30.0/24 is the IoT VLAN, only the
 person who set the network up knows that. So the ranges are configuration,
 and a device whose address matches none of them stays `unknown` rather than
 being assumed to sit on the trusted LAN.

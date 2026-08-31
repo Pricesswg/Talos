@@ -38,18 +38,18 @@ class TestValidateCommand(unittest.TestCase):
     def test_valid_document_exits_zero(self) -> None:
         code, out, _ = run("validate", str(FIXTURES / "home.json"))
         self.assertEqual(code, EXIT_OK)
-        self.assertIn("valido", out)
+        self.assertIn("valid", out)
 
     def test_invalid_document_prints_codes_and_exits_one(self) -> None:
         code, out, err = run("validate", str(FIXTURES / "invalid_refs.json"))
         self.assertEqual(code, EXIT_FINDINGS)
         self.assertIn("TALOS-R001", out)
-        self.assertIn("problema", err)
+        self.assertIn("problem", err)
 
     def test_missing_file_is_an_error_not_a_crash(self) -> None:
         code, _, err = run("validate", str(FIXTURES / "nope.json"))
         self.assertEqual(code, EXIT_ERROR)
-        self.assertIn("errore:", err)
+        self.assertIn("error:", err)
 
 
 class TestReportCommand(unittest.TestCase):
@@ -76,24 +76,24 @@ class TestReportCommand(unittest.TestCase):
         run("report", str(FIXTURES / "home.json"), "--json", str(json_out), "--quiet")
         code, out, _ = run("report", str(json_out))
         self.assertEqual(code, EXIT_FINDINGS)
-        self.assertIn("autonomia", out)
+        self.assertIn("autonomy", out)
 
     def test_refuses_an_invalid_document(self) -> None:
         code, _, err = run("report", str(FIXTURES / "invalid_refs.json"))
         self.assertEqual(code, EXIT_ERROR)
-        self.assertIn("non valido", err)
+        self.assertIn("invalid document", err)
 
     def test_exit_code_is_zero_without_high_findings(self) -> None:
         raw = json.loads((FIXTURES / "home.json").read_text(encoding="utf-8"))
         # Remove the observations: the egress check can no longer run, so it
-        # must not fail — and must not pass either.
+        # must not fail, and must not pass either.
         raw["conduits"] = []
         raw["destinations"] = []
         path = self.tmp / "declared.json"
         path.write_text(json.dumps(raw), encoding="utf-8")
         code, out, _ = run("report", str(path))
         self.assertEqual(code, EXIT_OK)
-        self.assertIn("NON VERIFICATI", out)
+        self.assertIn("UNVERIFIED", out)
 
     def test_scan_without_credentials_fails_cleanly(self) -> None:
         code, _, err = run("scan")
@@ -104,8 +104,8 @@ class TestReportCommand(unittest.TestCase):
 class TestSummary(unittest.TestCase):
     def test_names_the_unverified_count_explicitly(self) -> None:
         text = summary(scan(), derive(scan()))
-        self.assertIn("NON VERIFICATI", text)
-        self.assertIn("non sono esiti positivi", text)
+        self.assertIn("UNVERIFIED", text)
+        self.assertIn("these are not passes", text)
 
 
 class TestHtmlExport(unittest.TestCase):
@@ -125,8 +125,8 @@ class TestHtmlExport(unittest.TestCase):
         self.assertIn("prefers-color-scheme:dark", self.html)
 
     def test_states_its_limits(self) -> None:
-        self.assertIn("mai “sicuro”", self.html)
-        self.assertIn("Non verificato", self.html)
+        self.assertIn('never\n"safe"', self.html)
+        self.assertIn("Unverified", self.html)
 
     def test_escapes_hostile_content(self) -> None:
         raw = json.loads((FIXTURES / "home.json").read_text(encoding="utf-8"))
@@ -144,7 +144,7 @@ class TestHtmlExport(unittest.TestCase):
     def test_renders_an_empty_scan(self) -> None:
         empty = Scan(generated_at="2026-08-30T09:00:00+00:00", collector="native")
         rendered = render_html(empty, derive(empty))
-        self.assertIn("Nessun condotto", rendered)
+        self.assertIn("No conduit", rendered)
 
 
 if __name__ == "__main__":

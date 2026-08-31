@@ -170,7 +170,7 @@ const I18N = {
       "Not passed, not failed: I do not have the data to say. <strong>They do not count as “all clear”.</strong>",
     "base.findings": "What I would look at first",
     "base.limits":
-      "<b>What this page cannot tell you.</b> Talos watches which addresses devices ask for — not what they send, nor how much. It opens no traffic, tries no passwords, changes nothing. A device that encrypts its DNS queries too stays invisible: that is a limit of the method, not a check that was skipped.",
+      "<b>What this page cannot tell you.</b> Talos watches which addresses devices ask for, not what they send, nor how much. It opens no traffic, tries no passwords, changes nothing. A device that encrypts its DNS queries too stays invisible: that is a limit of the method, not a check that was skipped.",
 
     "banner.declared":
       "<strong>Declared data only.</strong> {reason}. This scan holds what Home Assistant declares about itself: no “talking outside” column has been verified, so an empty cell does not mean an absence of traffic.",
@@ -498,7 +498,7 @@ class TalosPanel extends HTMLElement {
   }
 
   num(value) {
-    if (value == null) return "—";
+    if (value == null) return "-";
     return Number(value).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB");
   }
 
@@ -947,8 +947,8 @@ class TalosPanel extends HTMLElement {
             this.t(`kind.${destination.kind}`)
           )}</span></td>
           <td><span class="ev ev--${esc(conduit.evidence)}">${esc(this.t(`evidence.${conduit.evidence}`))}</span></td>
-          <td class="num">${conduit.query_count == null ? "—" : this.num(conduit.query_count)}</td>
-          <td>${conduit.filter_status ? esc(conduit.filter_status) : "—"}</td>
+          <td class="num">${conduit.query_count == null ? "-" : this.num(conduit.query_count)}</td>
+          <td>${conduit.filter_status ? esc(conduit.filter_status) : "-"}</td>
         </tr>`;
       })
       .join("");

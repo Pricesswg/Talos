@@ -1,58 +1,234 @@
 {
-  "_comment": "Chi sta dietro un dominio lo sa una persona, non lo deduce un algoritmo. Estendibile senza toccare il codice: vedi DomainClassifier.load.",
+  "_comment": "Who sits behind a domain is something a person knows, not something an algorithm derives. Extensible without touching the code: see DomainClassifier.load.",
   "version": 1,
   "ignore": [
-    ".local", ".lan", ".home.arpa", ".internal", ".arpa", ".localdomain"
+    ".local",
+    ".lan",
+    ".home.arpa",
+    ".internal",
+    ".arpa",
+    ".localdomain"
   ],
   "rules": [
-    { "suffix": "reolink.com", "kind": "vendor_cloud", "vendor": "Reolink" },
-    { "suffix": "tuyaeu.com", "kind": "vendor_cloud", "vendor": "Tuya" },
-    { "suffix": "tuyaus.com", "kind": "vendor_cloud", "vendor": "Tuya" },
-    { "suffix": "tuya.com", "kind": "vendor_cloud", "vendor": "Tuya" },
-    { "suffix": "meethue.com", "kind": "vendor_cloud", "vendor": "Signify" },
-    { "suffix": "philips-hue.com", "kind": "vendor_cloud", "vendor": "Signify" },
-    { "suffix": "shelly.cloud", "kind": "vendor_cloud", "vendor": "Allterco" },
-    { "suffix": "shelly.com", "kind": "vendor_cloud", "vendor": "Allterco" },
-    { "suffix": "sonos.com", "kind": "vendor_cloud", "vendor": "Sonos" },
-    { "suffix": "tplinkcloud.com", "kind": "vendor_cloud", "vendor": "TP-Link" },
-    { "suffix": "tplinkra.com", "kind": "vendor_cloud", "vendor": "TP-Link" },
-    { "suffix": "xiaomi.com", "kind": "vendor_cloud", "vendor": "Xiaomi" },
-    { "suffix": "aqara.com", "kind": "vendor_cloud", "vendor": "Aqara" },
-    { "suffix": "hicloud.com", "kind": "vendor_cloud", "vendor": "Huawei" },
-    { "suffix": "ecovacs.com", "kind": "vendor_cloud", "vendor": "Ecovacs" },
-    { "suffix": "roborock.com", "kind": "vendor_cloud", "vendor": "Roborock" },
-    { "suffix": "ring.com", "kind": "vendor_cloud", "vendor": "Ring" },
-    { "suffix": "nest.com", "kind": "vendor_cloud", "vendor": "Google Nest" },
-    { "suffix": "amazonalexa.com", "kind": "vendor_cloud", "vendor": "Amazon" },
-    { "suffix": "netatmo.net", "kind": "vendor_cloud", "vendor": "Netatmo" },
-    { "suffix": "daikin.eu", "kind": "vendor_cloud", "vendor": "Daikin" },
-    { "suffix": "melcloud.com", "kind": "vendor_cloud", "vendor": "Mitsubishi" },
-    { "suffix": "nabucasa.com", "kind": "vendor_cloud", "vendor": "Nabu Casa" },
-    { "suffix": "ui.com", "kind": "vendor_cloud", "vendor": "Ubiquiti" },
-
-    { "suffix": "fcm.googleapis.com", "kind": "push_service", "vendor": "Google" },
-    { "suffix": "android.googleapis.com", "kind": "push_service", "vendor": "Google" },
-    { "suffix": "push.apple.com", "kind": "push_service", "vendor": "Apple" },
-
-    { "suffix": "google-analytics.com", "kind": "telemetry", "vendor": "Google" },
-    { "suffix": "crashlytics.com", "kind": "telemetry", "vendor": "Google" },
-    { "suffix": "sentry.io", "kind": "telemetry", "vendor": "Sentry" },
-    { "suffix": "amplitude.com", "kind": "telemetry", "vendor": "Amplitude" },
-
-    { "suffix": "version.home-assistant.io", "kind": "ota_update", "vendor": "Home Assistant" },
-    { "suffix": "analytics.home-assistant.io", "kind": "telemetry", "vendor": "Home Assistant" },
-    { "suffix": "github.com", "kind": "ota_update", "vendor": "GitHub" },
-    { "suffix": "githubusercontent.com", "kind": "cdn", "vendor": "GitHub" },
-    { "suffix": "pypi.org", "kind": "ota_update", "vendor": "PyPI" },
-
-    { "suffix": "ntp.org", "kind": "ntp", "vendor": null },
-    { "suffix": "time.apple.com", "kind": "ntp", "vendor": "Apple" },
-    { "suffix": "time.windows.com", "kind": "ntp", "vendor": "Microsoft" },
-    { "suffix": "time.google.com", "kind": "ntp", "vendor": "Google" },
-
-    { "suffix": "akamaiedge.net", "kind": "cdn", "vendor": "Akamai" },
-    { "suffix": "cloudfront.net", "kind": "cdn", "vendor": "Amazon" },
-    { "suffix": "fastly.net", "kind": "cdn", "vendor": "Fastly" },
-    { "suffix": "cloudflare.com", "kind": "cdn", "vendor": "Cloudflare" }
+    {
+      "suffix": "reolink.com",
+      "kind": "vendor_cloud",
+      "vendor": "Reolink"
+    },
+    {
+      "suffix": "tuyaeu.com",
+      "kind": "vendor_cloud",
+      "vendor": "Tuya"
+    },
+    {
+      "suffix": "tuyaus.com",
+      "kind": "vendor_cloud",
+      "vendor": "Tuya"
+    },
+    {
+      "suffix": "tuya.com",
+      "kind": "vendor_cloud",
+      "vendor": "Tuya"
+    },
+    {
+      "suffix": "meethue.com",
+      "kind": "vendor_cloud",
+      "vendor": "Signify"
+    },
+    {
+      "suffix": "philips-hue.com",
+      "kind": "vendor_cloud",
+      "vendor": "Signify"
+    },
+    {
+      "suffix": "shelly.cloud",
+      "kind": "vendor_cloud",
+      "vendor": "Allterco"
+    },
+    {
+      "suffix": "shelly.com",
+      "kind": "vendor_cloud",
+      "vendor": "Allterco"
+    },
+    {
+      "suffix": "sonos.com",
+      "kind": "vendor_cloud",
+      "vendor": "Sonos"
+    },
+    {
+      "suffix": "tplinkcloud.com",
+      "kind": "vendor_cloud",
+      "vendor": "TP-Link"
+    },
+    {
+      "suffix": "tplinkra.com",
+      "kind": "vendor_cloud",
+      "vendor": "TP-Link"
+    },
+    {
+      "suffix": "xiaomi.com",
+      "kind": "vendor_cloud",
+      "vendor": "Xiaomi"
+    },
+    {
+      "suffix": "aqara.com",
+      "kind": "vendor_cloud",
+      "vendor": "Aqara"
+    },
+    {
+      "suffix": "hicloud.com",
+      "kind": "vendor_cloud",
+      "vendor": "Huawei"
+    },
+    {
+      "suffix": "ecovacs.com",
+      "kind": "vendor_cloud",
+      "vendor": "Ecovacs"
+    },
+    {
+      "suffix": "roborock.com",
+      "kind": "vendor_cloud",
+      "vendor": "Roborock"
+    },
+    {
+      "suffix": "ring.com",
+      "kind": "vendor_cloud",
+      "vendor": "Ring"
+    },
+    {
+      "suffix": "nest.com",
+      "kind": "vendor_cloud",
+      "vendor": "Google Nest"
+    },
+    {
+      "suffix": "amazonalexa.com",
+      "kind": "vendor_cloud",
+      "vendor": "Amazon"
+    },
+    {
+      "suffix": "netatmo.net",
+      "kind": "vendor_cloud",
+      "vendor": "Netatmo"
+    },
+    {
+      "suffix": "daikin.eu",
+      "kind": "vendor_cloud",
+      "vendor": "Daikin"
+    },
+    {
+      "suffix": "melcloud.com",
+      "kind": "vendor_cloud",
+      "vendor": "Mitsubishi"
+    },
+    {
+      "suffix": "nabucasa.com",
+      "kind": "vendor_cloud",
+      "vendor": "Nabu Casa"
+    },
+    {
+      "suffix": "ui.com",
+      "kind": "vendor_cloud",
+      "vendor": "Ubiquiti"
+    },
+    {
+      "suffix": "fcm.googleapis.com",
+      "kind": "push_service",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "android.googleapis.com",
+      "kind": "push_service",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "push.apple.com",
+      "kind": "push_service",
+      "vendor": "Apple"
+    },
+    {
+      "suffix": "google-analytics.com",
+      "kind": "telemetry",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "crashlytics.com",
+      "kind": "telemetry",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "sentry.io",
+      "kind": "telemetry",
+      "vendor": "Sentry"
+    },
+    {
+      "suffix": "amplitude.com",
+      "kind": "telemetry",
+      "vendor": "Amplitude"
+    },
+    {
+      "suffix": "version.home-assistant.io",
+      "kind": "ota_update",
+      "vendor": "Home Assistant"
+    },
+    {
+      "suffix": "analytics.home-assistant.io",
+      "kind": "telemetry",
+      "vendor": "Home Assistant"
+    },
+    {
+      "suffix": "github.com",
+      "kind": "ota_update",
+      "vendor": "GitHub"
+    },
+    {
+      "suffix": "githubusercontent.com",
+      "kind": "cdn",
+      "vendor": "GitHub"
+    },
+    {
+      "suffix": "pypi.org",
+      "kind": "ota_update",
+      "vendor": "PyPI"
+    },
+    {
+      "suffix": "ntp.org",
+      "kind": "ntp",
+      "vendor": null
+    },
+    {
+      "suffix": "time.apple.com",
+      "kind": "ntp",
+      "vendor": "Apple"
+    },
+    {
+      "suffix": "time.windows.com",
+      "kind": "ntp",
+      "vendor": "Microsoft"
+    },
+    {
+      "suffix": "time.google.com",
+      "kind": "ntp",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "akamaiedge.net",
+      "kind": "cdn",
+      "vendor": "Akamai"
+    },
+    {
+      "suffix": "cloudfront.net",
+      "kind": "cdn",
+      "vendor": "Amazon"
+    },
+    {
+      "suffix": "fastly.net",
+      "kind": "cdn",
+      "vendor": "Fastly"
+    },
+    {
+      "suffix": "cloudflare.com",
+      "kind": "cdn",
+      "vendor": "Cloudflare"
+    }
   ]
 }

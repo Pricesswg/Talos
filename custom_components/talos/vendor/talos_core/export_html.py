@@ -2,7 +2,7 @@
 
 One file, no network, no scripts: it has to survive being emailed, archived
 for a year, and opened on a machine with no internet. So the fonts are the
-system stack, the CSS is inline, and nothing is interactive — an archived
+system stack, the CSS is inline, and nothing is interactive. An archived
 report that needs a server to render is not an archive.
 
 The wording follows the panel's: facts and their evidence, never a verdict
@@ -18,22 +18,22 @@ from typing import Any
 from .derive import Derived
 from .model import Scan
 
-SEVERITY_LABEL = {"high": "alta", "medium": "media", "low": "bassa"}
+SEVERITY_LABEL = {"high": "high", "medium": "medium", "low": "low"}
 KIND_LABEL = {
-    "vendor_cloud": "cloud produttore",
-    "telemetry": "telemetria",
-    "push_service": "servizio push",
-    "ota_update": "aggiornamenti",
-    "ntp": "orologio",
+    "vendor_cloud": "vendor cloud",
+    "telemetry": "telemetry",
+    "push_service": "push service",
+    "ota_update": "updates",
+    "ntp": "clock",
     "cdn": "CDN",
-    "local_broker": "broker locale",
+    "local_broker": "local broker",
     "ha_core": "Home Assistant",
-    "unknown": "non classificato",
+    "unknown": "unclassified",
 }
 REASON_LABEL = {
-    "not_executable": "non eseguibile",
-    "missing_data": "dati mancanti",
-    "method_limit": "limite di metodo",
+    "not_executable": "not runnable",
+    "missing_data": "missing data",
+    "method_limit": "method limit",
 }
 
 _CSS = """
@@ -92,7 +92,7 @@ def _e(value: Any) -> str:
 
 
 def _n(value: Any) -> str:
-    return "—" if value is None else f"{int(value):,}".replace(",", ".")
+    return "-" if value is None else f"{int(value):,}".replace(",", ".")
 
 
 def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
@@ -113,46 +113,46 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
         return identifier
 
     parts: list[str] = []
-    parts.append(f"""<!doctype html><html lang="it"><head><meta charset="utf-8">
+    parts.append(f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{_e(title)}</title><style>{_CSS}</style></head><body><div class="wrap">
 <header>
   <h1>{_e(title)}</h1>
-  <div class="meta mono">generato {_e(scan.generated_at)} · Home Assistant {_e(scan.ha_version or "n/d")}
-  · raccolta {_e(scan.collector)} · schema {_e(scan.schema_version)}</div>
+  <div class="meta mono">generated {_e(scan.generated_at)} · Home Assistant {_e(scan.ha_version or "n/a")}
+  · collector {_e(scan.collector)} · schema {_e(scan.schema_version)}</div>
 </header>""")
 
     correlation = derived.correlation
     parts.append(f"""<div class="stats">
-  <div class="stat"><div class="l">Se salta internet</div>
-    <div class="v">{_n(autonomy.entities_local)}<small>/{_n(autonomy.entities_total)} entità</small></div>
-    <div class="n">{_n(autonomy.entities_cloud)} entità si fermano.</div></div>
-  <div class="stat"><div class="l">Parlano fuori casa</div>
-    <div class="v">{_n(len(derived.exposure.devices_direct))}<small>/{_n(derived.exposure.devices_total)} dispositivi</small></div>
-    <div class="n">{_n(len(derived.matrix.local_egress))} risultano locali ma contattano il produttore.</div></div>
-  <div class="stat"><div class="l">Non verificato</div>
-    <div class="v">{_n(len(checks.unverified))}<small>controlli</small></div>
-    <div class="n">Non sono passati, non sono falliti. Non contano come “tutto a posto”.</div></div>
-  <div class="stat"><div class="l">Correlazione</div>
-    <div class="v">{_n(correlation.devices_correlated)}<small>/{_n(correlation.devices_total)} dispositivi</small></div>
-    <div class="n">I non correlati potrebbero avere egress non visto.</div></div>
+  <div class="stat"><div class="l">If the internet drops</div>
+    <div class="v">{_n(autonomy.entities_local)}<small>/{_n(autonomy.entities_total)} entities</small></div>
+    <div class="n">{_n(autonomy.entities_cloud)} entities stop.</div></div>
+  <div class="stat"><div class="l">Talking outside</div>
+    <div class="v">{_n(len(derived.exposure.devices_direct))}<small>/{_n(derived.exposure.devices_total)} devices</small></div>
+    <div class="n">{_n(len(derived.matrix.local_egress))} are local yet contact their vendor.</div></div>
+  <div class="stat"><div class="l">Unverified</div>
+    <div class="v">{_n(len(checks.unverified))}<small>checks</small></div>
+    <div class="n">Not passed, not failed. They do not count as all clear.</div></div>
+  <div class="stat"><div class="l">Correlation</div>
+    <div class="v">{_n(correlation.devices_correlated)}<small>/{_n(correlation.devices_total)} devices</small></div>
+    <div class="n">The uncorrelated ones may have egress I cannot see.</div></div>
 </div>""")
 
-    parts.append("<h2>Rilievi</h2>")
+    parts.append("<h2>Findings</h2>")
     if checks.failed:
         for result in checks.failed:
             names = [name_of(result.subject_kind, s) for s in result.subjects][:12]
             parts.append(f"""<div class="find {_e(result.severity)}">
-  <div class="t">{_e(result.title)} <span class="chip">severità {_e(SEVERITY_LABEL.get(result.severity, result.severity))} · {len(result.subjects)}</span></div>
+  <div class="t">{_e(result.title)} <span class="chip">{_e(SEVERITY_LABEL.get(result.severity, result.severity))} severity · {len(result.subjects)}</span></div>
   <div class="d">{_e(result.detail)}{f'<br><span class="mono">{_e(", ".join(names))}</span>' if names else ""}</div>
   {f'<div class="r">{_e(result.remediation)}</div>' if result.remediation else ""}
 </div>""")
     else:
-        parts.append('<div class="find ok"><div class="t">Nessun rilievo</div>'
-                     '<div class="d">Nessun controllo eseguibile ha prodotto un rilievo.</div></div>')
+        parts.append('<div class="find ok"><div class="t">No findings</div>'
+                     '<div class="d">No runnable check produced a finding.</div></div>')
     for result in checks.passed:
         parts.append(f'<div class="find ok"><div class="t">{_e(result.title)} '
-                     f'<span class="chip">superato</span></div></div>')
+                     f'<span class="chip">passed</span></div></div>')
 
     matrix = derived.matrix
 
@@ -162,14 +162,14 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
         return (f'<td class="{"key" if key and ids else ""}"><div class="n">{len(ids)}</div>'
                 f'<div class="sub">{_e(text)}{_e(sample and " " + sample + more)}</div></td>')
 
-    parts.append(f"""<h2>Matrice</h2><div class="scroll"><table class="matrix">
-<tr><th>Classe HA / rete</th><th>Nessun egress osservato</th><th>Egress osservato</th></tr>
-<tr><th>Locale<span class="sub mono">local_push · local_polling</span></th>
-{cell(matrix.local_silent, "Nessuna richiesta verso l'esterno osservata.")}
-{cell(matrix.local_egress, "Telefonano a casa alle spalle di HA.", True)}</tr>
+    parts.append(f"""<h2>Matrix</h2><div class="scroll"><table class="matrix">
+<tr><th>HA class / network</th><th>No egress observed</th><th>Egress observed</th></tr>
+<tr><th>Local<span class="sub mono">local_push · local_polling</span></th>
+{cell(matrix.local_silent, "No outbound lookup observed.")}
+{cell(matrix.local_egress, "Phoning home behind Home Assistant's back.", True)}</tr>
 <tr><th>Cloud<span class="sub mono">cloud_push · cloud_polling</span></th>
-{cell(matrix.cloud_silent, "Dichiarati cloud ma silenziosi. Da indagare.")}
-{cell(matrix.cloud_egress, "Dipendenza dichiarata e confermata.")}</tr>
+{cell(matrix.cloud_silent, "Declared cloud but silent. Worth investigating.")}
+{cell(matrix.cloud_egress, "Declared dependency, confirmed.")}</tr>
 </table></div>""")
 
     if matrix.inherited:
@@ -177,8 +177,8 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
             f"{name_of('device', i.device_id)} (via {name_of('device', i.hub_id)})"
             for i in matrix.inherited[:10]
         )
-        parts.append(f'<div class="note"><b>Esposti tramite un hub:</b> {_e(inherited)}. '
-                     "Tenuti fuori dai quadranti: sono una cosa da sistemare, non tante.</div>")
+        parts.append(f'<div class="note"><b>Exposed through a hub:</b> {_e(inherited)}. '
+                     "Kept out of the quadrants: that is one thing to fix, not many.</div>")
 
     rows: list[str] = []
     for conduit in sorted(scan.conduits, key=lambda c: -(c.query_count or 0)):
@@ -191,35 +191,35 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
                       if device else _e(conduit.source.id))
         elif conduit.source.kind == "integration":
             integration = integrations.get(conduit.source.id or "")
-            origin = (f"{_e(integration.title)}<span class='sub mono'>{_e(integration.domain)} · nessun device</span>"
+            origin = (f"{_e(integration.title)}<span class='sub mono'>{_e(integration.domain)} · no device</span>"
                       if integration else _e(conduit.source.id))
         elif conduit.source.kind == "ha_core":
             origin = "Home Assistant<span class='sub mono'>core</span>"
         else:
-            origin = f"Host non identificato<span class='sub mono'>{_e(conduit.source.id)}</span>"
+            origin = f"Unidentified host<span class='sub mono'>{_e(conduit.source.id)}</span>"
         key = (conduit.evidence == "observed" and conduit.source.kind == "device"
                and conduit.source.id in matrix.local_egress)
         rows.append(f"""<tr class="{"key" if key else ""}"><td>{origin}</td>
 <td class="mono">{_e(fqdn)}</td><td>{_e(KIND_LABEL.get(kind, kind))}</td>
 <td class="mono">{_e(conduit.evidence)}</td><td class="num">{_n(conduit.query_count)}</td>
-<td>{_e(conduit.filter_status or "—")}</td></tr>""")
+<td>{_e(conduit.filter_status or "-")}</td></tr>""")
 
-    parts.append(f"""<h2>Condotti · {len(scan.conduits)}</h2><div class="scroll"><table>
-<tr><th>Origine</th><th>Destinazione</th><th>Tipo</th><th>Prova</th><th class="num">Query</th><th>Filtro</th></tr>
-{"".join(rows) or "<tr><td colspan='6'>Nessun condotto in questa scansione.</td></tr>"}
+    parts.append(f"""<h2>Conduits · {len(scan.conduits)}</h2><div class="scroll"><table>
+<tr><th>Origin</th><th>Destination</th><th>Kind</th><th>Evidence</th><th class="num">Queries</th><th>Filter</th></tr>
+{"".join(rows) or "<tr><td colspan='6'>No conduit in this scan.</td></tr>"}
 </table></div>""")
 
-    parts.append(f"<h2>Non verificato · {len(checks.unverified)}</h2>")
+    parts.append(f"<h2>Unverified · {len(checks.unverified)}</h2>")
     for check in checks.unverified:
         parts.append(f"""<div class="find">
   <div class="t">{_e(check.title)} <span class="chip">{_e(REASON_LABEL.get(check.reason, check.reason))}</span></div>
   <div class="d">{_e(check.detail)}</div></div>""")
 
-    parts.append("""<div class="note"><b>Cosa questo report non dice.</b> Talos guarda a chi i
-dispositivi chiedono gli indirizzi, non cosa mandano né quanto. Non apre il traffico, non prova
-password, non scansiona porte. Un dispositivo che cifra anche le richieste DNS resta invisibile: è
-un limite della tecnica, non un controllo saltato. Le caselle vuote significano “non osservato”,
-mai “sicuro”.</div>""")
+    parts.append("""<div class="note"><b>What this report does not say.</b> Talos watches which
+addresses devices ask for, not what they send nor how much. It opens no traffic, tries no
+passwords, scans no ports. A device that encrypts its DNS queries too stays invisible: that is a
+limit of the method, not a check that was skipped. An empty cell means "not observed", never
+"safe".</div>""")
 
     parts.append("</div></body></html>")
     return "\n".join(parts)
