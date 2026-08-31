@@ -13,7 +13,15 @@ import voluptuous as vol
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN
+from .const import (
+    CONF_ADGUARD_PASSWORD,
+    CONF_ADGUARD_URL,
+    CONF_ADGUARD_USERNAME,
+    CONF_VERIFY_SSL,
+    DOMAIN,
+    OPTION_BOUNDS,
+    TEXT_OPTIONS,
+)
 from .coordinator import TalosCoordinator
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
@@ -29,6 +37,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_scan)
     websocket_api.async_register_command(hass, ws_derived)
     websocket_api.async_register_command(hass, ws_refresh)
+    websocket_api.async_register_command(hass, ws_set_options)
 
 
 def _coordinator(hass: HomeAssistant) -> TalosCoordinator | None:
@@ -69,6 +78,18 @@ def ws_status(
             )
             if coordinator.update_interval
             else None,
+            "options": dict(coordinator.entry.options),
+            "bounds": {key: list(value) for key, value in OPTION_BOUNDS.items()},
+            "text_options": list(TEXT_OPTIONS),
+            # The endpoint is shown so the settings screen can state what it is
+            # talking to. The password never leaves the config entry: only
+            # whether one is set.
+            "connection": {
+                CONF_ADGUARD_URL: coordinator.entry.data.get(CONF_ADGUARD_URL, ""),
+                CONF_ADGUARD_USERNAME: coordinator.entry.data.get(CONF_ADGUARD_USERNAME, ""),
+                CONF_VERIFY_SSL: bool(coordinator.entry.data.get(CONF_VERIFY_SSL, True)),
+                "has_password": bool(coordinator.entry.data.get(CONF_ADGUARD_PASSWORD)),
+            },
         },
     )
 
@@ -140,6 +161,55 @@ def ws_derived(
             "observed_error": data.observed_error,
         },
     )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/options/set",
+        vol.Required("options"): dict,
+    }
+)
+@websocket_api.async_response
+async def ws_set_options(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Update the editable options from the panel.
+
+    Only the options are writable here. The AdGuard endpoint and its
+    credentials stay in the config entry and are changed through the
+    reconfigure flow, so no password ever travels over this socket.
+    """
+    coordinator = _coordinator(hass)
+    if coordinator is None:
+        _not_ready(connection, msg["id"])
+        return
+
+    merged = dict(coordinator.entry.options)
+    for key, value in msg["options"].items():
+        if key in OPTION_BOUNDS:
+            try:
+                number = int(value)
+            except (TypeError, ValueError):
+                connection.send_error(msg["id"], "invalid_format", f"{key} must be a whole number")
+                return
+            minimum, maximum = OPTION_BOUNDS[key]
+            if not minimum <= number <= maximum:
+                connection.send_error(
+                    msg["id"], "invalid_format", f"{key} must be between {minimum} and {maximum}"
+                )
+                return
+            merged[key] = number
+        elif key in TEXT_OPTIONS:
+            merged[key] = str(value or "").strip()
+        else:
+            connection.send_error(msg["id"], "invalid_format", f"unknown option: {key}")
+            return
+
+    # Updating the entry fires the update listener, which reloads Talos with
+    # the new interval, retention policy and zone ranges.
+    hass.config_entries.async_update_entry(coordinator.entry, options=merged)
+    connection.send_result(msg["id"], {"options": merged})
 
 
 @websocket_api.require_admin

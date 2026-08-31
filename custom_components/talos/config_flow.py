@@ -46,6 +46,7 @@ from .const import (
     DEFAULT_PAGE_SIZE,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    OPTION_BOUNDS,
 )
 from .core import ObservedAuthError, ObservedError, RetentionPolicy
 from .http_transport import HassHttpTransport
@@ -75,7 +76,9 @@ def _connection_schema(current: dict[str, Any] | None = None) -> vol.Schema:
     )
 
 
-def _number(minimum: int, maximum: int, unit: str | None = None) -> NumberSelector:
+def _bounded(option: str, unit: str | None = None) -> NumberSelector:
+    """A box bounded by OPTION_BOUNDS, so the flow and the panel agree."""
+    minimum, maximum = OPTION_BOUNDS[option]
     return NumberSelector(
         NumberSelectorConfig(
             min=minimum, max=maximum, step=1, mode=NumberSelectorMode.BOX, unit_of_measurement=unit
@@ -192,27 +195,27 @@ class TalosOptionsFlow(OptionsFlow):
                 vol.Required(
                     CONF_SCAN_INTERVAL,
                     default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
-                ): _number(5, 1440, "min"),
+                ): _bounded(CONF_SCAN_INTERVAL, "min"),
                 vol.Required(
                     CONF_OBSERVATION_DAYS,
                     default=options.get(CONF_OBSERVATION_DAYS, default.observation_days),
-                ): _number(1, 3650, "d"),
+                ): _bounded(CONF_OBSERVATION_DAYS, "d"),
                 vol.Required(
                     CONF_MAX_OBSERVATIONS,
                     default=options.get(CONF_MAX_OBSERVATIONS, default.max_observations),
-                ): _number(500, 500_000),
+                ): _bounded(CONF_MAX_OBSERVATIONS),
                 vol.Required(
                     CONF_SCAN_HISTORY,
                     default=options.get(CONF_SCAN_HISTORY, default.scan_history),
-                ): _number(1, 200),
+                ): _bounded(CONF_SCAN_HISTORY),
                 vol.Required(
                     CONF_PAGE_SIZE,
                     default=options.get(CONF_PAGE_SIZE, DEFAULT_PAGE_SIZE),
-                ): _number(50, 2000),
+                ): _bounded(CONF_PAGE_SIZE),
                 vol.Required(
                     CONF_MAX_PAGES,
                     default=options.get(CONF_MAX_PAGES, DEFAULT_MAX_PAGES),
-                ): _number(1, 500),
+                ): _bounded(CONF_MAX_PAGES),
                 # Network zones are configuration, not something Home
                 # Assistant can know. Until these are given, the checks that
                 # depend on them declare themselves unrunnable.

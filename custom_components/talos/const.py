@@ -33,6 +33,26 @@ DEFAULT_SCAN_INTERVAL: Final = 15
 DEFAULT_PAGE_SIZE: Final = 500
 DEFAULT_MAX_PAGES: Final = 40
 
+# Bounds for the numeric options, shared by the options flow and the panel so
+# the two can never disagree about what is acceptable.
+OPTION_BOUNDS: Final[dict[str, tuple[int, int]]] = {
+    CONF_SCAN_INTERVAL: (5, 1440),
+    CONF_OBSERVATION_DAYS: (1, 3650),
+    CONF_MAX_OBSERVATIONS: (500, 500_000),
+    CONF_SCAN_HISTORY: (1, 200),
+    CONF_PAGE_SIZE: (50, 2000),
+    CONF_MAX_PAGES: (1, 500),
+}
+
+# Free text options: network ranges and paths to user rule files.
+TEXT_OPTIONS: Final[tuple[str, ...]] = (
+    CONF_ZONE_TRUSTED,
+    CONF_ZONE_IOT,
+    CONF_ZONE_GUEST,
+    CONF_DOMAIN_RULES,
+    CONF_CHECK_RULES,
+)
+
 # Its own file, never the recorder's database.
 STORAGE_DIR: Final = "talos"
 STORAGE_FILE: Final = "talos.db"

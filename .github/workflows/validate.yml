@@ -24,6 +24,16 @@ jobs:
         # that is the regression, not the failure.
         run: python -m unittest discover -s tests -t . -v
 
+      - name: Parse the panel
+        # The Python tests read the panel as text, so a syntax error in it
+        # would otherwise reach a release. Node parses it for real.
+        run: |
+          node --input-type=module -e '
+            import fs from "fs";
+            new Function(fs.readFileSync("custom_components/talos/www/talos-panel.js", "utf8"));
+            console.log("panel parses");
+          '
+
   bundle:
     name: bundled core is in sync
     runs-on: ubuntu-latest

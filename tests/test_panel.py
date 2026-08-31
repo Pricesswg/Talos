@@ -19,8 +19,40 @@ from talos_core.const import (
 )
 from talos_core.checks import SEVERITIES
 
-PANEL = Path(__file__).resolve().parent.parent / "custom_components" / "talos" / "www" / "talos-panel.js"
+ROOT = Path(__file__).resolve().parent.parent
+PANEL = ROOT / "custom_components" / "talos" / "www" / "talos-panel.js"
+CONST = ROOT / "custom_components" / "talos" / "const.py"
 SOURCE = PANEL.read_text(encoding="utf-8")
+
+
+def editable_options() -> set[str]:
+    """The option keys the panel is expected to label, read from const.py.
+
+    Parsed rather than duplicated: adding an option in Python and forgetting
+    its label would otherwise show a raw key in the settings screen.
+    """
+    import ast
+
+    tree = ast.parse(CONST.read_text(encoding="utf-8"))
+    constants: dict[str, str] = {}
+    numeric: list[str] = []
+    text: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            name, value = node.target.id, node.value
+        elif isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+            name, value = node.targets[0].id, node.value
+        else:
+            continue
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            constants[name] = value.value
+        elif name == "OPTION_BOUNDS" and isinstance(value, ast.Dict):
+            numeric = [k.id for k in value.keys if isinstance(k, ast.Name)]
+        elif name == "TEXT_OPTIONS" and isinstance(value, ast.Tuple):
+            text = [e.id for e in value.elts if isinstance(e, ast.Name)]
+
+    assert numeric and text, "could not read the option lists from const.py"
+    return {constants[name] for name in (*numeric, *text)}
 
 
 def table(language: str) -> set[str]:
@@ -76,7 +108,15 @@ class TestTranslations(unittest.TestCase):
         # If a new `this.t(\`x.${...}\`)` appears, this test must be taught
         # about it rather than silently ignoring it.
         found = set(re.findall(r"this\.t\(`([\w.]+)\.\$\{", SOURCE))
-        self.assertEqual(found, {"severity", "evidence", "kind", "reason"})
+        self.assertEqual(found, {"severity", "evidence", "kind", "reason", "opt", "opt.hint"})
+
+    def test_every_editable_option_has_a_label(self) -> None:
+        # The settings screen builds `opt.<key>` at runtime from the option
+        # list in const.py, so the two have to stay in step.
+        for option in editable_options():
+            with self.subTest(option=option):
+                self.assertIn(f"opt.{option}", self.en)
+                self.assertIn(f"opt.{option}", self.it)
 
 
 class TestEscaping(unittest.TestCase):

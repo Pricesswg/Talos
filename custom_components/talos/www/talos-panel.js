@@ -27,27 +27,30 @@ const I18N = {
     "mode.base": "Base",
     "mode.advanced": "Avanzata",
 
-    "base.title": "Come sta messa la tua casa",
+    "base.title": "Panoramica di sicurezza",
     "base.lead":
-      "Due domande, tenute separate perché hanno rimedi diversi: cosa smette di funzionare se salta internet, e quali dispositivi parlano con server fuori casa.",
-    "base.offline.label": "Se salta internet",
+      "Due misure indipendenti, tenute separate perché richiedono interventi diversi: la continuità del sistema in assenza di connettività, e le comunicazioni dei dispositivi verso destinazioni esterne.",
+    "base.offline.label": "Continuità offline",
     "base.offline.unit": "/{total} entità",
-    "base.offline.stops": "<strong>{n} entità</strong> si fermano.",
-    "base.offline.none": "Nessuna entità dipende dal cloud.",
+    "base.offline.stops": "<strong>{n} entità</strong> cessano di funzionare.",
+    "base.offline.none": "Nessuna entità dipende da servizi cloud.",
     "base.offline.unclassified": "{n} non classificate.",
-    "base.exposure.label": "Parlano fuori casa",
+    "base.exposure.label": "Comunicazioni esterne",
     "base.exposure.unit": "/{total} dispositivi",
     "base.exposure.local":
       "<strong>{n}</strong> risultano locali a Home Assistant ma contattano comunque il produttore.",
     "base.exposure.none": "Nessun dispositivo locale risulta contattare il produttore.",
     "base.exposure.inherited": "{n} esposti tramite un hub.",
-    "base.unverified.label": "Non ho potuto verificare",
+    "base.unverified.label": "Controlli non eseguibili",
     "base.unverified.unit": "controlli",
     "base.unverified.note":
-      "Non sono passati, non sono falliti: non ho i dati per dirlo. <strong>Non contano come “tutto a posto”.</strong>",
-    "base.findings": "Cosa guarderei per primo",
-    "base.limits":
-      "<b>Cosa questa pagina non sa dirti.</b> Talos guarda a chi i dispositivi chiedono gli indirizzi, non cosa mandano né quanto. Non apre il traffico, non prova password, non tocca niente. Un dispositivo che cifra anche le richieste DNS resta invisibile: è un limite della tecnica, non un controllo saltato.",
+      "Non superati e non falliti: i dati disponibili non consentono di esprimersi. <strong>Non vanno conteggiati fra gli esiti positivi.</strong>",
+    "base.findings": "Problematiche principali",
+    "base.limits.label": "Ambito dell'analisi",
+    "base.limits.scope":
+      "Talos osserva a quali indirizzi i dispositivi chiedono la risoluzione DNS. Non ispeziona il contenuto del traffico, non ne misura il volume, non esegue scansioni di porte, non tenta credenziali e non modifica alcuna configurazione. Ogni sorgente è interrogata in sola lettura.",
+    "base.limits.responsibility":
+      "Restano fuori dall'analisi e a carico dell'operatore: la segmentazione della rete, le credenziali dei dispositivi e dei servizi, gli aggiornamenti firmware, l'esposizione di Home Assistant verso internet e il traffico che cifra anche le proprie richieste DNS. Un esito privo di rilievi indica assenza di evidenze, non assenza di rischio.",
 
     "banner.declared":
       "<strong>Solo dati dichiarati.</strong> {reason}. Questa scansione contiene ciò che Home Assistant dichiara di sé: nessuna colonna “parlano fuori casa” è stata verificata, quindi le caselle vuote non significano assenza di traffico.",
@@ -56,15 +59,15 @@ const I18N = {
     "find.contacted": " Contattati: <strong>{list}</strong>.",
     "find.queries": "{n} query",
     "find.severity": "severità {level}",
-    "find.offline.title": "Senza internet si ferma {vendor}",
+    "find.offline.title": "Dipendenza da {vendor} in assenza di connettività",
     "find.offline.body":
-      "Si fermerebbero {list}. È il funzionamento normale di questi servizi.",
+      "In assenza di connettività cessano di funzionare {list}. È il comportamento previsto di questi servizi.",
     "find.offline.entities": "{n} entità ({vendor})",
     "find.offline.do":
-      "<b>Nessuna azione urgente.</b> Vale la pena saperlo se conti su qualcuna di queste entità per qualcosa di importante, tipo un allarme perdita d'acqua.",
+      "<b>Nessun intervento necessario.</b> Da valutare solo se una di queste entità concorre a una funzione critica, per esempio un allarme allagamento.",
     "find.clean.title": "Nessun rilievo di severità alta o media",
     "find.clean.body":
-      "{passed} controlli superati. Ricorda che <strong>{unverified} non erano eseguibili</strong>: non contano come esito positivo.",
+      "{passed} controlli superati. <strong>{unverified} non erano eseguibili</strong> e non concorrono all'esito.",
 
     "adv.title": "Provenienza e destinazione dei dati",
     "adv.lead":
@@ -84,9 +87,9 @@ const I18N = {
     "adv.cell.unclassified":
       "Manifest non leggibile: non contati né fra i locali né fra i cloud.",
     "adv.correlation":
-      "Correlati <strong class=\"mono\">{done}/{total}</strong> dispositivi ({pct}%, metodo <span class=\"mono\">{method}</span>). I non correlati potrebbero avere egress che non vedo: la casella in alto a destra è un <em>minimo</em>, non un totale.",
+      "Correlati <strong class=\"mono\">{done}/{total}</strong> dispositivi ({pct}%, metodo <span class=\"mono\">{method}</span>). I non correlati potrebbero avere egress non osservabile: la casella in alto a destra è un <em>minimo</em>, non un totale.",
     "adv.correlation.infra":
-      " {n} dispositivi hanno contattato solo orologio o aggiornamenti: restano nella colonna silenziosa.",
+      " {n} dispositivi hanno contattato solo servizi di orario o aggiornamento: restano nella colonna silenziosa.",
     "adv.correlation.inherited":
       " {n} dispositivi risultano esposti tramite un hub e sono tenuti fuori dai quadranti.",
     "adv.flows": "Flussi",
@@ -123,6 +126,61 @@ const I18N = {
     "table.unknownHost": "Host non identificato",
     "table.core": "core",
 
+    "mode.settings": "Impostazioni",
+    "settings.title": "Impostazioni",
+    "settings.lead":
+      "Parametri di raccolta e ritenzione. Le modifiche vengono applicate alla scansione successiva e comportano un ricaricamento dell'integrazione.",
+    "settings.section.language": "Lingua",
+    "settings.section.connection": "Connessione ad AdGuard Home",
+    "settings.section.collection": "Raccolta",
+    "settings.section.retention": "Ritenzione dei dati",
+    "settings.section.zones": "Zone di rete",
+    "settings.section.rules": "File di regole",
+    "settings.section.system": "Sistema",
+    "settings.language.auto": "Automatica (segue Home Assistant)",
+    "settings.language.hint":
+      "La scelta vale solo per questo browser. L'interfaccia dell'integrazione segue invece la lingua di Home Assistant.",
+    "settings.connection.hint":
+      "Indirizzo e credenziali non sono modificabili da qui. Si cambiano da Impostazioni, Dispositivi e servizi, Talos, menu a tre puntini, Riconfigura: la password non transita mai da questa pagina.",
+    "settings.connection.none": "Non configurata: il report resta solo dichiarativo.",
+    "settings.connection.url": "Indirizzo",
+    "settings.connection.user": "Utente",
+    "settings.connection.password": "Password",
+    "settings.connection.ssl": "Verifica certificato SSL",
+    "settings.value.set": "impostata",
+    "settings.value.unset": "non impostata",
+    "settings.value.yes": "si",
+    "settings.value.no": "no",
+    "settings.value.empty": "non impostato",
+    "settings.save": "Salva",
+    "settings.saving": "Salvataggio in corso",
+    "settings.saved": "Impostazioni salvate. Ricaricamento dell'integrazione in corso.",
+    "settings.error": "Salvataggio non riuscito: {reason}",
+    "settings.range": "da {min} a {max}",
+    "opt.scan_interval_minutes": "Intervallo di scansione (minuti)",
+    "opt.page_size": "Record per pagina del query log",
+    "opt.max_pages": "Pagine massime per scansione",
+    "opt.observation_days": "Dimentica le osservazioni dopo (giorni)",
+    "opt.max_observations": "Osservazioni massime conservate",
+    "opt.scan_history": "Snapshot di scansione conservati",
+    "opt.zone_trusted_lan": "Subnet della LAN di fiducia",
+    "opt.zone_iot_vlan": "Subnet della VLAN IoT",
+    "opt.zone_guest": "Subnet della rete ospiti",
+    "opt.domain_rules_path": "File di regole domini aggiuntive",
+    "opt.check_rules_path": "File di controlli alternativo",
+    "opt.hint.max_observations":
+      "E' questo il limite che tiene a bada la dimensione del database.",
+    "opt.hint.zone_trusted_lan":
+      "Uno o piu' intervalli CIDR separati da virgola, per esempio 192.168.50.0/24. Finche' restano vuoti, i controlli sulle zone si dichiarano non eseguibili invece di risultare superati.",
+    "opt.hint.domain_rules_path":
+      "Percorso assoluto a un file JSON o YAML. Le regole si aggiungono a quelle predefinite, non le sostituiscono.",
+    "settings.system.ha": "Versione di Home Assistant",
+    "settings.system.collector": "Modalita' di raccolta",
+    "settings.system.lastScan": "Ultima scansione",
+    "settings.system.observations": "Osservazioni memorizzate",
+    "settings.system.oldest": "Osservazione piu' vecchia",
+    "settings.system.dbSize": "Dimensione del database",
+    "settings.system.pruned": "Righe rimosse all'ultima potatura",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -151,27 +209,30 @@ const I18N = {
     "mode.base": "Basic",
     "mode.advanced": "Advanced",
 
-    "base.title": "How your house is doing",
+    "base.title": "Security overview",
     "base.lead":
-      "Two questions, kept apart because they have different fixes: what stops working when the internet drops, and which devices talk to servers outside the house.",
-    "base.offline.label": "If the internet drops",
+      "Two independent measures, kept apart because they call for different remedies: system continuity without connectivity, and device communications towards external destinations.",
+    "base.offline.label": "Offline continuity",
     "base.offline.unit": "/{total} entities",
-    "base.offline.stops": "<strong>{n} entities</strong> stop.",
-    "base.offline.none": "Nothing depends on the cloud.",
+    "base.offline.stops": "<strong>{n} entities</strong> cease to function.",
+    "base.offline.none": "No entity depends on a cloud service.",
     "base.offline.unclassified": "{n} unclassified.",
-    "base.exposure.label": "Talking outside",
+    "base.exposure.label": "External communications",
     "base.exposure.unit": "/{total} devices",
     "base.exposure.local":
       "<strong>{n}</strong> are local to Home Assistant yet still contact the vendor.",
     "base.exposure.none": "No local device is contacting its vendor.",
     "base.exposure.inherited": "{n} exposed through a hub.",
-    "base.unverified.label": "I could not verify",
+    "base.unverified.label": "Checks not runnable",
     "base.unverified.unit": "checks",
     "base.unverified.note":
-      "Not passed, not failed: I do not have the data to say. <strong>They do not count as “all clear”.</strong>",
-    "base.findings": "What I would look at first",
-    "base.limits":
-      "<b>What this page cannot tell you.</b> Talos watches which addresses devices ask for, not what they send, nor how much. It opens no traffic, tries no passwords, changes nothing. A device that encrypts its DNS queries too stays invisible: that is a limit of the method, not a check that was skipped.",
+      "Neither passed nor failed: the available data does not allow a verdict. <strong>They must not be counted among the positive results.</strong>",
+    "base.findings": "Key findings",
+    "base.limits.label": "Scope of the analysis",
+    "base.limits.scope":
+      "Talos observes which addresses devices ask to resolve. It does not inspect traffic content, does not measure volume, performs no port scanning, attempts no credentials and modifies no configuration. Every source is read only.",
+    "base.limits.responsibility":
+      "Outside the analysis and the operator's responsibility: network segmentation, device and service credentials, firmware updates, Home Assistant's exposure to the internet, and traffic that encrypts its own DNS queries. A result with no findings indicates an absence of evidence, not an absence of risk.",
 
     "banner.declared":
       "<strong>Declared data only.</strong> {reason}. This scan holds what Home Assistant declares about itself: no “talking outside” column has been verified, so an empty cell does not mean an absence of traffic.",
@@ -180,14 +241,14 @@ const I18N = {
     "find.contacted": " Contacted: <strong>{list}</strong>.",
     "find.queries": "{n} queries",
     "find.severity": "{level} severity",
-    "find.offline.title": "Without internet you lose {vendor}",
-    "find.offline.body": "You would lose {list}. This is how these services normally work.",
+    "find.offline.title": "Dependency on {vendor} without connectivity",
+    "find.offline.body": "Without connectivity {list} cease to function. This is the expected behaviour of these services.",
     "find.offline.entities": "{n} entities ({vendor})",
     "find.offline.do":
-      "<b>Nothing urgent.</b> Worth knowing if you rely on any of these for something that matters, like a water leak alarm.",
+      "<b>No action required.</b> Worth reviewing only if one of these entities supports a critical function, for example a water leak alarm.",
     "find.clean.title": "No high or medium severity findings",
     "find.clean.body":
-      "{passed} checks passed. Remember that <strong>{unverified} could not run</strong>: they do not count as a pass.",
+      "{passed} checks passed. <strong>{unverified} could not run</strong> and do not contribute to the result.",
 
     "adv.title": "Where the data comes from and where it goes",
     "adv.lead":
@@ -206,9 +267,9 @@ const I18N = {
     "adv.cell.cloudEgress": "Declared dependency, confirmed.",
     "adv.cell.unclassified": "iot_class calculated, assumed_state or missing: counted neither as local nor as cloud.",
     "adv.correlation":
-      "Correlated <strong class=\"mono\">{done}/{total}</strong> devices ({pct}%, method <span class=\"mono\">{method}</span>). The uncorrelated ones may have egress I cannot see: the top-right cell is a <em>minimum</em>, not a total.",
+      "Correlated <strong class=\"mono\">{done}/{total}</strong> devices ({pct}%, method <span class=\"mono\">{method}</span>). The uncorrelated ones may have egress that cannot be observed: the top-right cell is a <em>minimum</em>, not a total.",
     "adv.correlation.infra":
-      " {n} devices only reached a clock or an update server: they stay in the silent column.",
+      " {n} devices only reached a time or update service: they stay in the silent column.",
     "adv.correlation.inherited":
       " {n} devices are exposed through a hub and are kept out of the quadrants.",
     "adv.flows": "Flows",
@@ -245,6 +306,61 @@ const I18N = {
     "table.unknownHost": "Unidentified host",
     "table.core": "core",
 
+    "mode.settings": "Settings",
+    "settings.title": "Settings",
+    "settings.lead":
+      "Collection and retention parameters. Changes take effect on the next scan and reload the integration.",
+    "settings.section.language": "Language",
+    "settings.section.connection": "AdGuard Home connection",
+    "settings.section.collection": "Collection",
+    "settings.section.retention": "Data retention",
+    "settings.section.zones": "Network zones",
+    "settings.section.rules": "Rule files",
+    "settings.section.system": "System",
+    "settings.language.auto": "Automatic (follows Home Assistant)",
+    "settings.language.hint":
+      "This choice applies to this browser only. The integration's own interface follows the Home Assistant language.",
+    "settings.connection.hint":
+      "The address and credentials cannot be changed here. Use Settings, Devices and services, Talos, the three dot menu, Reconfigure: the password never travels through this page.",
+    "settings.connection.none": "Not configured: the report stays declared only.",
+    "settings.connection.url": "Address",
+    "settings.connection.user": "Username",
+    "settings.connection.password": "Password",
+    "settings.connection.ssl": "Verify the SSL certificate",
+    "settings.value.set": "set",
+    "settings.value.unset": "not set",
+    "settings.value.yes": "yes",
+    "settings.value.no": "no",
+    "settings.value.empty": "not set",
+    "settings.save": "Save",
+    "settings.saving": "Saving",
+    "settings.saved": "Settings saved. The integration is reloading.",
+    "settings.error": "Could not save: {reason}",
+    "settings.range": "{min} to {max}",
+    "opt.scan_interval_minutes": "Scan interval (minutes)",
+    "opt.page_size": "Query log records per page",
+    "opt.max_pages": "Maximum pages per scan",
+    "opt.observation_days": "Forget observations after (days)",
+    "opt.max_observations": "Maximum stored observations",
+    "opt.scan_history": "Scan snapshots kept",
+    "opt.zone_trusted_lan": "Trusted LAN subnet",
+    "opt.zone_iot_vlan": "IoT VLAN subnet",
+    "opt.zone_guest": "Guest network subnet",
+    "opt.domain_rules_path": "Extra domain rules file",
+    "opt.check_rules_path": "Alternative check list file",
+    "opt.hint.max_observations":
+      "This is the limit that bounds the size of the database.",
+    "opt.hint.zone_trusted_lan":
+      "One or more comma separated CIDR ranges, for example 192.168.50.0/24. While they are empty, the zone checks declare themselves unrunnable rather than passing.",
+    "opt.hint.domain_rules_path":
+      "Absolute path to a JSON or YAML file. The rules are added to the built in list, they do not replace it.",
+    "settings.system.ha": "Home Assistant version",
+    "settings.system.collector": "Collection mode",
+    "settings.system.lastScan": "Last scan",
+    "settings.system.observations": "Stored observations",
+    "settings.system.oldest": "Oldest observation",
+    "settings.system.dbSize": "Database size",
+    "settings.system.pruned": "Rows removed at the last prune",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -367,8 +483,17 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .find__body { color: var(--ink-soft); font-size: 13.5px; max-width: 70ch; }
 .find__body strong { color: var(--ink); font-weight: 500; }
 .find__do { margin-top: 10px; padding: 9px 12px; background: var(--sunken); border-radius: var(--r-md); font-size: 13px; color: var(--ink-soft); }
-.limits { border: 1px dashed var(--border); border-radius: var(--r-lg); padding: 14px 18px; font-size: 12.5px; color: var(--ink-soft); max-width: 74ch; }
-.limits b { color: var(--ink); font-weight: 500; }
+.note {
+  border: 1px solid var(--border); border-left: 3px solid var(--ink-mute);
+  border-radius: var(--r-lg); padding: 14px 18px; max-width: 78ch;
+  background: color-mix(in srgb, var(--sunken) 55%, transparent);
+}
+.note__label {
+  font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-mute); font-weight: 500; margin-bottom: 8px;
+}
+.note p { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); }
+.note p:last-child { margin-bottom: 0; }
 
 table.matrix { border-collapse: collapse; width: 100%; }
 table.matrix th, table.matrix td { border: 1px solid var(--border); padding: 0; }
@@ -434,6 +559,32 @@ table.data tr.is-key td { background: var(--alert-soft); }
 }
 .empty { padding: 60px 24px; text-align: center; color: var(--ink-mute); }
 
+.panel-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); padding: 18px 20px;
+}
+.form { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12.5px; font-weight: 500; }
+.field input, .field select {
+  font: inherit; color: var(--ink); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  padding: 8px 10px; width: 100%;
+}
+.field input:focus, .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.field .hint { font-size: 11.5px; color: var(--ink-mute); }
+.kv { display: grid; grid-template-columns: minmax(180px, auto) 1fr; gap: 6px 18px; font-size: 13px; }
+.kv dt { color: var(--ink-mute); }
+.kv dd { margin: 0; }
+.actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.btn {
+  padding: 9px 20px; border-radius: var(--r-md); font-size: 13.5px; font-weight: 500;
+  background: var(--accent); color: #fff;
+}
+.btn[disabled] { opacity: .5; cursor: default; }
+.status { font-size: 12.5px; color: var(--ink-soft); }
+.status[data-tone="error"] { color: var(--alert); }
+
 svg.graph { display: block; min-width: 900px; }
 svg.graph text { font-family: var(--font-sans); fill: var(--ink); }
 svg.graph .col-title { font-size: 10px; letter-spacing: .11em; text-transform: uppercase; fill: var(--ink-mute); }
@@ -469,13 +620,38 @@ class TalosPanel extends HTMLElement {
     this._loading = true;
     this._loaded = false;
     this._lang = FALLBACK_LANG;
+    this._saving = false;
+    this._saveStatus = null;
+    // Reading storage can throw in a private window or with site data blocked.
+    try {
+      this._langOverride = window.localStorage.getItem("talos.lang") || "";
+    } catch (err) {
+      this._langOverride = "";
+    }
+  }
+
+  resolveLang(hass) {
+    if (this._langOverride && I18N[this._langOverride]) return this._langOverride;
+    const raw = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "";
+    const base = String(raw).toLowerCase().split("-")[0];
+    return I18N[base] ? base : FALLBACK_LANG;
+  }
+
+  setLanguage(value) {
+    this._langOverride = value === "auto" ? "" : value;
+    try {
+      if (this._langOverride) window.localStorage.setItem("talos.lang", this._langOverride);
+      else window.localStorage.removeItem("talos.lang");
+    } catch (err) {
+      // A browser that refuses storage still gets the change for this session.
+    }
+    this._lang = this.resolveLang(this._hass);
+    this.render();
   }
 
   set hass(hass) {
     this._hass = hass;
-    const raw = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "";
-    const base = String(raw).toLowerCase().split("-")[0];
-    this._lang = I18N[base] ? base : FALLBACK_LANG;
+    this._lang = this.resolveLang(hass);
     if (!this._loaded) {
       this._loaded = true;
       this.load();
@@ -572,7 +748,11 @@ class TalosPanel extends HTMLElement {
     host.innerHTML =
       this.toolbar() +
       `<div class="wrap">` +
-      (this._mode === "base" ? this.viewBase() : this.viewAdvanced()) +
+      (this._mode === "base"
+        ? this.viewBase()
+        : this._mode === "settings"
+          ? this.viewSettings()
+          : this.viewAdvanced()) +
       `</div>`;
 
     host.querySelectorAll("[data-mode]").forEach((button) => {
@@ -586,6 +766,11 @@ class TalosPanel extends HTMLElement {
 
     const svg = host.querySelector("svg.graph");
     if (svg) this.drawGraph(svg);
+
+    const language = host.querySelector("[data-action='language']");
+    if (language) language.addEventListener("change", (event) => this.setLanguage(event.target.value));
+    const save = host.querySelector("[data-action='save']");
+    if (save) save.addEventListener("click", () => this.saveOptions());
   }
 
   toolbar() {
@@ -603,6 +788,7 @@ class TalosPanel extends HTMLElement {
         <div class="seg" role="group">
           <button data-mode="base" aria-pressed="${this._mode === "base"}">${esc(this.t("mode.base"))}</button>
           <button data-mode="advanced" aria-pressed="${this._mode === "advanced"}">${esc(this.t("mode.advanced"))}</button>
+          <button data-mode="settings" aria-pressed="${this._mode === "settings"}">${esc(this.t("mode.settings"))}</button>
         </div>
         <button class="icon-btn" data-action="refresh" title="${esc(this.t("app.refresh"))}">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -682,7 +868,11 @@ class TalosPanel extends HTMLElement {
         ${this.findings()}
       </div>
 
-      <div class="limits">${this.t("base.limits")}</div>
+      <div class="note">
+        <div class="note__label">${esc(this.t("base.limits.label"))}</div>
+        <p>${this.t("base.limits.scope")}</p>
+        <p>${this.t("base.limits.responsibility")}</p>
+      </div>
     </div>`;
   }
 
@@ -961,6 +1151,187 @@ class TalosPanel extends HTMLElement {
       <th class="num">${esc(this.t("table.queries"))}</th><th>${esc(this.t("table.filter"))}</th></tr></thead>
       <tbody>${rows || `<tr><td colspan="6">${esc(this.t("adv.conduits.none"))}</td></tr>`}</tbody>
     </table>`;
+  }
+
+  /* ── settings ────────────────────────────────────────────────────────── */
+
+  numberField(key, bounds) {
+    const status = this._status || {};
+    const value = (status.options || {})[key];
+    const range = (status.bounds || {})[key] || bounds || [];
+    const hint = this.t(`opt.hint.${key}`);
+    return `<div class="field">
+      <label for="opt-${key}">${esc(this.t(`opt.${key}`))}</label>
+      <input id="opt-${key}" type="number" data-option="${key}" inputmode="numeric"
+             ${range.length ? `min="${range[0]}" max="${range[1]}"` : ""}
+             value="${value == null ? "" : esc(value)}">
+      <span class="hint">${
+        range.length ? esc(this.t("settings.range", { min: range[0], max: range[1] })) : ""
+      }${hint.startsWith("opt.hint.") ? "" : ` ${esc(hint)}`}</span>
+    </div>`;
+  }
+
+  textField(key) {
+    const value = ((this._status || {}).options || {})[key] || "";
+    const hint = this.t(`opt.hint.${key}`);
+    return `<div class="field">
+      <label for="opt-${key}">${esc(this.t(`opt.${key}`))}</label>
+      <input id="opt-${key}" type="text" data-option="${key}" spellcheck="false"
+             value="${esc(value)}">
+      ${hint.startsWith("opt.hint.") ? "" : `<span class="hint">${esc(hint)}</span>`}
+    </div>`;
+  }
+
+  viewSettings() {
+    const status = this._status || {};
+    const connection = status.connection || {};
+    const store = status.store || {};
+    const prune = (status.retention || {}).last_prune || {};
+    const configured = Boolean(connection.adguard_url);
+    const lastScan = status.generated_at
+      ? new Date(status.generated_at).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB")
+      : this.t("app.never");
+    const bytes = store.bytes_used
+      ? `${(store.bytes_used / 1048576).toFixed(1)} MB`
+      : "-";
+    const removed =
+      (prune.observations_expired || 0) + (prune.observations_over_cap || 0) + (prune.scans_removed || 0);
+
+    return `<div class="stack">
+      <div>
+        <h1 class="page">${esc(this.t("settings.title"))}</h1>
+        <p class="page-sub">${esc(this.t("settings.lead"))}</p>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.language"))}</h2>
+        <div class="panel-card">
+          <div class="form">
+            <div class="field">
+              <label for="lang">${esc(this.t("settings.section.language"))}</label>
+              <select id="lang" data-action="language">
+                <option value="auto" ${this._langOverride ? "" : "selected"}>${esc(
+                  this.t("settings.language.auto")
+                )}</option>
+                <option value="it" ${this._langOverride === "it" ? "selected" : ""}>Italiano</option>
+                <option value="en" ${this._langOverride === "en" ? "selected" : ""}>English</option>
+              </select>
+              <span class="hint">${esc(this.t("settings.language.hint"))}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.connection"))}</h2>
+        <div class="panel-card">
+          ${
+            configured
+              ? `<dl class="kv">
+                   <dt>${esc(this.t("settings.connection.url"))}</dt>
+                   <dd class="mono">${esc(connection.adguard_url)}</dd>
+                   <dt>${esc(this.t("settings.connection.user"))}</dt>
+                   <dd class="mono">${esc(connection.adguard_username || this.t("settings.value.empty"))}</dd>
+                   <dt>${esc(this.t("settings.connection.password"))}</dt>
+                   <dd>${esc(this.t(connection.has_password ? "settings.value.set" : "settings.value.unset"))}</dd>
+                   <dt>${esc(this.t("settings.connection.ssl"))}</dt>
+                   <dd>${esc(this.t(connection.verify_ssl ? "settings.value.yes" : "settings.value.no"))}</dd>
+                 </dl>`
+              : `<p class="status">${esc(this.t("settings.connection.none"))}</p>`
+          }
+          <p class="hint" style="margin:12px 0 0">${esc(this.t("settings.connection.hint"))}</p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.collection"))}</h2>
+        <div class="panel-card"><div class="form">
+          ${this.numberField("scan_interval_minutes")}
+          ${this.numberField("page_size")}
+          ${this.numberField("max_pages")}
+        </div></div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.retention"))}</h2>
+        <div class="panel-card"><div class="form">
+          ${this.numberField("observation_days")}
+          ${this.numberField("max_observations")}
+          ${this.numberField("scan_history")}
+        </div></div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.zones"))}</h2>
+        <div class="panel-card"><div class="form">
+          ${this.textField("zone_trusted_lan")}
+          ${this.textField("zone_iot_vlan")}
+          ${this.textField("zone_guest")}
+        </div></div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.rules"))}</h2>
+        <div class="panel-card"><div class="form">
+          ${this.textField("domain_rules_path")}
+          ${this.textField("check_rules_path")}
+        </div></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn" data-action="save" ${this._saving ? "disabled" : ""}>${esc(
+          this._saving ? this.t("settings.saving") : this.t("settings.save")
+        )}</button>
+        ${
+          this._saveStatus
+            ? `<span class="status" data-tone="${this._saveStatus.tone}">${esc(this._saveStatus.text)}</span>`
+            : ""
+        }
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.system"))}</h2>
+        <div class="panel-card"><dl class="kv">
+          <dt>${esc(this.t("settings.system.ha"))}</dt><dd class="mono">${esc(status.ha_version || "-")}</dd>
+          <dt>${esc(this.t("settings.system.collector"))}</dt><dd class="mono">${esc(
+            (this._data && this._data.observed_available) ? "declared + observed" : "declared"
+          )}</dd>
+          <dt>${esc(this.t("settings.system.lastScan"))}</dt><dd class="mono">${esc(lastScan)}</dd>
+          <dt>${esc(this.t("settings.system.observations"))}</dt><dd class="mono">${this.num(store.observations || 0)}</dd>
+          <dt>${esc(this.t("settings.system.oldest"))}</dt><dd class="mono">${esc(store.oldest_observation || "-")}</dd>
+          <dt>${esc(this.t("settings.system.dbSize"))}</dt><dd class="mono">${esc(bytes)}</dd>
+          <dt>${esc(this.t("settings.system.pruned"))}</dt><dd class="mono">${this.num(removed)}</dd>
+        </dl></div>
+      </div>
+    </div>`;
+  }
+
+  async saveOptions() {
+    if (this._saving) return;
+    const host = this.shadowRoot.lastChild;
+    const options = {};
+    host.querySelectorAll("[data-option]").forEach((input) => {
+      const key = input.dataset.option;
+      options[key] = input.type === "number" ? Number(input.value) : input.value;
+    });
+
+    this._saving = true;
+    this._saveStatus = null;
+    this.render();
+    try {
+      await this._hass.callWS({ type: "talos/options/set", options });
+      this._saveStatus = { tone: "ok", text: this.t("settings.saved") };
+      this._saving = false;
+      this.render();
+      // Updating the entry reloads the integration, so give it a moment
+      // before asking for the new state.
+      setTimeout(() => this.load(), 2500);
+    } catch (err) {
+      const reason = err && err.message ? err.message : String(err);
+      this._saveStatus = { tone: "error", text: this.t("settings.error", { reason }) };
+      this._saving = false;
+      this.render();
+    }
   }
 
   /* ── graph ───────────────────────────────────────────────────────────── */
