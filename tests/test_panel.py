@@ -121,8 +121,16 @@ class TestTranslations(unittest.TestCase):
                 "opt.hint",
                 "transport",
                 "map.detail",
+                "map.scope",
             },
         )
+
+    def test_every_map_scope_kind_has_a_label(self) -> None:
+        # The badge builds map.scope.<kind> from the active filter.
+        for kind in ("transport", "integration"):
+            with self.subTest(kind=kind):
+                self.assertIn(f"map.scope.{kind}", self.en)
+                self.assertIn(f"map.scope.{kind}", self.it)
 
     def test_every_map_detail_level_has_a_label(self) -> None:
         # The map builds map.detail.<n> from its own level counter.
@@ -179,6 +187,29 @@ class TestIntegrationTranslations(unittest.TestCase):
         english = keys(json.loads((base / "en.json").read_text(encoding="utf-8")))
         italian = keys(json.loads((base / "it.json").read_text(encoding="utf-8")))
         self.assertEqual(english ^ italian, set())
+
+
+class TestMethodCoverage(unittest.TestCase):
+    """Every `this.x()` has to resolve to something.
+
+    An editing slip once removed a method while its call sites stayed, and
+    the panel died at runtime with the rest of the suite green: nothing here
+    executes the JavaScript.
+    """
+
+    # Inherited from HTMLElement, not declared in the class.
+    INHERITED = {"attachShadow", "setAttribute", "getAttribute", "addEventListener"}
+
+    def test_no_call_without_a_definition(self) -> None:
+        defined = set(re.findall(r"^  (?:async |get |set )?([a-zA-Z_]\w*)\s*\(", SOURCE, re.M))
+        called = set(re.findall(r"this\.([a-zA-Z_]\w*)\(", SOURCE))
+        # Names starting with an underscore are stored callables, not methods.
+        missing = {
+            name
+            for name in called
+            if name not in defined and name not in self.INHERITED and not name.startswith("_")
+        }
+        self.assertEqual(missing, set())
 
 
 class TestEscaping(unittest.TestCase):

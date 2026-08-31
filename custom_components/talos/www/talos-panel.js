@@ -224,6 +224,13 @@ const I18N = {
     "map.detail.2": "Integrazioni",
     "map.detail.3": "Dispositivi",
     "map.zoomHint": "Le etichette dei dispositivi compaiono avvicinando lo zoom.",
+    "map.filters": "Filtra per trasporto",
+    "map.all": "Tutti",
+    "map.scope.transport": "Solo {name}",
+    "map.scope.integration": "Solo i dispositivi di {name}",
+    "map.clearScope": "Rimuovi il filtro",
+    "map.click.integration": "Clicca un'integrazione per isolarne i dispositivi.",
+    "map.filtered": "{n} dispositivi corrispondono",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -447,6 +454,13 @@ const I18N = {
     "map.detail.2": "Integrations",
     "map.detail.3": "Devices",
     "map.zoomHint": "Device labels appear as you zoom in.",
+    "map.filters": "Filter by transport",
+    "map.all": "All",
+    "map.scope.transport": "{name} only",
+    "map.scope.integration": "Devices of {name} only",
+    "map.clearScope": "Clear the filter",
+    "map.click.integration": "Click an integration to isolate its devices.",
+    "map.filtered": "{n} devices match",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -704,7 +718,8 @@ svg.map .lbl--core { font-size: 15px; font-weight: 600; }
 svg.map .lbl--transport { font-size: 13.5px; font-weight: 500; }
 svg.map .sub { font-size: 10px; fill: var(--ink-mute); font-family: var(--font-mono); }
 svg.map .link { fill: none; stroke-opacity: .45; }
-svg.map .node { cursor: pointer; }
+svg.map .node { cursor: grab; }
+svg.map.dragging .node { cursor: grabbing; }
 svg.map .dim { opacity: .12; }
 svg.map .hit { fill: transparent; }
 .maptools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 16px; border-bottom: 1px solid var(--border); }
@@ -716,6 +731,11 @@ svg.map .hit { fill: transparent; }
 .btn--ghost { background: none; color: var(--ink-soft); border: 1px solid var(--border); padding: 7px 12px; }
 .detail { display: inline-flex; align-items: center; gap: 8px; }
 .detail__level { font-size: 12px; color: var(--ink-soft); min-width: 130px; text-align: center; }
+.mapfilters { flex-wrap: wrap; gap: 8px; }
+.chip--filter { cursor: pointer; padding: 3px 10px; }
+.chip--filter[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
+.scopebadge { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; font-size: 12px; color: var(--ink-soft); }
+.scopebadge button { color: var(--accent-ink); text-decoration: underline; }
 .maplegend { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--ink-soft); }
 .maplegend span { display: inline-flex; align-items: center; gap: 6px; }
 .swatch { width: 10px; height: 10px; border-radius: 3px; }
@@ -793,7 +813,8 @@ class TalosPanel extends HTMLElement {
     this._saveStatus = null;
     this._mapQuery = "";
     this._detail = 2;
-    this._expanded = new Set();
+    this._scope = null;
+    this._pinned = new Map();
     this._view = { k: 1, x: 0, y: 0 };
     // Reading storage can throw in a private window or with site data blocked.
     try {
@@ -957,9 +978,21 @@ class TalosPanel extends HTMLElement {
         this._detail = Math.min(3, Math.max(1, (this._detail || 2) + delta));
         this._view = { k: 1, x: 0, y: 0 };
         this._mapBox = null;
-        this._expanded.clear();
+        this._scope = null;
+        this._pinned.clear();
         this.render();
       };
+      host.querySelectorAll("[data-scope]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = button.dataset.scope;
+          this._scope = value === "all" ? null : { kind: "transport", id: value.slice(2) };
+          this._view = { k: 1, x: 0, y: 0 };
+          this._mapBox = null;
+          this._pinned.clear();
+          this.render();
+        });
+      });
+
       const less = host.querySelector("[data-action='map-less']");
       if (less) less.addEventListener("click", () => setDetail(-1));
       const more = host.querySelector("[data-action='map-more']");
@@ -970,9 +1003,10 @@ class TalosPanel extends HTMLElement {
         reset.addEventListener("click", () => {
           this._view = { k: 1, x: 0, y: 0 };
           this._mapBox = null;
-          this._expanded.clear();
           this._mapQuery = "";
           this._detail = 2;
+          this._scope = null;
+          this._pinned.clear();
           this.render();
         });
       }
@@ -1429,7 +1463,27 @@ class TalosPanel extends HTMLElement {
                     title="${esc(this.t("map.detail.more"))}" ${(this._detail || 2) >= 3 ? "disabled" : ""}>+</button>
           </span>
           <button class="btn btn--ghost" data-action="map-reset">${esc(this.t("map.reset"))}</button>
-          <span class="hint">${esc(this.t("map.hint"))} ${esc(this.t("map.zoomHint"))}</span>
+          <span class="hint">${esc(this.t("map.hint"))} ${esc(this.t("map.zoomHint"))} ${esc(
+            this.t("map.click.integration")
+          )}</span>
+        </div>
+        <div class="maptools mapfilters">
+          <span class="hint">${esc(this.t("map.filters"))}</span>
+          <button class="chip chip--filter" data-scope="all"
+                  aria-pressed="${!this._scope}">${esc(this.t("map.all"))}</button>
+          ${this.topology()
+            .groups.map(
+              (group) => `<button class="chip chip--filter" data-scope="t:${esc(group.transport)}"
+                 aria-pressed="${
+                   this._scope && this._scope.kind === "transport" && this._scope.id === group.transport
+                 }"
+                 style="--chip:var(--t-${group.transport.replace(/[^a-z]/g, "") || "unknown"}, var(--t-unknown))">
+                 <span class="chip__dot" style="background:var(--chip)"></span>${esc(
+                   this.t(`transport.${group.transport}`)
+                 )} <span class="mono">${group.total}</span></button>`
+            )
+            .join("")}
+          ${this.scopeBadge()}
         </div>
         <svg class="map" role="img" aria-label="${esc(this.t("map.title"))}"></svg>
         <div class="maplegend">
@@ -1448,6 +1502,18 @@ class TalosPanel extends HTMLElement {
         ${this.topology().groups.map((group) => this.transportGroup(group, total)).join("")}
       </div>
     </div>`;
+  }
+
+  scopeBadge() {
+    const scope = this._scope;
+    if (!scope) return "";
+    const name =
+      scope.kind === "transport"
+        ? this.t(`transport.${scope.id}`)
+        : (this._data.labels.integrations[scope.id] || {}).title || scope.id;
+    const label = this.t(`map.scope.${scope.kind}`, { name });
+    return `<span class="scopebadge">${esc(label)}
+      <button data-scope="all">${esc(this.t("map.clearScope"))}</button></span>`;
   }
 
   hubSection() {
@@ -1495,9 +1561,23 @@ class TalosPanel extends HTMLElement {
   mapLayout(stretch = 1) {
     const detail = this._detail || 2;
     const d = this._data;
-    const { groups, children, total } = this.topology();
+    const { groups: allGroups, children, total } = this.topology();
     const query = (this._mapQuery || "").trim().toLowerCase();
-    const expanded = this._expanded || (this._expanded = new Set());
+    const scope = this._scope || null;
+
+    // A filter removes branches rather than dimming them: the question is
+    // "show me only this", and a dimmed hairball still reads as a hairball.
+    let groups = allGroups;
+    if (scope && scope.kind === "transport") {
+      groups = allGroups.filter((group) => group.transport === scope.id);
+    } else if (scope && scope.kind === "integration") {
+      groups = allGroups
+        .filter((group) => group.integrations.some((entry) => entry.id === scope.id))
+        .map((group) => ({
+          ...group,
+          integrations: group.integrations.filter((entry) => entry.id === scope.id),
+        }));
+    }
 
     const matches = (text) => Boolean(query) && String(text || "").toLowerCase().includes(query);
 
@@ -1526,15 +1606,20 @@ class TalosPanel extends HTMLElement {
         const integration = d.labels.integrations[entry.id] || {};
         // Level 3 opens every branch; below that, only what was clicked or
         // what the search matched.
-        const open =
-          detail >= 3 || expanded.has(entry.id) || (Boolean(query) && deviceMatch);
-        const shown = open ? entry.devices.slice(0, MAX_DEVICES) : [];
+        const isolated = Boolean(scope && scope.kind === "integration" && scope.id === entry.id);
+        const open = isolated || detail >= 3 || (Boolean(query) && deviceMatch);
+        // With one integration to itself there is room for many more of them.
+        const budget = isolated ? 200 : MAX_DEVICES;
+        // A device query filters rather than dims, so what is left is the answer.
+        const pool = query ? entry.devices.filter((device) => matches(device.name) || matches(device.area)) : entry.devices;
+        const shown = open ? pool.slice(0, budget) : [];
         return {
           entry,
           integration,
           open,
           shown,
           deviceMatch,
+          pool,
           weight: open
             ? Math.max(MIN_OPEN_SLOTS, shown.length)
             : 1 + Math.sqrt(entry.devices.length) / 3,
@@ -1555,6 +1640,7 @@ class TalosPanel extends HTMLElement {
       const tNode = {
         id: `t:${group.transport}`, kind: "transport", angle: mid,
         x: CX + Math.cos(mid) * R_TRANSPORT * stretch, y: CY + Math.sin(mid) * R_TRANSPORT,
+        rx: R_TRANSPORT * stretch, ry: R_TRANSPORT, pad: 42,
         label: this.t(`transport.${group.transport}`),
         sub: String(group.total), colour,
         hit: matches(this.t(`transport.${group.transport}`)),
@@ -1574,6 +1660,7 @@ class TalosPanel extends HTMLElement {
           id: `i:${entry.id}`, kind: "integration", angle: iMid,
           x: CX + Math.cos(iMid) * R_INTEGRATION * stretch,
           y: CY + Math.sin(iMid) * R_INTEGRATION,
+          rx: R_INTEGRATION * stretch, ry: R_INTEGRATION, pad: 30,
           label, sub: integration.domain || "", colour,
           count: entry.devices.length, open, ref: entry.id,
           hit: matches(label) || matches(integration.domain) || item.deviceMatch,
@@ -1593,6 +1680,7 @@ class TalosPanel extends HTMLElement {
             id: `d:${device.id}`, kind: "device", angle,
             x: CX + Math.cos(angle) * R_DEVICE * stretch,
             y: CY + Math.sin(angle) * R_DEVICE,
+            rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 13,
             label: device.name || device.id,
             sub: device.area || device.ip || "",
             colour, isHub: children.has(device.id),
@@ -1600,13 +1688,14 @@ class TalosPanel extends HTMLElement {
           });
           links.push({ from: iNode.id, to: `d:${device.id}`, colour, width: 0.7 });
         });
-        if (entry.devices.length > shown.length) {
+        if (item.pool.length > shown.length) {
           const angle = iMid + iSpan / 2;
           nodes.push({
             id: `more:${entry.id}`, kind: "more", angle,
             x: CX + Math.cos(angle) * R_DEVICE * stretch,
             y: CY + Math.sin(angle) * R_DEVICE,
-            label: this.t("map.truncated", { n: entry.devices.length - shown.length }),
+            rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 22,
+            label: this.t("map.truncated", { n: item.pool.length - shown.length }),
             colour, sub: "",
           });
         }
@@ -1615,7 +1704,58 @@ class TalosPanel extends HTMLElement {
       cursor += span;
     });
 
+    // A dragged node keeps where it was put, and the rest settle around it.
+    nodes.forEach((node) => {
+      const pin = this._pinned.get(node.id);
+      if (pin) {
+        node.x = pin.x;
+        node.y = pin.y;
+        node.fixed = true;
+      }
+    });
+    this.relax(nodes);
+
     return { nodes, links, query, hits: nodes.filter((n) => n.hit).length };
+  }
+
+  /** Push overlapping nodes apart, then slide them back onto their ring.
+   *
+   * Deterministic, not a simulation: it runs a fixed number of passes from a
+   * fixed starting layout, so the picture settles the same way every time.
+   * Pinned and central nodes never move. */
+  relax(nodes, iterations = 12) {
+    const movable = nodes.filter((node) => !node.fixed && node.kind !== "core" && node.rx);
+    if (!movable.length) return;
+
+    for (let pass = 0; pass < iterations; pass += 1) {
+      for (let i = 0; i < nodes.length; i += 1) {
+        for (let j = i + 1; j < nodes.length; j += 1) {
+          const a = nodes[i];
+          const b = nodes[j];
+          const minimum = (a.pad || 14) + (b.pad || 14);
+          let dx = b.x - a.x;
+          let dy = b.y - a.y;
+          const distance = Math.hypot(dx, dy) || 0.001;
+          if (distance >= minimum) continue;
+          const push = (minimum - distance) / 2;
+          dx /= distance;
+          dy /= distance;
+          if (!a.fixed && a.kind !== "core") {
+            a.x -= dx * push;
+            a.y -= dy * push;
+          }
+          if (!b.fixed && b.kind !== "core") {
+            b.x += dx * push;
+            b.y += dy * push;
+          }
+        }
+      }
+      movable.forEach((node) => {
+        const angle = Math.atan2(node.y / node.ry, node.x / node.rx);
+        node.x = Math.cos(angle) * node.rx;
+        node.y = Math.sin(angle) * node.ry;
+      });
+    }
   }
 
   drawMap(svg) {
@@ -1649,7 +1789,7 @@ class TalosPanel extends HTMLElement {
     // Fit the box to what is actually drawn, so a collapsed map is not a
     // small dot in a large empty square. Once the user has panned or zoomed,
     // the box stays put: refitting under their hands would be maddening.
-    const untouched = view.k === 1 && view.x === 0 && view.y === 0;
+    const untouched = view.k === 1 && view.x === 0 && view.y === 0 && !this._pinned.size;
     if (untouched || !this._mapBox) {
       const pad = 200;
       const xs = nodes.map((node) => node.x);
@@ -1678,7 +1818,7 @@ class TalosPanel extends HTMLElement {
     });
 
     nodes.forEach((node) => {
-      const group = el("g", { class: "node" });
+      const group = el("g", { class: "node", "data-id": node.id });
       if (dimmed && !node.hit) group.classList.add("dim");
       if (node.hit) group.classList.add("node--match");
 
@@ -1742,12 +1882,18 @@ class TalosPanel extends HTMLElement {
         // A generous invisible target: the dot itself is 8px.
         const hit = el("circle", { class: "hit", cx: node.x, cy: node.y, r: 16 });
         group.appendChild(hit);
-        group.addEventListener("click", () => {
-          const expanded = this._expanded;
-          if (expanded.has(node.ref)) expanded.delete(node.ref);
-          else expanded.add(node.ref);
+        group.addEventListener("click", (event) => {
+          if (this._dragMoved) return; // a drag, not a click
+          event.stopPropagation();
+          const current = this._scope;
+          this._scope =
+            current && current.kind === "integration" && current.id === node.ref
+              ? null
+              : { kind: "integration", id: node.ref };
+          this._view = { k: 1, x: 0, y: 0 };
           this._mapBox = null;
-          this.drawMap(svg);
+          this._pinned.clear();
+          this.render();
         });
       }
 
@@ -1758,8 +1904,18 @@ class TalosPanel extends HTMLElement {
   }
 
   attachMapControls(svg, view, applyView) {
+    this._redrawMap = () => this.drawMap(svg);
     if (svg.dataset.wired === "1") return;
     svg.dataset.wired = "1";
+
+    const root = () => svg.firstChild;
+    const toGraph = (event) => {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const matrix = root() && root().getScreenCTM();
+      return matrix ? point.matrixTransform(matrix.inverse()) : { x: 0, y: 0 };
+    };
 
     svg.addEventListener("wheel", (event) => {
       event.preventDefault();
@@ -1775,21 +1931,52 @@ class TalosPanel extends HTMLElement {
       applyView();
     }, { passive: false });
 
+    let panning = null;
     let dragging = null;
+    let frame = 0;
+
     svg.addEventListener("pointerdown", (event) => {
-      dragging = { x: event.clientX - view.x, y: event.clientY - view.y };
+      const target = event.target.closest && event.target.closest("g.node");
+      this._dragMoved = false;
+      if (target && target.dataset.id) {
+        // Grab the node itself; the rest of the graph settles around it.
+        dragging = { id: target.dataset.id };
+        svg.setPointerCapture(event.pointerId);
+        return;
+      }
+      panning = { x: event.clientX - view.x, y: event.clientY - view.y };
       svg.classList.add("dragging");
       svg.setPointerCapture(event.pointerId);
     });
+
     svg.addEventListener("pointermove", (event) => {
-      if (!dragging) return;
-      view.x = event.clientX - dragging.x;
-      view.y = event.clientY - dragging.y;
+      if (dragging) {
+        const point = toGraph(event);
+        this._pinned.set(dragging.id, { x: point.x, y: point.y });
+        this._dragMoved = true;
+        // One redraw per frame: relaxation runs on every one of them.
+        if (!frame) {
+          frame = requestAnimationFrame(() => {
+            frame = 0;
+            this._redrawMap();
+          });
+        }
+        return;
+      }
+      if (!panning) return;
+      view.x = event.clientX - panning.x;
+      view.y = event.clientY - panning.y;
       applyView();
     });
+
     const stop = () => {
+      panning = null;
       dragging = null;
       svg.classList.remove("dragging");
+      // Let the click that follows a real drag through only if it was a tap.
+      setTimeout(() => {
+        this._dragMoved = false;
+      }, 0);
     };
     svg.addEventListener("pointerup", stop);
     svg.addEventListener("pointercancel", stop);

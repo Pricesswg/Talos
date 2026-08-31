@@ -156,9 +156,17 @@ same house always draws the same picture and two people can talk about it; the a
 branch is its share of the devices, so the shape of the drawing is the shape of the install.
 
 Three detail levels, stepped with the plus and minus buttons: transports, integrations, devices.
-Clicking a single integration opens just that branch, and the rest of the circle makes way instead
-of being squashed. Wheel to zoom, drag to pan, and device labels appear as you zoom in. The search
-box highlights matches and opens the branches that contain them. Below the graph, the hubs and the
+Labels sit horizontally under their node, and device labels appear as you zoom in, so a wide view
+stays readable and a close one names everything.
+
+Three ways to narrow it down. A chip per transport keeps only that trunk. Clicking an integration
+isolates it, showing its devices and nothing else. The search box filters devices by name or area
+rather than dimming them, so what is left on screen is the answer. Any of them clears from the badge
+in the toolbar.
+
+Nodes can be dragged, and the rest settle around them: after each layout a fixed number of
+relaxation passes push overlapping nodes apart and slide them back onto their ring, so a crowded
+branch spreads out instead of piling up. Wheel zooms, drag pans. Below the graph, the hubs and the
 devices behind them, then the full list by transport.
 
 It reads the registry only, so it populates even with no AdGuard configured.
