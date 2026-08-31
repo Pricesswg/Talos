@@ -4,99 +4,127 @@
 
 # Talos - HA Security scanner
 
-Talos maps where the data in my house comes from and where it goes. It reads what Home Assistant
-declares about its own devices, watches what my DNS resolver actually sees them do, and puts the two
-side by side. Everything it reports is labelled with the evidence behind it, so a number in the panel
-can always be traced back to a registry entry or a query log line.
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://github.com/hacs/integration)
+![hass](https://img.shields.io/badge/Home%20Assistant-2024.6%2B-blue.svg)
+![license](https://img.shields.io/badge/license-MIT-green.svg)
 
-I wrote it because `iot_class` in a manifest tells you how Home Assistant talks to a device, and
-nothing at all about how that device talks to the internet. A Shelly on `local_push` can have Shelly
-Cloud enabled in parallel and Home Assistant will never know. Those are two independent facts, and
-Talos keeps them independent all the way through.
+**Talos** maps where the data in a Home Assistant install comes from and where it goes. It reads what
+Home Assistant declares about its own devices, cross-references it with what the DNS resolver
+actually observed those devices doing, and reports both sides with the evidence attached to every
+row. It also answers the question no integration answers today: what stops working when the internet
+drops, and which vendor takes the largest share of the house with it.
 
-## How it works
+The reason it exists in one sentence: `iot_class` in a manifest says how Home Assistant talks to a
+device, and nothing about how that device talks to the internet. A Shelly on `local_push` can have
+Shelly Cloud enabled in parallel and Home Assistant will never know. Talos keeps those two facts
+separate everywhere, and crosses them only in one place, the matrix below.
+
+A single admin-only panel provides:
+
+- Basic and Advanced views, split by question rather than by density of data, both derived from the
+  same computation so they cannot drift apart
+- The declared / observed matrix, with the quadrant that matters (local to Home Assistant, yet caught
+  phoning home) highlighted as the only red thing in the interface
+- Offline autonomy: entities and integrations that keep working with the uplink down, grouped by
+  vendor so a single vendor outage can be costed
+- External exposure: devices seen reaching outside, with query volume, vendor and whether AdGuard
+  filtered any of it
+- A column graph of the flows, where the arcs that bypass Home Assistant entirely are the point of
+  the picture, grouping by integration above ten origins instead of truncating
+- A conduit table where every row is labelled `declared`, `observed` or `inherited`, never mixed
+- Posture checks with severity and remediation, and an explicit count of the checks that could not
+  run, which are never folded into the passes
+- The zero check: hosts holding a DHCP lease that never query the resolver, which are the blind spots
+  of the tool itself
+- Nine summary entities and one problem binary sensor, no per-device entity pollution
+- A self-contained HTML export, no scripts and no external assets, for archiving or sharing
+- A standalone CLI that runs the same pipeline out of band, against a remote instance
+- Domain list and check list in data files, extensible without touching code, JSON always and YAML
+  when PyYAML is present
+
+Everything is read-only. No port scanning, no active probing, no traffic inspection, no CVE matching.
+
+## Why "Talos"?
+
+In Greek mythology Talos is the bronze automaton that circled Crete three times a day, watching who
+approached the shore and what they carried. He did not attack the island's own people and he did not
+guess: he watched, and he reported. That is what this integration does for a house, which is also why
+it refuses to call a heuristic on metadata a vulnerability.
+
+## How a scan works
 
 Every scan, by default every 15 minutes, runs the same five steps.
 
 **1. Read the declared side.** The registries are read in process: `config_entries`, the device
 registry, the entity registry, the area registry, plus the integration manifests through
-`async_get_integrations`. The unit is the **config entry**, not the device, because `mobile_app`,
-weather and TTS own entities without owning any device, and those are the most cloud bound things in
-the house. Disabled entries, devices and entities are skipped. The result is a scan carrying
-`evidence: declared` and nothing else.
+`async_get_integrations`. The canonical unit is the **config entry**, not the device, because
+`mobile_app`, weather and TTS own entities without owning any device and are the most cloud-bound
+things in a typical install. Disabled entries, devices and entities are skipped. The result is a scan
+carrying `evidence: declared` and nothing else.
 
 **2. Poll AdGuard Home.** The query log is a rolling buffer, not a queryable history, so Talos walks
-it newest first with the `older_than` cursor and stops at the cursor from the previous poll. Running
-totals per client and domain live in its own SQLite file under `config/talos/`, never in the recorder
-database, because AdGuard's retention rolls over and a device that resolved a domain four thousand
-times last week would otherwise read as a handful today.
+it newest first with the `older_than` cursor and stops at the cursor left by the previous poll.
+Running totals per client and domain live in a dedicated SQLite file under `config/talos/`, never in
+the recorder database, because AdGuard's retention rolls over and a device that resolved a domain
+four thousand times last week would otherwise read as a handful today.
 
 **3. Join the two.** The device registry knows MACs. The query log knows IPs. The DHCP leases are the
-only place both appear on the same row, which is why they matter (see below). Anything the join
-cannot attribute becomes an `unknown_host` conduit rather than being dropped.
+only place both appear on the same row, which is why they matter. Anything the join cannot attribute
+becomes an `unknown_host` conduit instead of being dropped.
 
-**4. Classify and attribute.** Domains are resolved against a list in
-`talos_core/data/domains.json`: vendor cloud, telemetry, push service, CDN, NTP, updates, local
-broker. Unclassified domains stay counted and visible. Devices with no IP of their own, Zigbee and
-Z-Wave nodes, cannot have direct egress, so when their hub is seen contacting a vendor they get an
-`inherited` conduit pointing at that hub instead of a fabricated direct one.
+**4. Classify and attribute.** Domains are resolved against `talos_core/data/domains.json`: vendor
+cloud, telemetry, push service, CDN, NTP, updates, local broker. Unclassified domains stay counted
+and listed. Zigbee and Z-Wave nodes carry no IP and therefore cannot have direct egress, so when
+their hub is observed contacting a vendor the children get an `inherited` conduit pointing at that
+hub, rather than a fabricated direct one. Nine Hue bulbs behind one talkative bridge are one thing to
+fix, not ten.
 
-**5. Derive and check.** From the joined scan Talos builds the matrix, the offline autonomy figures
-and the exposure figures, then runs the posture checks from
-`talos_core/data/checks.json`. Output goes to the panel, to nine summary entities, and to an HTML or
-JSON export.
+**5. Derive and check.** From the joined scan Talos builds the matrix, the autonomy figures and the
+exposure figures, then runs the posture checks from `talos_core/data/checks.json`. Output goes to the
+panel, to the summary entities, and to the HTML or JSON export.
 
-The whole pipeline is a pure function of the collected data. The same input always produces the same
-report, which is what makes any of it worth arguing with.
+The pipeline is a pure function of the collected data. The same input always produces the same
+report.
 
 ### The matrix
-
-The crossing of those two axes is the thing I could not get from any existing tool:
 
 | | No egress observed | Egress observed |
 |---|---|---|
 | **Local to HA** (`local_push`, `local_polling`) | Fully local | **The device phones home behind Home Assistant's back** |
 | **Cloud to HA** (`cloud_push`, `cloud_polling`) | Anomaly worth investigating | Declared dependency, confirmed |
 
-The top right cell is the one the whole project exists to fill. The bottom left is not a merit: a
-device declared cloud that never speaks usually means it is not correlated, or the integration is
-broken.
+The top-right cell is the one the project exists to fill. The bottom-left is not a merit: a device
+declared cloud that never speaks usually means it is not correlated, uses its own resolver, or the
+integration is broken.
 
-### Offline autonomy and external exposure
+### Autonomy and exposure are two numbers, never one score
 
-These are two separate figures and Talos never merges them into a single score. A camera can send
-telemetry every minute and keep working perfectly with the router unplugged, while another can be
-silent on the wire and die the moment its vendor's API hiccups. One number flattens four different
-situations and none of them gets the fix it needs.
-
-**Autonomy** counts the entities and integrations that keep working with the uplink down, derived
-from `iot_class` and grouped by vendor, so the report can say what a single vendor outage takes with
-it. **Exposure** counts the devices seen reaching outside, grouped by vendor, with the query volume
-and whether AdGuard blocked any of it. Reolink cameras in my house show up prominently in the second
-and not at all in the first, which is exactly right: they chat with their vendor but Home Assistant
-drives them locally.
+A camera can send telemetry every minute and keep working perfectly with the router unplugged, while
+another can be silent on the wire and die the moment its vendor's API hiccups. A single score
+flattens four different situations and none of them gets the fix it needs, so Talos reports the two
+separately. Reolink cameras show up prominently in exposure and not at all in autonomy, which is
+correct: they chat with their vendor, but Home Assistant drives them locally.
 
 ## What it checks, and what it does not
 
-**It checks:**
+It checks:
 
-- Devices that Home Assistant drives locally but that were observed contacting their vendor's cloud
-- Hosts holding a DHCP lease that never query the resolver, so they are running a DNS server
-  hardcoded in firmware and are a blind spot for everything else here
-- Third party integrations, not shipped with Home Assistant, that declare cloud access
+- Devices Home Assistant drives locally that were observed contacting their vendor's cloud
+- Hosts with a DHCP lease that never query the resolver, so they run a DNS server hardcoded in
+  firmware and are invisible to every other check here
+- Third-party integrations, not shipped with Home Assistant, that declare cloud access
 - Devices reaching outside from the trusted LAN rather than from an IoT VLAN
 - Integrations declared cloud that were never seen contacting anything
-- Which entities and automations stop working when the internet drops, and which vendor takes the
-  biggest share with it
+- Which entities stop working when the internet drops, and which vendor accounts for most of them
 - Domains nobody has classified yet, counted and listed rather than hidden
 
-**It does not check, and will not:**
+It does not check, and will not:
 
 - No CVE matching, no vulnerability database, no exploit attempts
 - No port scanning and no active probing of any device
 - No traffic inspection. DNS says **who** a device talked to, never what was said or how much. The
   report says "dependency detected" and never "data exfiltration"
-- Nothing is modified. Every source is read only
+- Nothing is modified. Every source is read-only
 
 Five checks in the rule file are declared but not implemented yet: anonymous MQTT broker, unknown
 MQTT clients, Z-Wave nodes without S2, cleartext RTSP, and ARP against the registry. They appear in
@@ -105,79 +133,139 @@ absent.
 
 ### Unverified is its own category
 
-A check that could not run is not a pass. If AdGuard is unreachable, the "local with egress" quadrant
-is empty because nothing was observed, not because nothing is wrong, and reporting that as green
-would be the exact failure this tool exists to avoid. Every check declares its preconditions, and
-when one is not met the check moves to the unverified list with the reason spelled out. That count
-sits next to the other two in the panel and cannot be hidden.
+A check that could not run is not a pass. If AdGuard is unreachable the "local with egress" quadrant
+comes out empty because nothing was observed, not because nothing is wrong, and reporting that as
+green would be the exact failure this tool exists to avoid. Every check declares its preconditions,
+and when one is not met the check moves to the unverified list with the reason spelled out. That
+count sits next to the other two in the panel and cannot be hidden.
 
 ## The two views
-
-The panel is deliberately split by question rather than by density of data. It is not the same screen
-with fewer columns.
 
 **Basic** answers two things: what stops working without internet, and which devices talk outside.
 Findings are the high and medium severity checks with the remediation next to each one, written
 without network jargon, plus the explicit count of what could not be verified.
 
-**Advanced** answers who talks to whom and on what evidence: the matrix, a column graph of the flows
-where the arcs that bypass Home Assistant are drawn in red, the full conduit table with each row
-labelled `declared`, `observed` or `inherited`, the check results with their subjects, and the
-unverified list with each reason.
-
-Both views come from the same derivations. There is no second code path that could drift.
+**Advanced** answers who talks to whom and on what evidence: the matrix, the flow graph, the full
+conduit table with its evidence labels, the check results with their subjects, and the unverified
+list with each reason.
 
 ## Installation
 
-### HACS
+### Through HACS (recommended)
 
-1. HACS, Integrations, three dot menu, **Custom repositories**
+[![Add to HACS](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Pricesswg&repository=Talos&category=integration)
+
+1. HACS, Integrations, three-dot menu, **Custom repositories**
 2. Add `https://github.com/Pricesswg/Talos`, category **Integration**
-3. Install, restart Home Assistant
-4. **Settings, Devices and services, Add integration, Talos**
+3. Install and restart Home Assistant
 
-### Manual
+Then add the integration:
+
+[![Add Talos integration](https://my.home-assistant.io/badges/config_flow_start.svg)](https://my.home-assistant.io/redirect/config_flow_start/?domain=talos)
+
+### Manual installation
 
 Copy `custom_components/talos` into the `custom_components` folder of your configuration and restart.
-The bundled core under `vendor/` is committed on purpose, so a copy of that folder is self contained.
+The bundled core under `vendor/` is committed on purpose, so that folder is self-contained.
 
-## Configuration
+## First-time setup
 
-**AdGuard Home is optional.** Without it Talos still answers the autonomy question from what Home
+The config flow asks for the AdGuard Home endpoint and its credentials, and verifies the connection
+against `/control/status` before creating the entry. The endpoint is asked for and never guessed:
+AdGuard often runs on the same machine as Home Assistant and just as often does not, and a wrong
+assumption produces an empty report that looks like a clean one.
+
+**AdGuard is optional.** Without it Talos still answers the autonomy question from what Home
 Assistant declares. It cannot answer the exposure question, and it writes that into the report rather
 than leaving the column blank.
 
-> ### Why the DHCP leases matter
->
-> The Home Assistant registry knows **MACs**. The query log knows **IPs**. The DHCP leases are the
-> only place the two appear together.
->
-> Without leases every observation stays attributed to an unknown host. Talos can say that somebody
-> contacted a vendor, but not **which device it was**, so the quadrant that matters comes out empty:
-> not because there is nothing there, but because nothing can be attributed. The resolver's clients
-> also cannot be compared against the devices on the network, so an appliance with a hardcoded DNS
-> server never surfaces at all.
->
-> For full coverage, enable AdGuard Home's DHCP server, or supply the router's leases. The report
-> always states which of the two situations it is describing.
+Straight after setup, open the options and set the **network ranges**. Until a range is given, the
+checks that depend on zones declare themselves unrunnable instead of passing.
 
-In the options you set the scan interval, the **network ranges** for the trusted LAN and the IoT
-VLAN, and retention. Until a range is given, the checks that depend on zones declare themselves
-unrunnable instead of passing.
+### Why the DHCP leases matter
 
-### Retention
+The Home Assistant registry knows **MACs**. The query log knows **IPs**. The DHCP leases are the only
+place the two appear together.
 
-The query log produces one row per client and domain pair, so the database would grow without bound.
-Two limits, both applied on every scan, because either one alone fails:
+Without leases every observation stays attributed to an unknown host. Talos can say that somebody
+contacted a vendor, but not **which device it was**, so the quadrant that matters comes out empty:
+not because there is nothing in it, but because nothing can be attributed. The resolver's clients
+also cannot be compared against the devices on the network, so an appliance with a hardcoded DNS
+server never surfaces at all.
 
-| Setting | Default | What it does |
+For full coverage, enable AdGuard Home's DHCP server, or supply the router's leases. The report
+always states which of the two situations it is describing.
+
+## Options
+
+| Option | Default | What it does |
 |---|---|---|
+| Scan interval | 15 min | The query log is paginated and can be long, so the default is conservative |
+| Trusted LAN / IoT VLAN / Guest subnet | empty | Comma-separated CIDR ranges. An address matching none stays `unknown` and is never assumed trusted |
 | `observation_days` | 90 | A device replaced months ago stops shaping today's report |
-| `max_observations` | 20000 | **This is what bounds the file.** Roughly 4 MB in practice |
+| `max_observations` | 20000 | **This is what bounds the database file.** Roughly 4 MB in practice |
 | `scan_history` | 5 | Snapshots are a convenience, the observations are the historical record |
+| Query log page size | 500 | Records fetched per request |
+| Maximum pages per scan | 40 | A budget, so one scan cannot walk a busy log for minutes |
+| Extra domain rules | empty | Absolute path to a JSON or YAML file, layered on top of the built-in list |
+| Extra posture checks | empty | Absolute path to a JSON or YAML file replacing the check list |
 
-Freed pages are actually returned to the filesystem (`auto_vacuum=INCREMENTAL`). A plain `DELETE`
-does not shrink a SQLite file.
+Retention applies **both** limits on every scan, because either one alone fails: a time window does
+not bound a busy network, and a row cap alone keeps stale rows forever while dropping fresh ones.
+Freed pages are actually returned to the filesystem (`auto_vacuum=INCREMENTAL`), since a plain
+`DELETE` does not shrink a SQLite file.
+
+## Entities
+
+All under one service device. No per-asset entities: a house with three hundred devices would
+otherwise gain three hundred registry entries for numbers the panel already shows.
+
+| Entity | What it reports |
+|---|---|
+| `sensor.talos_local_devices_phoning_home` | Size of the quadrant that matters, with the device names as an attribute |
+| `sensor.talos_high_severity_findings` | Failed checks at high severity, with the full counts by severity |
+| `sensor.talos_entities_that_stop_offline` | Entities lost when the uplink drops, broken down by vendor |
+| `sensor.talos_offline_autonomy` | Percentage of entities that keep working |
+| `sensor.talos_devices_talking_outside` | Devices with first-hand observed egress, plus unknown hosts |
+| `sensor.talos_unverified_checks` | Checks that could not run, with the reason for each |
+| `sensor.talos_correlation_coverage` | How much of the house the MAC/IP join could reach |
+| `sensor.talos_database_size` | Size of the Talos database, disabled by default |
+| `sensor.talos_last_scan` | Timestamp of the last completed scan |
+| `binary_sensor.talos_blind_spot` | On when a host bypasses the resolver, or when the zero check could not run at all |
+
+## Services
+
+| Service | Description |
+|---|---|
+| `talos.export_report` | Writes the self-contained report of the last scan. `format` is `html` or `json`, `path` is relative to the configuration directory. Returns the path, the size and the finding counts |
+| `talos.refresh` | Forces a fresh collection without waiting for the interval |
+
+Example, export a report every Monday morning and notify when there is something at high severity:
+
+```yaml
+automation:
+  - alias: Weekly Talos report
+    triggers:
+      - trigger: time
+        at: "07:00:00"
+    conditions:
+      - condition: time
+        weekday: [mon]
+    actions:
+      - action: talos.export_report
+        data:
+          format: html
+        response_variable: report
+      - if:
+          - condition: template
+            value_template: "{{ report.findings_high > 0 }}"
+        then:
+          - action: notify.mobile_app_iphone
+            data:
+              message: >
+                Talos: {{ report.findings_high }} high severity findings,
+                {{ report.unverified }} checks could not run.
+```
 
 ## The panel is admin only
 
@@ -187,7 +275,7 @@ addresses, MACs and the topology of the house, so not being embeddable is delibe
 
 The same reasoning applies to `talos.export_report`: the default target is `config/talos/`, not
 `config/www/`, because that directory is served at `/local/` without authentication. Writing there is
-allowed but the service logs a warning when it happens.
+allowed, but the service logs a warning when it happens.
 
 ## Command line
 
@@ -206,7 +294,7 @@ talos scan --url ws://homeassistant.local:8123/api/websocket \
 
 Credentials are read from the environment because a command line ends up in shell history and in
 process listings. The exit code is `1` when there are high severity findings, so cron notices. The
-HTML file is self contained: no scripts, no external assets, it opens from an archive a year later on
+HTML file is self-contained: no scripts, no external assets, it opens from an archive a year later on
 a machine with no network.
 
 Also available: `talos validate scan.json` and `talos report scan.json --html out.html`.
@@ -220,8 +308,7 @@ Also available: `talos validate scan.json` and `talos report scan.json --html ou
   small declared vocabulary: a DSL rich enough to express arbitrary logic would be a programming
   language dressed up as a configuration file.
 
-Both accept JSON always, and YAML when PyYAML is present, which inside Home Assistant it always is.
-Point at your own file from the integration options.
+Point at your own file from the integration options, or with `--domains` and `--checks` on the CLI.
 
 ## Known limits
 
@@ -231,8 +318,15 @@ Point at your own file from the integration options.
   outside. Marked unverifiable, not faked.
 - **The ARP table.** Inside a container the ARP cache only holds peers Home Assistant spoke to
   recently, not the whole LAN. DHCP leases stay the better source.
-- **The flow graph** groups devices by integration above ten origins and states what it is not
-  drawing. It does not use a graph layout library.
+- **The flow graph** groups by integration above ten origins and states what it is not drawing. It
+  does not use a graph layout library.
+
+## Translations
+
+The integration UI is available in English and Italian, selectable from Settings, Language. English
+is the source language and the fallback: a new string that has not been translated yet shows up in
+English rather than breaking. The panel carries its own string table with the same two languages, and
+a test fails if the two tables ever drift apart.
 
 ## Architecture
 
@@ -240,7 +334,7 @@ Point at your own file from the integration options.
 talos_core/                plain Python package, no dependencies, no homeassistant imports
 ├── model, validate        data model and validator with stable error codes
 ├── derive, checks         matrix, autonomy, exposure, posture check engine
-├── sources/               declared side (WebSocket API and in process registries)
+├── sources/               declared side (WebSocket API and in-process registries)
 ├── observed/              observed side (AdGuard), classification, join
 └── storage, cli, export   persistence with retention, CLI, HTML report
 
@@ -256,6 +350,16 @@ python3 -m unittest discover -s tests -t .
 ```
 
 216 tests, none of which need a network or a Home Assistant instance.
+
+Releases are produced with `scripts/release.sh <version> "<release notes>"`, which bumps the version
+in `manifest.json`, `pyproject.toml` and `talos_core/__init__.py`, re-bundles the core into
+`custom_components/talos/vendor/`, commits, tags, pushes and creates the GitHub release. A CI job
+fails if the bundled copy ever drifts from the source at the root.
+
+## Support the integration
+
+You can support the development of this integration by giving a small donation here:
+<a href='https://ko-fi.com/W7W21XGKFV' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi2.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 
 ## License
 
