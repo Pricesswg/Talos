@@ -11,7 +11,7 @@
           "verify_ssl": "Verify the SSL certificate"
         },
         "data_description": {
-          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first, <url>/control/status must return JSON. Leave empty to run without observed data.",
+          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first: the address followed by /control/status must return JSON. Leave empty to run without observed data.",
           "adguard_username": "Leave empty if AdGuard has no authentication."
         }
       },
@@ -25,7 +25,7 @@
           "verify_ssl": "Verify the SSL certificate"
         },
         "data_description": {
-          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first, <url>/control/status must return JSON. Leave empty to run without observed data."
+          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first: the address followed by /control/status must return JSON. Leave empty to run without observed data."
         }
       }
     },

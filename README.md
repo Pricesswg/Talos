@@ -186,8 +186,9 @@ Do not use `127.0.0.1` unless Home Assistant runs with host networking. Inside a
 address is the container itself, not the machine. The port is the one you open the AdGuard web
 interface on, 3000 by default but often moved to 80 after the first setup.
 
-Check the address in a browser before typing it into the config flow: `<url>/control/status` must
-return JSON with `running` and `dns_addresses`. That is the exact endpoint the config flow probes.
+Check the address in a browser before typing it into the config flow: the address followed by
+`/control/status` must return JSON with `running` and `dns_addresses`. That is the exact endpoint
+the config flow probes.
 
 **AdGuard is optional.** Without it Talos still answers the autonomy question from what Home
 Assistant declares. It cannot answer the exposure question, and it writes that into the report rather

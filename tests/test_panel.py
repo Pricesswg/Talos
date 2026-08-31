@@ -119,6 +119,47 @@ class TestTranslations(unittest.TestCase):
                 self.assertIn(f"opt.{option}", self.it)
 
 
+class TestIntegrationTranslations(unittest.TestCase):
+    """hassfest rejects anything that looks like HTML in a translation."""
+
+    def test_no_angle_brackets(self) -> None:
+        import json
+        import re
+
+        base = ROOT / "custom_components" / "talos"
+        for name in ("translations/en.json", "translations/it.json", "strings.json"):
+            path = base / name
+
+            def walk(node: object, where: str) -> None:
+                if isinstance(node, dict):
+                    for key, value in node.items():
+                        walk(value, f"{where}.{key}" if where else key)
+                elif isinstance(node, str):
+                    self.assertIsNone(
+                        re.search(r"<[^>\s][^>]*>", node),
+                        f"{name}: {where} would be read as HTML by hassfest",
+                    )
+
+            walk(json.loads(path.read_text(encoding="utf-8")), "")
+
+    def test_english_and_italian_cover_the_same_keys(self) -> None:
+        import json
+
+        base = ROOT / "custom_components" / "talos" / "translations"
+
+        def keys(node: object, where: str = "") -> set[str]:
+            if not isinstance(node, dict):
+                return {where}
+            found: set[str] = set()
+            for key, value in node.items():
+                found |= keys(value, f"{where}.{key}" if where else key)
+            return found
+
+        english = keys(json.loads((base / "en.json").read_text(encoding="utf-8")))
+        italian = keys(json.loads((base / "it.json").read_text(encoding="utf-8")))
+        self.assertEqual(english ^ italian, set())
+
+
 class TestEscaping(unittest.TestCase):
     def test_untrusted_values_go_through_esc(self) -> None:
         # Device names, domains and check text come from the network and from
