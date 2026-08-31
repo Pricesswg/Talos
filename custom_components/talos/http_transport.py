@@ -25,6 +25,7 @@ class HassHttpTransport:
         username: str = "",
         password: str = "",
         verify_ssl: bool = True,
+        timeout: float = 60,
     ) -> None:
         self._hass = hass
         self._base_url = base_url.rstrip("/")
@@ -32,6 +33,7 @@ class HassHttpTransport:
             aiohttp.BasicAuth(username, password) if username or password else None
         )
         self._verify_ssl = verify_ssl
+        self._timeout = timeout
 
     async def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
         session = async_get_clientsession(self._hass, verify_ssl=self._verify_ssl)
@@ -40,7 +42,7 @@ class HassHttpTransport:
                 f"{self._base_url}{path}",
                 params=params,
                 auth=self._auth,
-                timeout=aiohttp.ClientTimeout(total=60),
+                timeout=aiohttp.ClientTimeout(total=self._timeout),
             ) as response:
                 if response.status in (401, 403):
                     raise ObservedAuthError(f"{path}: HTTP {response.status}")

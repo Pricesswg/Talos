@@ -41,6 +41,8 @@ A single admin-only panel provides:
 - A standalone CLI that runs the same pipeline out of band, against a remote instance
 - Domain list and check list in data files, extensible without touching code, JSON always and YAML
   when PyYAML is present
+- Setup that finds the AdGuard Home endpoint on its own, from the official integration or the add-on,
+  and pre-fills the form with whatever actually answered
 
 Everything is read-only. No port scanning, no active probing, no traffic inspection, no CVE matching.
 
@@ -170,10 +172,15 @@ The bundled core under `vendor/` is committed on purpose, so that folder is self
 
 ## First-time setup
 
-The config flow asks for the AdGuard Home endpoint and its credentials, and verifies the connection
-against `/control/status` before creating the entry. The endpoint is asked for and never guessed:
-AdGuard often runs on the same machine as Home Assistant and just as often does not, and a wrong
-assumption produces an empty report that looks like a clean one.
+The config flow looks for AdGuard Home before asking. It reads the configuration of the official
+AdGuard integration if you have it, then tries the community add-on's hostname and the address Home
+Assistant knows itself by, and probes each one against `/control/status`. The first address that
+answers is put in the form, together with the credentials it found, and you confirm or change it.
+
+Nothing is used silently and nothing is assumed: a candidate only counts once the API has answered
+on it, because a wrong address that looks plausible produces an empty report that reads like a clean
+one. If nothing answers, the form comes up empty and you fill it in by hand. The same probe runs
+when you reconfigure an entry that has no address yet.
 
 ### Which address to use for AdGuard
 
