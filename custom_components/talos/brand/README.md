@@ -1,13 +1,18 @@
 # Brand assets
 
-`icon.png` (256x256) e `logo.png` (512x256) sono **segnaposto** generati da
-`scripts/make_brand.py`. HACS li accetta da dentro il repository, quindi
-sbloccano il check `brands` senza aspettare una PR a `home-assistant/brands`.
+| File | Dimensioni | Formato |
+|---|---|---|
+| `icon.png` | 256×256 | PNG RGBA, sfondo trasparente |
+| `logo.png` | 512×288 | PNG RGB, sfondo opaco |
 
-Per sostituirli basta sovrascrivere i due file mantenendo nomi, percorsi e
-dimensioni: nessun altro file fa riferimento a loro. Entrambi PNG a 8 bit con
-canale alpha.
+HACS accetta questi asset da dentro il repository, quindi il check `brands`
+passa senza aspettare una PR a `home-assistant/brands`.
 
-Quando l'integrazione verra' proposta allo store predefinito di HACS serviranno
-anche nel repository `home-assistant/brands`, sotto `custom_integrations/talos/`,
-con le stesse specifiche.
+## Se un giorno vanno nello store predefinito
+
+`home-assistant/brands` li vuole sotto `custom_integrations/talos/` e impone
+un'**altezza massima di 256** per il logo: quello attuale è 288 e andrà
+ridimensionato o ritagliato in quell'occasione. Per HACS in-repo va bene così.
+
+Generatore dei segnaposto originali: `scripts/make_brand.py` (solo stdlib),
+tenuto come riferimento e non più usato.
