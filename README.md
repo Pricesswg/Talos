@@ -66,6 +66,16 @@ registry, the entity registry, the area registry, plus the integration manifests
 things in a typical install. Disabled entries, devices and entities are skipped. The result is a scan
 carrying `evidence: declared` and nothing else.
 
+Two things get read off the entry itself. The first is **the address it connects to**, taken from the
+`broker`, `host`, `server`, `hostname`, `address` or `url` key in its data, plus the port. That is the
+only way to tell two brokers apart: with EMQX and Mosquitto both installed the domain says `mqtt` for
+both, and only the entry says which one the devices actually arrive through. Nothing else in the entry
+is read, because the same dictionary holds usernames, passwords and tokens, and none of them belong in
+a document meant to be exported. Nothing is pinged either: this is what the entry declares, and it is
+labelled `declared` like everything else in this step. The second is **the entry state**. An entry in
+`setup_retry` is serving nothing right now, so its entities are counted as unavailable rather than as
+local, and a check reports it. Working offline and not working at all are not the same result.
+
 **2. Poll AdGuard Home.** The query log is a rolling buffer, not a queryable history, so Talos walks
 it newest first with the `older_than` cursor and stops at the cursor left by the previous poll.
 Running totals per client and domain live in a dedicated SQLite file under `config/talos/`, never in

@@ -118,6 +118,19 @@ def ws_derived(
         _not_ready(connection, msg["id"])
         return
     data = coordinator.data
+    # Where each integration says it connects. Read from the config entry, so
+    # it answers "which broker" without probing anything.
+    endpoints: dict[str, str] = {}
+    for conduit in data.scan.conduits:
+        if conduit.evidence != "declared" or conduit.source.kind != "integration":
+            continue
+        destination = data.scan.destination(conduit.destination_id)
+        if destination is None or conduit.source.id in endpoints:
+            continue
+        endpoints[conduit.source.id] = (
+            f"{destination.fqdn}:{conduit.port}" if conduit.port else destination.fqdn
+        )
+
     connection.send_result(
         msg["id"],
         {
@@ -151,6 +164,9 @@ def ws_derived(
                         "iot_class": integration.iot_class,
                         # Bus or media service, which is not a transport.
                         "role": integration.role,
+                        # Not loaded means its entities are unavailable now.
+                        "state": integration.state,
+                        "endpoint": endpoints.get(integration.id),
                         "is_built_in": integration.is_built_in,
                         "entity_count": integration.entity_count,
                     }

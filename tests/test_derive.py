@@ -22,6 +22,7 @@ from talos_core import (
     derive,
     validate,
 )
+from talos_core.sources.mapping import RegistryPayload, build_scan
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -209,6 +210,54 @@ class TestDerived(unittest.TestCase):
         self.assertEqual(derived.autonomy.local_ratio, 0.0)
         self.assertEqual(derived.exposure.vendors, ())
 
+
+
+class TestUnavailableEntities(unittest.TestCase):
+    """An entry that is not loaded serves nothing. Its entities do not keep
+    working offline, so they cannot be counted as if they did."""
+
+    @staticmethod
+    def scan_with(state: str) -> Scan:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "state": state, "endpoint": None},
+                {"entry_id": "e_matter", "domain": "matter", "state": "loaded", "endpoint": None},
+            ],
+            devices=[],
+            entities=[
+                {"entity_id": "sensor.a", "config_entry_id": "e_mqtt", "device_id": None},
+                {"entity_id": "sensor.b", "config_entry_id": "e_mqtt", "device_id": None},
+                {"entity_id": "sensor.c", "config_entry_id": "e_matter", "device_id": None},
+            ],
+            areas=[],
+            manifests=[
+                {"domain": "mqtt", "iot_class": "local_push", "is_built_in": True},
+                {"domain": "matter", "iot_class": "local_push", "is_built_in": True},
+            ],
+        )
+        return build_scan(payload, generated_at="2026-09-01T00:00:00+00:00", collector="native")
+
+    def test_a_stopped_entry_moves_its_entities_out_of_local(self) -> None:
+        autonomy = derive(self.scan_with("setup_retry")).autonomy
+        self.assertEqual(autonomy.entities_unavailable, 2)
+        self.assertEqual(autonomy.entities_local, 1)
+        self.assertEqual(autonomy.integrations_not_loaded, ("e_mqtt",))
+
+    def test_the_same_entry_loaded_counts_as_local(self) -> None:
+        autonomy = derive(self.scan_with("loaded")).autonomy
+        self.assertEqual(autonomy.entities_unavailable, 0)
+        self.assertEqual(autonomy.entities_local, 3)
+        self.assertEqual(autonomy.integrations_not_loaded, ())
+
+    def test_it_is_reported_rather_than_left_to_be_noticed(self) -> None:
+        failed = derive(self.scan_with("setup_retry")).checks.failed
+        result = next(r for r in failed if r.id == "chk.integration_not_loaded")
+        self.assertEqual(result.severity, "high")
+        self.assertEqual(result.subjects, ("e_mqtt",))
+        self.assertNotIn(
+            "chk.integration_not_loaded",
+            {r.id for r in derive(self.scan_with("loaded")).checks.failed},
+        )
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,6 +58,28 @@ def area_to_dict(area: Any) -> dict[str, Any]:
     return {"area_id": getattr(area, "id", None), "name": getattr(area, "name", None)}
 
 
+# Keys that name where a config entry connects. Nothing else is read: a
+# config entry also holds passwords and tokens, and none of them belong in a
+# document meant to be exported and shared.
+ENDPOINT_HOST_KEYS = ("broker", "host", "server", "hostname", "address", "url")
+ENDPOINT_PORT_KEYS = ("port",)
+
+
+def entry_endpoint(entry: Any) -> dict[str, Any] | None:
+    """The address a config entry connects to, if it names one.
+
+    This is the difference between saying "the MQTT integration" and saying
+    which broker it actually talks to, which matters when there are two of
+    them and one is stopped.
+    """
+    data = dict(getattr(entry, "data", {}) or {})
+    host = next((str(data[key]) for key in ENDPOINT_HOST_KEYS if data.get(key)), None)
+    if not host:
+        return None
+    port = next((data[key] for key in ENDPOINT_PORT_KEYS if data.get(key)), None)
+    return {"host": host, "port": int(port) if isinstance(port, (int, str)) and str(port).isdigit() else None}
+
+
 def config_entry_to_dict(entry: Any) -> dict[str, Any]:
     return {
         "entry_id": entry.entry_id,
@@ -66,6 +88,7 @@ def config_entry_to_dict(entry: Any) -> dict[str, Any]:
         "state": _enum_value(getattr(entry, "state", None)) or "loaded",
         "source": getattr(entry, "source", None),
         "disabled_by": _enum_value(getattr(entry, "disabled_by", None)),
+        "endpoint": entry_endpoint(entry),
     }
 
 

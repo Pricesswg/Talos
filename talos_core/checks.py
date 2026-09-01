@@ -252,12 +252,14 @@ def _select(
 
     if kind == "integration_where":
         wanted_classes = set(selector.get("iot_class_in") or ())
+        excluded_states = set(selector.get("state_not_in") or ())
         built_in = selector.get("is_built_in")
         matched = [
             integration.id
             for integration in scan.integrations
             if (built_in is None or integration.is_built_in is bool(built_in))
             and (not wanted_classes or integration.iot_class in wanted_classes)
+            and (not excluded_states or integration.state not in excluded_states)
         ]
         return "integration", tuple(sorted(matched))
 

@@ -264,5 +264,41 @@ class TestScanFromRegistries(unittest.TestCase):
         self.assertEqual(scan.correlation.devices_total, 0)
 
 
+
+class TestEntryEndpoint(unittest.TestCase):
+    """Reading config entry data is what tells one broker from another. It is
+    also where the passwords live, so the extraction has to stay narrow."""
+
+    @staticmethod
+    def endpoint(data: dict[str, Any]) -> dict[str, Any] | None:
+        return native.entry_endpoint(types.SimpleNamespace(data=data))
+
+    def test_it_reads_the_broker_an_entry_points_at(self) -> None:
+        self.assertEqual(
+            self.endpoint({"broker": "a0d7b954-emqx", "port": 1883}),
+            {"host": "a0d7b954-emqx", "port": 1883},
+        )
+
+    def test_a_string_port_still_resolves(self) -> None:
+        self.assertEqual(self.endpoint({"host": "10.0.0.4", "port": "8123"})["port"], 8123)
+
+    def test_an_entry_with_no_address_yields_nothing(self) -> None:
+        self.assertIsNone(self.endpoint({"username": "simon", "password": "hunter2"}))
+
+    def test_credentials_never_come_out_with_the_address(self) -> None:
+        endpoint = self.endpoint(
+            {
+                "broker": "core-mosquitto",
+                "port": 1883,
+                "username": "simon",
+                "password": "hunter2",
+                "api_key": "sk-live-0001",
+                "access_token": "eyJhbGci",
+            }
+        )
+        self.assertEqual(set(endpoint), {"host", "port"})
+        self.assertNotIn("hunter2", str(endpoint))
+        self.assertNotIn("sk-live-0001", str(endpoint))
+
 if __name__ == "__main__":
     unittest.main()

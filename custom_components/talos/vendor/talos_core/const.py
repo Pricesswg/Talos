@@ -42,6 +42,11 @@ CLOUD_IOT_CLASSES: Final = frozenset({"cloud_push", "cloud_polling"})
 # and an ONVIF camera rides on Wi-Fi.
 INTEGRATION_ROLES: Final = frozenset({"aggregator", "streaming", "unknown"})
 
+# A config entry only serves its entities while it is loaded. Anything else,
+# a broker that is down, a retry loop, a failed migration, means the entities
+# are unavailable right now, which is not the same as working offline.
+LOADED_ENTRY_STATES: Final = frozenset({"loaded"})
+
 TRANSPORTS: Final = frozenset(
     {
         "zigbee",
@@ -65,6 +70,11 @@ NON_IP_TRANSPORTS: Final = frozenset({"zigbee", "zwave", "ble", "thread"})
 # seeing on their own, and neither is a transport: Zigbee2MQTT rides on MQTT
 # and an ONVIF camera rides on Wi-Fi.
 INTEGRATION_ROLES: Final = frozenset({"aggregator", "streaming", "unknown"})
+
+# A config entry only serves its entities while it is loaded. Anything else,
+# a broker that is down, a retry loop, a failed migration, means the entities
+# are unavailable right now, which is not the same as working offline.
+LOADED_ENTRY_STATES: Final = frozenset({"loaded"})
 
 DESTINATION_KINDS: Final = frozenset(
     {

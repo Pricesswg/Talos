@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from talos_core import Scan, derive, validate
+from talos_core.const import INTERNAL_DESTINATION_KINDS
 from talos_core.sources import (
     CommandError,
     CommandTransport,
@@ -431,3 +432,84 @@ class TestOriginDetection(unittest.TestCase):
 
     def test_the_field_stays_absent_for_ordinary_devices(self) -> None:
         self.assertIsNone(self.origin_of({"id": "o4"}))
+
+
+class TestDeclaredEndpoints(unittest.TestCase):
+    """A config entry that names its broker is the only way to tell two
+    brokers apart. Nothing here is probed: it is what the entry states."""
+
+    @staticmethod
+    def scan_for(*entries: dict[str, Any]) -> Scan:
+        payload = RegistryPayload(
+            config_entries=list(entries),
+            devices=[],
+            entities=[],
+            areas=[],
+            manifests=[
+                {"domain": entry["domain"], "iot_class": "local_push", "is_built_in": True}
+                for entry in entries
+            ],
+        )
+        return build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+
+    def test_the_named_broker_becomes_a_declared_conduit(self) -> None:
+        scan = self.scan_for(
+            {
+                "entry_id": "e_mqtt",
+                "domain": "mqtt",
+                "title": "EMQX",
+                "state": "loaded",
+                "endpoint": {"host": "a0d7b954-emqx", "port": 1883},
+            }
+        )
+        self.assertEqual(len(scan.conduits), 1)
+        conduit = scan.conduits[0]
+        self.assertEqual(conduit.evidence, "declared")
+        self.assertEqual(conduit.source.kind, "integration")
+        self.assertEqual(conduit.source.id, "e_mqtt")
+        self.assertEqual(conduit.port, 1883)
+        self.assertEqual(scan.destination(conduit.destination_id).fqdn, "a0d7b954-emqx")
+        self.assertEqual(validate(scan.to_dict()), [])
+
+    def test_two_brokers_stay_two_destinations(self) -> None:
+        scan = self.scan_for(
+            {
+                "entry_id": "e_emqx",
+                "domain": "mqtt",
+                "state": "loaded",
+                "endpoint": {"host": "a0d7b954-emqx", "port": 1883},
+            },
+            {
+                "entry_id": "e_mosq",
+                "domain": "mqtt",
+                "state": "setup_retry",
+                "endpoint": {"host": "core-mosquitto", "port": 1883},
+            },
+        )
+        by_source = {c.source.id: scan.destination(c.destination_id).fqdn for c in scan.conduits}
+        self.assertEqual(by_source, {"e_emqx": "a0d7b954-emqx", "e_mosq": "core-mosquitto"})
+
+    def test_a_host_off_the_network_is_not_called_local(self) -> None:
+        scan = self.scan_for(
+            {
+                "entry_id": "e_cloud",
+                "domain": "tuya",
+                "state": "loaded",
+                "endpoint": {"host": "openapi.tuyaeu.com", "port": 443},
+            }
+        )
+        self.assertNotIn(scan.destinations[0].kind, INTERNAL_DESTINATION_KINDS)
+
+    def test_an_entry_that_names_nothing_produces_nothing(self) -> None:
+        scan = self.scan_for(
+            {"entry_id": "e_matter", "domain": "matter", "state": "loaded", "endpoint": None}
+        )
+        self.assertEqual(list(scan.conduits), [])
+        self.assertEqual(list(scan.destinations), [])
+
+    def test_the_websocket_source_says_it_cannot_read_them(self) -> None:
+        data = registry()
+        scan = collect(FakeTransport(data["responses"], data["ha_version"]))
+        self.assertIn(
+            "unv.entry_endpoints_unavailable", {note.id for note in scan.unverified}
+        )

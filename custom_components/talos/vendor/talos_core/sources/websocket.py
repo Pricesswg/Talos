@@ -92,6 +92,21 @@ class WebSocketSource(DeclarativeSource):
             ),
         )
 
+        if not any(entry.get("endpoint") for entry in _as_entries(config_entries)):
+            notes.append(
+                UnverifiedCheck(
+                    id="unv.entry_endpoints_unavailable",
+                    title="Addresses the integrations connect to",
+                    reason="method_limit",
+                    detail=(
+                        "The WebSocket API does not expose config entry data, so the"
+                        " broker or server each integration points at cannot be read"
+                        " from outside. Running as an integration reads them in"
+                        " process. Nothing else is affected."
+                    ),
+                )
+            )
+
         return RegistryPayload(
             config_entries=_as_entries(config_entries),
             devices=_as_entries(devices),

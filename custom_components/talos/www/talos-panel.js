@@ -245,6 +245,9 @@ const I18N = {
     "map.roles": "Filtra per ruolo",
     "map.scope.role": "Solo {name}",
     "section.collapse": "Comprimi o espandi",
+    "state.notLoaded": "non caricata",
+    "base.offline.unavailable":
+      "<strong>{n} entità</strong> non sono disponibili adesso: la loro integrazione non è caricata, quindi non funzionano né con internet né senza.",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -489,6 +492,9 @@ const I18N = {
     "map.roles": "Filter by role",
     "map.scope.role": "{name} only",
     "section.collapse": "Collapse or expand",
+    "state.notLoaded": "not loaded",
+    "base.offline.unavailable":
+      "<strong>{n} entities</strong> are unavailable right now: their integration is not loaded, so they work neither with the internet nor without it.",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -1217,6 +1223,12 @@ class TalosPanel extends HTMLElement {
           } ${
             a.entities_unclassified
               ? this.t("base.offline.unclassified", { n: this.num(a.entities_unclassified) })
+              : ""
+          }${
+            a.entities_unavailable
+              ? `<br>${this.t("base.offline.unavailable", {
+                  n: this.num(a.entities_unavailable),
+                })}`
               : ""
           }</div>
         </div>
@@ -2313,7 +2325,17 @@ class TalosPanel extends HTMLElement {
                   ? `<span class="chip">${esc(this.t(`role.${integration.role}`))}</span>`
                   : ""
               }
+              ${
+                integration.state && integration.state !== "loaded"
+                  ? `<span class="chip chip--alert">${esc(this.t("state.notLoaded"))}</span>`
+                  : ""
+              }
               ${integration.is_built_in === false ? `<span class="chip">HACS</span>` : ""}
+              ${
+                integration.endpoint
+                  ? `<span class="tgroup__domain">${esc(integration.endpoint)}</span>`
+                  : ""
+              }
               <span class="tgroup__n">${entry.devices.length}</span>
             </summary>
             <div class="devlist">
@@ -2763,7 +2785,14 @@ class TalosPanel extends HTMLElement {
         } else if (column.key === "integration") {
           const integration = d.labels.integrations[id] || {};
           label = integration.domain || id;
-          sub = [integration.iot_class, this.t(`role.${integration.role || "unknown"}`)]
+          sub = [
+            integration.iot_class,
+            this.t(`role.${integration.role || "unknown"}`),
+            integration.state && integration.state !== "loaded"
+              ? this.t("state.notLoaded")
+              : "",
+            integration.endpoint || "",
+          ]
             .filter(Boolean)
             .join(" · ");
           colour = (integration.iot_class || "").startsWith("cloud") ? "var(--k-vendor)" : "var(--k-local)";

@@ -20,8 +20,23 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+import ipaddress
+
 from ..const import SCHEMA_VERSION
-from ..model import Correlation, Device, Integration, Scan, UnverifiedCheck
+from ..model import (
+    Conduit,
+    Correlation,
+    Destination,
+    Device,
+    Integration,
+    Scan,
+    SourceRef,
+    UnverifiedCheck,
+)
+
+# Hostnames that only resolve inside the house.
+LOCAL_HOST_SUFFIXES: tuple[str, ...] = (".local", ".lan", ".internal", ".home.arpa")
+LOCAL_HOST_PREFIXES: tuple[str, ...] = ("a0d7b954-", "core-", "addon_", "homeassistant", "localhost")
 
 # A device registry does not say how a device is attached. The domain is one
 # hint among several; anything still unresolved stays `unknown`, which is
@@ -248,6 +263,8 @@ def build_scan(
             )
         )
 
+    destinations, conduits = _endpoints(payload.config_entries, known_entries)
+
     return Scan(
         schema_version=SCHEMA_VERSION,
         generated_at=generated_at,
@@ -255,11 +272,11 @@ def build_scan(
         ha_version=ha_version,
         integrations=integrations,
         devices=devices,
-        destinations=[],
-        # A declared-only scan names no destinations: the manifest says an
-        # integration is cloud-bound, never which host it reaches. Those edges
-        # arrive with the observed side and the domain classification.
-        conduits=[],
+        # A manifest never says which host an integration reaches, but a
+        # config entry often does: the broker, the server, the appliance. That
+        # is declared evidence, so it belongs in the document.
+        destinations=destinations,
+        conduits=conduits,
         correlation=_correlation(devices),
         unverified=unverified,
     )
@@ -280,6 +297,59 @@ def _mark_aggregators(integrations: list[Integration], devices: list[Device]) ->
     for integration in integrations:
         if integration.role == "unknown" and origins.get(integration.id):
             integration.role = "aggregator"
+
+
+def _is_local_host(host: str) -> bool:
+    name = host.lower().split("://")[-1].split("/")[0].split(":")[0]
+    try:
+        address = ipaddress.ip_address(name)
+    except ValueError:
+        return name.startswith(LOCAL_HOST_PREFIXES) or name.endswith(LOCAL_HOST_SUFFIXES)
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
+def _endpoints(
+    config_entries: Iterable[dict[str, Any]], known_entries: set[str]
+) -> tuple[list[Destination], list[Conduit]]:
+    """Declared conduits for the entries that name where they connect.
+
+    Only what a config entry states about its own address. Nothing is probed
+    and nothing is guessed: an entry that names no host produces nothing.
+    """
+    destinations: dict[str, Destination] = {}
+    conduits: list[Conduit] = []
+
+    for entry in config_entries:
+        entry_id = entry.get("entry_id")
+        endpoint = entry.get("endpoint")
+        if entry_id not in known_entries or not isinstance(endpoint, dict):
+            continue
+        host = str(endpoint.get("host") or "").strip()
+        if not host:
+            continue
+
+        port = endpoint.get("port")
+        local = _is_local_host(host)
+        destination_id = f"dst.{host}" + (f":{port}" if port else "")
+        if destination_id not in destinations:
+            destinations[destination_id] = Destination(
+                id=destination_id,
+                fqdn=host,
+                kind="local_broker" if local else "vendor_cloud",
+                vendor=None,
+            )
+        conduits.append(
+            Conduit(
+                id=f"cnd.{entry_id}.endpoint",
+                source=SourceRef("integration", entry_id),
+                destination_id=destination_id,
+                evidence="declared",
+                port=int(port) if isinstance(port, int) else None,
+                encrypted="unknown",
+            )
+        )
+
+    return sorted(destinations.values(), key=lambda d: d.id), conduits
 
 
 def _build_integrations(

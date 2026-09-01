@@ -21,6 +21,7 @@ from typing import Any, Iterable
 from .checks import CheckEngine, CheckReport, default_engine
 from .const import (
     CLOUD_IOT_CLASSES,
+    LOADED_ENTRY_STATES,
     INFRA_DESTINATION_KINDS,
     LOCAL_IOT_CLASSES,
     PHONE_HOME_DESTINATION_KINDS,
@@ -117,6 +118,11 @@ class Autonomy:
     entities_local: int = 0
     entities_cloud: int = 0
     entities_unclassified: int = 0
+    # Entities of a config entry that is not loaded. They are not working now,
+    # with or without an uplink, so counting them among the survivors would
+    # overstate the very number this whole figure exists to report.
+    entities_unavailable: int = 0
+    integrations_not_loaded: tuple[str, ...] = ()
     integrations_cloud: tuple[str, ...] = ()
     # Per vendor, worst first. Vendors can overlap if one integration talks to
     # several, so these do not sum to entities_cloud. That total is the one
@@ -133,6 +139,8 @@ class Autonomy:
             "entities_local": self.entities_local,
             "entities_cloud": self.entities_cloud,
             "entities_unclassified": self.entities_unclassified,
+            "entities_unavailable": self.entities_unavailable,
+            "integrations_not_loaded": list(self.integrations_not_loaded),
             "integrations_cloud": list(self.integrations_cloud),
             "losses": [loss.to_dict() for loss in self.losses],
         }
@@ -320,11 +328,18 @@ def build_matrix(scan: Scan, context: _Context | None = None) -> Matrix:
 def build_autonomy(scan: Scan, context: _Context | None = None) -> Autonomy:
     context = context or _Context(scan)
 
-    total = local = cloud = unclassified = 0
+    total = local = cloud = unclassified = unavailable = 0
     cloud_integrations: list[str] = []
+    not_loaded: list[str] = []
 
     for integration in scan.integrations:
         total += integration.entity_count
+        if integration.state not in LOADED_ENTRY_STATES:
+            # Not loaded: its entities are unavailable right now, which is a
+            # different fact from surviving an outage.
+            unavailable += integration.entity_count
+            not_loaded.append(integration.id)
+            continue
         if integration.iot_class in LOCAL_IOT_CLASSES:
             local += integration.entity_count
         elif integration.iot_class in CLOUD_IOT_CLASSES:
@@ -373,6 +388,8 @@ def build_autonomy(scan: Scan, context: _Context | None = None) -> Autonomy:
         entities_local=local,
         entities_cloud=cloud,
         entities_unclassified=unclassified,
+        entities_unavailable=unavailable,
+        integrations_not_loaded=_sorted(not_loaded),
         integrations_cloud=_sorted(cloud_integrations),
         losses=tuple(losses),
     )

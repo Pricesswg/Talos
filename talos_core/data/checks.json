@@ -6,8 +6,13 @@
       "id": "chk.local_with_egress",
       "title": "Local device reaching its vendor's cloud",
       "severity": "high",
-      "requires": ["observed_evidence"],
-      "selector": { "type": "matrix_quadrant", "quadrant": "local_egress" },
+      "requires": [
+        "observed_evidence"
+      ],
+      "selector": {
+        "type": "matrix_quadrant",
+        "quadrant": "local_egress"
+      },
       "detail": "Home Assistant drives these locally, but the query log caught them contacting the vendor cloud on their own. This says who they spoke to, not what was said.",
       "remediation": "Check the vendor's own app for a cloud service running in parallel, often called P2P, UID or remote access. Turning it off does not affect local control from Home Assistant."
     },
@@ -15,20 +20,44 @@
       "id": "chk.resolver_bypass",
       "title": "Device bypassing the resolver",
       "severity": "high",
-      "requires": ["dhcp_leases"],
-      "selector": { "type": "unverified_present", "check_id": "unv.resolver_bypassed" },
+      "requires": [
+        "dhcp_leases"
+      ],
+      "selector": {
+        "type": "unverified_present",
+        "check_id": "unv.resolver_bypassed"
+      },
       "detail": "Holds a DHCP lease but has never queried AdGuard: it uses a DNS server hardcoded in its firmware. Every DNS-based check is blind on this host.",
       "remediation": "Set the network DNS on the device if it allows it. Otherwise redirect port 53 at the router. DNS over HTTPS stays out of reach either way."
+    },
+    {
+      "id": "chk.integration_not_loaded",
+      "title": "Integration not loaded",
+      "severity": "high",
+      "requires": [],
+      "selector": {
+        "type": "integration_where",
+        "state_not_in": [
+          "loaded"
+        ]
+      },
+      "detail": "The config entry is not loaded, so its entities are unavailable right now. This is not an offline-resilience question: they are not working with or without an uplink. A stopped broker, a service that moved, or a failed migration all look like this.",
+      "remediation": "Open Settings, Devices and services and read the entry's error. If it points at a broker or a server, check that the service is actually running and that the address still matches: an add-on that was stopped or renamed is the common case."
     },
     {
       "id": "chk.custom_integration_cloud",
       "title": "Third-party integration with cloud access",
       "severity": "medium",
-      "requires": ["manifests"],
+      "requires": [
+        "manifests"
+      ],
       "selector": {
         "type": "integration_where",
         "is_built_in": false,
-        "iot_class_in": ["cloud_push", "cloud_polling"]
+        "iot_class_in": [
+          "cloud_push",
+          "cloud_polling"
+        ]
       },
       "detail": "Integrations installed by hand or through HACS that talk to an external service. They are not reviewed by Home Assistant, and the credentials they hold pass through third-party code.",
       "remediation": "Check that the repository is maintained and that installing it was your own decision. Not a flaw in itself: one more surface you are choosing to trust."
@@ -37,10 +66,15 @@
       "id": "chk.device_on_trusted_lan",
       "title": "Device talking outside from the trusted LAN",
       "severity": "medium",
-      "requires": ["zones_configured", "observed_evidence"],
+      "requires": [
+        "zones_configured",
+        "observed_evidence"
+      ],
       "selector": {
         "type": "device_where",
-        "zone_in": ["trusted_lan"],
+        "zone_in": [
+          "trusted_lan"
+        ],
         "has_phone_home_egress": true
       },
       "detail": "It sits on the network that also holds your computers and phones, and it reaches the outside on its own.",
@@ -50,12 +84,16 @@
       "id": "chk.cloud_declared_silent",
       "title": "Cloud integration that has contacted nobody",
       "severity": "low",
-      "requires": ["observed_evidence"],
-      "selector": { "type": "matrix_quadrant", "quadrant": "cloud_silent" },
+      "requires": [
+        "observed_evidence"
+      ],
+      "selector": {
+        "type": "matrix_quadrant",
+        "quadrant": "cloud_silent"
+      },
       "detail": "Declared cloud by the manifest yet silent in the query log. Not a merit: either the device is not correlated, or it uses its own resolver, or the integration is not working.",
       "remediation": "Check that the device is actually correlated to an IP and that the integration is loaded. A cloud that never speaks usually means something is wrong."
     },
-
     {
       "id": "chk.mqtt_anonymous",
       "title": "MQTT broker allowing anonymous access",
