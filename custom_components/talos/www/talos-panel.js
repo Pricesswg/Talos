@@ -236,6 +236,9 @@ const I18N = {
     "map.legend.origin": "Sorgente dei dati",
     "map.legend.bridge": "Collegamento fra integrazioni",
     "map.bridges": "{n} collegamenti fra integrazioni",
+    "flows.undisclosed": "host non dichiarato",
+    "flows.declaredNote":
+      "Senza query log restano le sole dipendenze dichiarate dai manifest: si sa che l'integrazione ha bisogno di un servizio esterno, non a quale host si rivolge. Gli archi tratteggiati compariranno quando ci saranno osservazioni.",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -471,6 +474,9 @@ const I18N = {
     "map.legend.origin": "Data source",
     "map.legend.bridge": "Link between integrations",
     "map.bridges": "{n} links between integrations",
+    "flows.undisclosed": "host not declared",
+    "flows.declaredNote":
+      "Without a query log only the dependencies the manifests declare remain: the integration is known to need an external service, not which host it reaches. Dashed edges appear once there are observations.",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -949,7 +955,26 @@ class TalosPanel extends HTMLElement {
   }
 
   destination(id) {
+    if (String(id).startsWith("undisclosed:")) {
+      // The manifest says the integration needs a cloud service and does not
+      // say which host. Named as such rather than invented.
+      const integration = (this._data.labels.integrations || {})[String(id).slice(12)] || {};
+      return {
+        fqdn: this.t("flows.undisclosed"),
+        kind: "vendor_cloud",
+        vendor: integration.title || "",
+        undisclosed: true,
+      };
+    }
     return (this._data && this._data.labels.destinations[id]) || { fqdn: id, kind: "unknown" };
+  }
+
+  /** Integrations whose manifest declares a cloud dependency. */
+  cloudIntegrations() {
+    return Object.entries((this._data && this._data.labels.integrations) || {})
+      .filter(([, integration]) => String(integration.iot_class || "").startsWith("cloud_"))
+      .sort((a, b) => (b[1].entity_count || 0) - (a[1].entity_count || 0))
+      .map(([id]) => id);
   }
 
   /* ── render ──────────────────────────────────────────────────────────── */
@@ -1305,6 +1330,13 @@ class TalosPanel extends HTMLElement {
           </div>
           <div class="scroll-x"><svg class="graph" viewBox="0 0 980 560" role="img"
             aria-label="${esc(this.t("adv.flows"))}"></svg></div>
+          ${
+            d.conduits.length
+              ? ""
+              : `<p class="hint" style="padding:0 16px 14px;margin:0;max-width:80ch">${esc(
+                  this.t("flows.declaredNote")
+                )}</p>`
+          }
         </div>
       </div>
 
@@ -2367,6 +2399,18 @@ class TalosPanel extends HTMLElement {
       if (conduit.source.kind === "device" && conduit.source.id) withConduits.add(conduit.source.id);
     });
 
+    // A manifest declares that an integration needs a cloud service. That is
+    // a real edge even with no query log, so the graph is never empty just
+    // because nothing has been observed yet.
+    const cloudIntegrations = this.cloudIntegrations();
+    if (!withConduits.size) {
+      cloudIntegrations.forEach((entryId) => {
+        Object.entries(devices).forEach(([id, device]) => {
+          if (device.integration_id === entryId) withConduits.add(id);
+        });
+      });
+    }
+
     const grouped = withConduits.size > GROUP_THRESHOLD;
     const originOf = (deviceId) =>
       grouped ? (devices[deviceId] || {}).integration_id || "?" : deviceId;
@@ -2379,6 +2423,15 @@ class TalosPanel extends HTMLElement {
       const key = originOf(conduit.source.id);
       weight.set(key, (weight.get(key) || 0) + (conduit.query_count || 1));
     });
+    // With no observations the weights come from the declared side instead,
+    // so the first three columns are populated rather than blank.
+    if (!weight.size) {
+      withConduits.forEach((deviceId) => {
+        const key = originOf(deviceId);
+        weight.set(key, (weight.get(key) || 0) + 1);
+      });
+    }
+
     const origins = [...weight.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, MAX_ROWS)
@@ -2391,13 +2444,24 @@ class TalosPanel extends HTMLElement {
       members.get(key).push(deviceId);
     });
 
-    const destinations = [
+    const observedDestinations = [
       ...new Set(
         d.conduits
           .filter((conduit) => PHONE_HOME.has(this.destination(conduit.destination_id).kind))
           .map((conduit) => conduit.destination_id)
       ),
-    ].slice(0, MAX_ROWS);
+    ];
+    // One undisclosed destination per cloud integration that was never seen
+    // reaching anything: the dependency is declared, the host is not.
+    const seenIntegrations = new Set(
+      d.conduits
+        .filter((conduit) => conduit.source.kind === "integration")
+        .map((conduit) => conduit.source.id)
+    );
+    const declaredDestinations = cloudIntegrations
+      .filter((entryId) => !seenIntegrations.has(entryId))
+      .map((entryId) => `undisclosed:${entryId}`);
+    const destinations = [...observedDestinations, ...declaredDestinations].slice(0, MAX_ROWS);
 
     const transports = [
       ...new Set(
@@ -2407,11 +2471,23 @@ class TalosPanel extends HTMLElement {
       ),
     ].slice(0, 6);
 
+    // Cloud integrations that own no device still declare a dependency, so
+    // they get a node rather than a destination floating unattached.
     const integrations = grouped
       ? []
-      : [...new Set(origins.map((id) => (devices[id] || {}).integration_id).filter(Boolean))].slice(0, MAX_ROWS);
+      : [
+          ...new Set([
+            ...origins.map((id) => (devices[id] || {}).integration_id).filter(Boolean),
+            ...cloudIntegrations.filter(
+              (entryId) => !Object.values(devices).some((device) => device.integration_id === entryId)
+            ),
+          ]),
+        ].slice(0, MAX_ROWS);
 
-    return { grouped, origins, members, originOf, destinations, transports, integrations, devices, withConduits };
+    return {
+      grouped, origins, members, originOf, destinations, transports, integrations,
+      devices, withConduits, declaredOnly: !d.conduits.length,
+    };
   }
 
   drawGraph(svg) {
@@ -2523,6 +2599,17 @@ class TalosPanel extends HTMLElement {
       }
     });
 
+    // Declared dependencies: solid, because a manifest states them outright.
+    model.destinations
+      .filter((id) => String(id).startsWith("undisclosed:"))
+      .forEach((id) => {
+        const entryId = String(id).slice(12);
+        const to = positions[`destination:${id}`];
+        const from =
+          positions[`integration:${entryId}`] || positions[`origin:${entryId}`];
+        if (from && to) line(from, to, "var(--k-vendor)", null, 1.6);
+      });
+
     columns.forEach((column) => {
       column.ids.forEach((id) => {
         const position = positions[`${column.key}:${id}`];
@@ -2550,8 +2637,12 @@ class TalosPanel extends HTMLElement {
           colour = (integration.iot_class || "").startsWith("cloud") ? "var(--k-vendor)" : "var(--k-local)";
         } else if (column.key === "destination") {
           const destination = this.destination(id);
-          label = destination.fqdn;
-          sub = this.t(`kind.${destination.kind}`);
+          // An undisclosed dependency is named after who needs it, since the
+          // host is precisely the thing that is not known.
+          label = destination.undisclosed ? destination.vendor : destination.fqdn;
+          sub = destination.undisclosed
+            ? destination.fqdn
+            : this.t(`kind.${destination.kind}`);
           colour = destination.kind === "unknown" ? "var(--k-unknown)" : "var(--k-vendor)";
         }
 

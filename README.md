@@ -190,8 +190,13 @@ It reads the registry only, so it populates even with no AdGuard configured.
 
 **Advanced** answers who talks to whom and on what evidence: the matrix, the flow graph, the full
 conduit table with its evidence labels, the check results with their subjects, and the unverified
-list with each reason. The flow graph draws observed egress, so it stays empty until AdGuard is
-connected, and says so rather than showing empty bands.
+list with each reason.
+
+The flow graph shows both sides. Observed egress is drawn dashed, and the arcs that bypass Home
+Assistant entirely are the point of the picture. Declared dependencies are drawn solid: a manifest
+that says `cloud_push` states that the integration needs an external service without saying which
+host, so the destination is named after whoever needs it and labelled **host not declared**. Nothing
+is invented, and the graph has content before AdGuard is connected.
 
 **Settings** holds the language, the AdGuard connection shown read only, and the editable options:
 interval, retention, network ranges and rule file paths.
