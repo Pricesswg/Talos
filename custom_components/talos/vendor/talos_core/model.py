@@ -38,6 +38,10 @@ class Integration:
     iot_class: str
     is_built_in: bool
     state: str = "loaded"
+    # A bus that carries other systems, or a service that carries a continuous
+    # media stream. Neither is a transport: Zigbee2MQTT rides on MQTT and an
+    # ONVIF camera rides on Wi-Fi.
+    role: str = "unknown"
     dependencies: list[str] = field(default_factory=list)
     # Every entity of the config entry, including the ones that belong to no
     # device: notify targets, weather, TTS. Counting entities device by device
@@ -58,6 +62,7 @@ class Integration:
             iot_class=_req(raw, "iot_class", path),
             is_built_in=bool(_req(raw, "is_built_in", path)),
             state=raw.get("state") or "loaded",
+            role=raw.get("role") or "unknown",
             dependencies=list(raw.get("dependencies") or []),
             entity_count=int(raw.get("entity_count") or 0),
         )
@@ -70,6 +75,7 @@ class Integration:
             "iot_class": self.iot_class,
             "is_built_in": self.is_built_in,
             "state": self.state,
+            "role": self.role,
             "dependencies": list(self.dependencies),
             "entity_count": self.entity_count,
         }

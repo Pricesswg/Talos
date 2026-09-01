@@ -149,6 +149,8 @@ def ws_derived(
                         "title": integration.title,
                         "domain": integration.domain,
                         "iot_class": integration.iot_class,
+                        # Bus or media service, which is not a transport.
+                        "role": integration.role,
                         "is_built_in": integration.is_built_in,
                         "entity_count": integration.entity_count,
                     }

@@ -169,8 +169,18 @@ stays readable and a close one names everything.
 An integration is not always the source. An MQTT entry can be fed by Zigbee2MQTT and a SwitchBot
 bridge at the same time, so when the devices under an integration come from different systems those
 sources get their own ring between the integration and its devices, read from the device identifiers.
-Links that cross an integration boundary, a Bluetooth proxy owned by ESPHome serving MQTT devices for
-instance, are drawn as dashed arcs across the tree, since `via_device` declares them.
+
+Integrations also carry a role, which is not a transport. An **aggregator** is a bus or coordinator
+that carries other systems: MQTT is the clearest case, and any entry whose devices name more than one
+origin is marked one by evidence, whatever its domain. **Streaming** is a service carrying continuous
+media: an ONVIF camera sits on Wi-Fi like a plug does, but what crosses the wire is not comparable.
+Both get a filter chip of their own next to the transports.
+
+Links that cross an integration boundary are drawn as dashed arcs across the tree. Two things
+produce them: `via_device` pointing at a device owned by another entry, such as a Bluetooth proxy
+owned by ESPHome serving MQTT devices, and a device whose origin names a system that is itself a
+configured integration, such as SwitchBot devices published on MQTT while the SwitchBot integration
+is also set up.
 
 Three ways to narrow it down. A chip per transport keeps only that trunk. Clicking an integration
 isolates it, showing its devices and nothing else. The search box filters devices by name or area
@@ -180,6 +190,9 @@ in the toolbar.
 The graph builds outwards one ring at a time rather than appearing at once, which makes the structure
 readable while it settles. The reveal is skipped when the browser asks for reduced motion, and while
 dragging.
+
+Every section heading in every view folds its own section away when clicked, and the choice is
+remembered per browser.
 
 Nodes can be dragged, and the rest settle around them: after each layout a fixed number of
 relaxation passes push overlapping nodes apart and slide them back onto their ring, so a crowded

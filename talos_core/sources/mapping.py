@@ -56,6 +56,63 @@ DOMAIN_TRANSPORT_HINTS: dict[str, str] = {
     "samsungtv": "wifi",
 }
 
+# What an integration does, beyond how it talks to Home Assistant.
+#
+# `aggregator`: a bus or coordinator that carries other systems. MQTT is the
+# clearest case and the reason this exists: it is not a radio and not a device,
+# it is the thing Zigbee2MQTT and a SwitchBot bridge both publish through.
+#
+# `streaming`: carries a continuous media stream rather than state updates. An
+# ONVIF camera sits on Wi-Fi like a plug does, but what crosses the wire is
+# not comparable, and the ports it uses are the ones a posture check cares
+# about.
+INTEGRATION_ROLE_BY_DOMAIN: dict[str, str] = {
+    # Buses and coordinators
+    "mqtt": "aggregator",
+    "zha": "aggregator",
+    "deconz": "aggregator",
+    "zwave_js": "aggregator",
+    "matter": "aggregator",
+    "thread": "aggregator",
+    "esphome": "aggregator",
+    "bluetooth": "aggregator",
+    "hue": "aggregator",
+    "tuya": "aggregator",
+    "homekit_controller": "aggregator",
+    # Video
+    "onvif": "streaming",
+    "generic": "streaming",
+    "camera": "streaming",
+    "reolink": "streaming",
+    "amcrest": "streaming",
+    "hikvision": "streaming",
+    "dahua": "streaming",
+    "frigate": "streaming",
+    "motioneye": "streaming",
+    "unifiprotect": "streaming",
+    "ring": "streaming",
+    "nest": "streaming",
+    "go2rtc": "streaming",
+    "ffmpeg": "streaming",
+    "stream": "streaming",
+    # Audio and media
+    "sonos": "streaming",
+    "cast": "streaming",
+    "dlna_dmr": "streaming",
+    "dlna_dms": "streaming",
+    "music_assistant": "streaming",
+    "squeezebox": "streaming",
+    "forked_daapd": "streaming",
+    "spotify": "streaming",
+    "plex": "streaming",
+    "jellyfin": "streaming",
+    "androidtv": "streaming",
+    "samsungtv": "streaming",
+    "apple_tv": "streaming",
+    "roku": "streaming",
+    "webostv": "streaming",
+}
+
 # What a hub's own radio is. Not the same as how the hub reaches Home
 # Assistant: a Hue bridge sits on ethernet and speaks Zigbee to its bulbs, so
 # a device behind it is Zigbee even though its integration says ethernet.
@@ -152,6 +209,7 @@ def build_scan(
     entry_domains = {i.id: i.domain for i in integrations}
     devices = _build_devices(payload.devices, known_entries, entry_domains, areas)
     _count_entities(payload.entities, integrations, devices)
+    _mark_aggregators(integrations, devices)
 
     unverified = list(payload.notes)
     if missing_manifests:
@@ -207,12 +265,30 @@ def build_scan(
     )
 
 
+def _mark_aggregators(integrations: list[Integration], devices: list[Device]) -> None:
+    """An entry whose devices name other systems is a bus, by evidence.
+
+    The domain table names the ones known in advance; this catches the rest.
+    If two different origins publish through the same config entry, that entry
+    is carrying them, whatever its domain happens to be.
+    """
+    origins: dict[str, set[str]] = {}
+    for device in devices:
+        if device.origin:
+            origins.setdefault(device.integration_id, set()).add(device.origin)
+
+    for integration in integrations:
+        if integration.role == "unknown" and origins.get(integration.id):
+            integration.role = "aggregator"
+
+
 def _build_integrations(
     config_entries: Iterable[dict[str, Any]],
     manifests: dict[str, dict[str, Any]],
 ) -> tuple[list[Integration], set[str]]:
     integrations: list[Integration] = []
     missing: set[str] = set()
+
 
     for entry in config_entries:
         entry_id, domain = entry.get("entry_id"), entry.get("domain")
@@ -235,6 +311,7 @@ def _build_integrations(
                 # claiming it is would understate the finding.
                 is_built_in=bool((manifest or {}).get("is_built_in", False)),
                 state=entry.get("state") or "loaded",
+                role=INTEGRATION_ROLE_BY_DOMAIN.get(domain, "unknown"),
                 dependencies=list((manifest or {}).get("dependencies") or []),
             )
         )

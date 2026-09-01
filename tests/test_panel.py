@@ -122,12 +122,21 @@ class TestTranslations(unittest.TestCase):
                 "transport",
                 "map.detail",
                 "map.scope",
+                "role",
             },
         )
 
+    def test_every_integration_role_has_a_label(self) -> None:
+        from talos_core.const import INTEGRATION_ROLES
+
+        for role in INTEGRATION_ROLES:
+            with self.subTest(role=role):
+                self.assertIn(f"role.{role}", self.en)
+                self.assertIn(f"role.{role}", self.it)
+
     def test_every_map_scope_kind_has_a_label(self) -> None:
         # The badge builds map.scope.<kind> from the active filter.
-        for kind in ("transport", "integration"):
+        for kind in ("transport", "integration", "role"):
             with self.subTest(kind=kind):
                 self.assertIn(f"map.scope.{kind}", self.en)
                 self.assertIn(f"map.scope.{kind}", self.it)

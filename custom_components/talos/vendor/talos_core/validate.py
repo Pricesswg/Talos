@@ -22,6 +22,7 @@ from .const import (
     DESTINATION_KINDS,
     EVIDENCE,
     FILTER_STATUS,
+    INTEGRATION_ROLES,
     IOT_CLASSES,
     OBSERVED_ONLY_FIELDS,
     SOURCE_KINDS,
@@ -223,6 +224,7 @@ def _check_integrations(out: list[Finding], raw: dict[str, Any]) -> _Index:
         _field(out, path, entry, "iot_class", _STR, enum=IOT_CLASSES)
         _field(out, path, entry, "is_built_in", _BOOL)
         _field(out, path, entry, "state", _STR, required=False)
+        _field(out, path, entry, "role", _STR, required=False, enum=INTEGRATION_ROLES)
         _field(out, path, entry, "entity_count", _INT, required=False, minimum=0)
         deps = _field(out, path, entry, "dependencies", _LIST, required=False)
         for d_index, dep in enumerate(deps or []):

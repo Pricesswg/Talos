@@ -36,6 +36,12 @@ IOT_CLASSES: Final = frozenset(
 LOCAL_IOT_CLASSES: Final = frozenset({"local_push", "local_polling"})
 CLOUD_IOT_CLASSES: Final = frozenset({"cloud_push", "cloud_polling"})
 
+# What an integration does, beyond how it talks. A bus that carries other
+# systems and a service that carries a continuous media stream are both worth
+# seeing on their own, and neither is a transport: Zigbee2MQTT rides on MQTT
+# and an ONVIF camera rides on Wi-Fi.
+INTEGRATION_ROLES: Final = frozenset({"aggregator", "streaming", "unknown"})
+
 TRANSPORTS: Final = frozenset(
     {
         "zigbee",
@@ -53,6 +59,12 @@ TRANSPORTS: Final = frozenset(
 # Transports that cannot carry IP traffic on their own. A device on one of
 # these has no direct egress; whatever it reaches, it reaches through its hub.
 NON_IP_TRANSPORTS: Final = frozenset({"zigbee", "zwave", "ble", "thread"})
+
+# What an integration does, beyond how it talks. A bus that carries other
+# systems and a service that carries a continuous media stream are both worth
+# seeing on their own, and neither is a transport: Zigbee2MQTT rides on MQTT
+# and an ONVIF camera rides on Wi-Fi.
+INTEGRATION_ROLES: Final = frozenset({"aggregator", "streaming", "unknown"})
 
 DESTINATION_KINDS: Final = frozenset(
     {

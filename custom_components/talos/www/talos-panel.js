@@ -239,6 +239,12 @@ const I18N = {
     "flows.undisclosed": "host non dichiarato",
     "flows.declaredNote":
       "Senza query log restano le sole dipendenze dichiarate dai manifest: si sa che l'integrazione ha bisogno di un servizio esterno, non a quale host si rivolge. Gli archi tratteggiati compariranno quando ci saranno osservazioni.",
+    "role.aggregator": "Aggregatore",
+    "role.streaming": "Streaming",
+    "role.unknown": "",
+    "map.roles": "Filtra per ruolo",
+    "map.scope.role": "Solo {name}",
+    "section.collapse": "Comprimi o espandi",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -477,6 +483,12 @@ const I18N = {
     "flows.undisclosed": "host not declared",
     "flows.declaredNote":
       "Without a query log only the dependencies the manifests declare remain: the integration is known to need an external service, not which host it reaches. Dashed edges appear once there are observations.",
+    "role.aggregator": "Aggregator",
+    "role.streaming": "Streaming",
+    "role.unknown": "",
+    "map.roles": "Filter by role",
+    "map.scope.role": "{name} only",
+    "section.collapse": "Collapse or expand",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -584,6 +596,14 @@ h2.sec {
   display: flex; align-items: center; gap: 10px;
 }
 h2.sec::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+h2.sec { cursor: pointer; user-select: none; }
+h2.sec::before {
+  content: "›"; display: inline-block; font-size: 15px; line-height: 1;
+  color: var(--ink-mute); transform: rotate(90deg); transition: transform 140ms;
+}
+h2.sec:hover::before { color: var(--ink); }
+[data-collapsed="1"] > h2.sec::before { transform: rotate(0deg); }
+[data-collapsed="1"] > *:not(h2.sec) { display: none; }
 h1.page { font-size: 21px; font-weight: 600; letter-spacing: -.02em; margin: 0 0 4px; }
 p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 
@@ -1019,6 +1039,8 @@ class TalosPanel extends HTMLElement {
     const refresh = host.querySelector("[data-action='refresh']");
     if (refresh) refresh.addEventListener("click", () => this.refresh());
 
+    this.wireSections(host);
+
     const svg = host.querySelector("svg.graph");
     if (svg) this.drawGraph(svg);
 
@@ -1044,7 +1066,13 @@ class TalosPanel extends HTMLElement {
       host.querySelectorAll("[data-scope]").forEach((button) => {
         button.addEventListener("click", () => {
           const value = button.dataset.scope;
-          this._scope = value === "all" ? null : { kind: "transport", id: value.slice(2) };
+          this._scope =
+            value === "all"
+              ? null
+              : {
+                  kind: value.startsWith("r:") ? "role" : "transport",
+                  id: value.slice(2),
+                };
           this._view = { k: 1, x: 0, y: 0 };
           this._mapBox = null;
           this._pinned.clear();
@@ -1075,6 +1103,58 @@ class TalosPanel extends HTMLElement {
     if (language) language.addEventListener("change", (event) => this.setLanguage(event.target.value));
     const save = host.querySelector("[data-action='save']");
     if (save) save.addEventListener("click", () => this.saveOptions());
+  }
+
+  /** Every section heading folds its own section away.
+   *
+   * The key is the view plus the heading's position, which is stable across
+   * languages and reloads; the text is not. Kept per browser, like the
+   * language, since it is a reading preference and not configuration. */
+  wireSections(host) {
+    const collapsed = this._collapsed || (this._collapsed = this.readCollapsed());
+    host.querySelectorAll("h2.sec").forEach((heading, index) => {
+      const key = `${this._mode}:${index}`;
+      const section = heading.parentElement;
+      if (!section) return;
+      heading.setAttribute("role", "button");
+      heading.setAttribute("tabindex", "0");
+      heading.setAttribute("title", this.t("section.collapse"));
+      if (collapsed.has(key)) section.dataset.collapsed = "1";
+
+      const toggle = () => {
+        if (collapsed.has(key)) {
+          collapsed.delete(key);
+          delete section.dataset.collapsed;
+        } else {
+          collapsed.add(key);
+          section.dataset.collapsed = "1";
+        }
+        this.writeCollapsed(collapsed);
+      };
+      heading.addEventListener("click", toggle);
+      heading.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          toggle();
+        }
+      });
+    });
+  }
+
+  readCollapsed() {
+    try {
+      return new Set(JSON.parse(window.localStorage.getItem("talos.collapsed") || "[]"));
+    } catch (err) {
+      return new Set();
+    }
+  }
+
+  writeCollapsed(collapsed) {
+    try {
+      window.localStorage.setItem("talos.collapsed", JSON.stringify([...collapsed]));
+    } catch (err) {
+      // A browser that refuses storage still folds for this session.
+    }
   }
 
   toolbar() {
@@ -1519,11 +1599,25 @@ class TalosPanel extends HTMLElement {
     // the two: it is how Zigbee2MQTT hangs off a coordinator entry, or a
     // Bluetooth proxy off ESPHome.
     const bridges = new Map();
+    const byDomain = new Map(
+      Object.entries((this._data && this._data.labels.integrations) || {}).map(
+        ([entryId, integration]) => [integration.domain, entryId]
+      )
+    );
     Object.entries(devices).forEach(([id, device]) => {
       const parent = device.via_device_id && devices[device.via_device_id];
-      if (!parent || parent.integration_id === device.integration_id) return;
-      const key = `${parent.integration_id}>${device.integration_id}`;
-      bridges.set(key, (bridges.get(key) || 0) + 1);
+      if (parent && parent.integration_id !== device.integration_id) {
+        const key = `${parent.integration_id}>${device.integration_id}`;
+        bridges.set(key, (bridges.get(key) || 0) + 1);
+      }
+      // The origin names a system that is itself a configured integration:
+      // the same devices are reachable two ways, which is a link worth
+      // drawing even though no via_device declares it.
+      const twin = device.origin && byDomain.get(device.origin);
+      if (twin && twin !== device.integration_id) {
+        const key = `${twin}>${device.integration_id}`;
+        bridges.set(key, (bridges.get(key) || 0) + 1);
+      }
     });
 
     return { groups, children, bridges, total: Object.keys(devices).length };
@@ -1577,6 +1671,7 @@ class TalosPanel extends HTMLElement {
                  )} <span class="mono">${group.total}</span></button>`
             )
             .join("")}
+          ${this.roleChips()}
           ${this.scopeBadge()}
         </div>
         <svg class="map" role="img" aria-label="${esc(this.t("map.title"))}"></svg>
@@ -1600,13 +1695,34 @@ class TalosPanel extends HTMLElement {
     </div>`;
   }
 
+  /** Roles present in this install, as filter chips. */
+  roleChips() {
+    const integrations = (this._data && this._data.labels.integrations) || {};
+    const roles = [...new Set(Object.values(integrations).map((i) => i.role))].filter(
+      (role) => role && role !== "unknown"
+    );
+    if (!roles.length) return "";
+    return (
+      `<span class="hint">${esc(this.t("map.roles"))}</span>` +
+      roles
+        .map(
+          (role) => `<button class="chip chip--filter" data-scope="r:${esc(role)}"
+             aria-pressed="${this._scope && this._scope.kind === "role" && this._scope.id === role}"
+             >${esc(this.t(`role.${role}`))}</button>`
+        )
+        .join("")
+    );
+  }
+
   scopeBadge() {
     const scope = this._scope;
     if (!scope) return "";
     const name =
       scope.kind === "transport"
         ? this.t(`transport.${scope.id}`)
-        : (this._data.labels.integrations[scope.id] || {}).title || scope.id;
+        : scope.kind === "role"
+          ? this.t(`role.${scope.id}`)
+          : (this._data.labels.integrations[scope.id] || {}).title || scope.id;
     const label = this.t(`map.scope.${scope.kind}`, { name });
     return `<span class="scopebadge">${esc(label)}
       <button data-scope="all">${esc(this.t("map.clearScope"))}</button></span>`;
@@ -1666,6 +1782,15 @@ class TalosPanel extends HTMLElement {
     let groups = allGroups;
     if (scope && scope.kind === "transport") {
       groups = allGroups.filter((group) => group.transport === scope.id);
+    } else if (scope && scope.kind === "role") {
+      const wanted = (entryId) =>
+        ((d.labels.integrations[entryId] || {}).role || "unknown") === scope.id;
+      groups = allGroups
+        .map((group) => ({
+          ...group,
+          integrations: group.integrations.filter((entry) => wanted(entry.id)),
+        }))
+        .filter((group) => group.integrations.length);
     } else if (scope && scope.kind === "integration") {
       groups = allGroups
         .filter((group) => group.integrations.some((entry) => entry.id === scope.id))
@@ -2183,6 +2308,11 @@ class TalosPanel extends HTMLElement {
                   ? `<span class="chip">${esc(integration.iot_class)}</span>`
                   : ""
               }
+              ${
+                integration.role && integration.role !== "unknown"
+                  ? `<span class="chip">${esc(this.t(`role.${integration.role}`))}</span>`
+                  : ""
+              }
               ${integration.is_built_in === false ? `<span class="chip">HACS</span>` : ""}
               <span class="tgroup__n">${entry.devices.length}</span>
             </summary>
@@ -2633,7 +2763,9 @@ class TalosPanel extends HTMLElement {
         } else if (column.key === "integration") {
           const integration = d.labels.integrations[id] || {};
           label = integration.domain || id;
-          sub = integration.iot_class || "";
+          sub = [integration.iot_class, this.t(`role.${integration.role || "unknown"}`)]
+            .filter(Boolean)
+            .join(" · ");
           colour = (integration.iot_class || "").startsWith("cloud") ? "var(--k-vendor)" : "var(--k-local)";
         } else if (column.key === "destination") {
           const destination = this.destination(id);
