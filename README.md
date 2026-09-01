@@ -104,6 +104,12 @@ fix, not ten.
 exposure figures, then runs the posture checks from `talos_core/data/checks.json`. Output goes to the
 panel, to the summary entities, and to the HTML or JSON export.
 
+In the panel every check is a line you can open: the summary says what was found and how serious it
+is, and the body names the assets involved with the evidence that made each one a subject, so a
+finding about vendor traffic lists the devices and the domains they resolved. Checks that could not
+run are kept apart from notes about where the collection itself does not reach, because only the
+first kind belongs to the tally of declared checks and neither is an outcome.
+
 The pipeline is a pure function of the collected data. The same input always produces the same
 report.
 
@@ -136,6 +142,8 @@ It checks:
 - Third-party integrations, not shipped with Home Assistant, that declare cloud access
 - Devices reaching outside from the trusted LAN rather than from an IoT VLAN
 - Integrations declared cloud that were never seen contacting anything
+- Config entries that are not loaded, whose entities are unavailable right now rather than
+  merely cloud-dependent
 - Which entities stop working when the internet drops, and which vendor accounts for most of them
 - Domains nobody has classified yet, counted and listed rather than hidden
 

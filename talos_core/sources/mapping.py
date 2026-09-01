@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 import ipaddress
+import re
 
 from ..const import SCHEMA_VERSION
 from ..model import (
@@ -163,8 +164,26 @@ IDENTIFIER_PREFIX_ORIGINS: tuple[tuple[str, str], ...] = (
     ("tuya", "tuya"),
 )
 
+# An IEEE EUI-64 written the way every Zigbee stack writes it. Zigbee2MQTT
+# registers some devices under the bare address with no prefix at all, and
+# then this is the only thing in the registry that names the radio.
+IEEE_ADDRESS = re.compile(r"^0x[0-9a-f]{16}$")
+
+# A Z-Wave JS UI node, which arrives over MQTT and not through zwave_js.
+ZWAVEJS_NODE = re.compile(r"^[0-9]+-[0-9]+(-[0-9]+)?$")
+
 IDENTIFIER_PREFIX_TRANSPORTS: tuple[tuple[str, str], ...] = (
     ("zigbee2mqtt", "zigbee"),
+    ("z2m", "zigbee"),
+    ("zbbridge", "zigbee"),
+    ("zigbee", "zigbee"),
+    ("zwave", "zwave"),
+    ("matter", "matter"),
+    ("thread", "thread"),
+    ("ble", "ble"),
+    ("bluetooth", "ble"),
+    ("tasmota", "ip"),
+    ("shelly", "ip"),
     ("zha", "zigbee"),
     ("deconz", "zigbee"),
     ("zwavejs", "zwave"),
@@ -441,6 +460,7 @@ def _build_devices(
         )
 
     _inherit_hub_radio(kept)
+    _inherit_origin(kept)
     return kept
 
 
@@ -465,6 +485,30 @@ def _inherit_hub_radio(devices: list[Device]) -> None:
             seen.add(parent.id)
             if parent.transport in RADIO_TRANSPORTS:
                 device.transport = parent.transport
+                break
+            if not parent.via_device_id:
+                break
+            parent = by_id.get(parent.via_device_id)
+
+
+def _inherit_origin(devices: list[Device]) -> None:
+    """Give a child the system that produced its hub.
+
+    A Zigbee2MQTT leaf registered under its bare IEEE address names no system
+    at all; its bridge does. Walking up the hub chain is the same evidence the
+    radio inheritance uses, and it is what keeps a branch attributed to
+    Zigbee2MQTT rather than to MQTT, which is only the bus underneath.
+    """
+    by_id = {device.id: device for device in devices}
+    for device in devices:
+        if device.origin or not device.via_device_id:
+            continue
+        seen: set[str] = {device.id}
+        parent = by_id.get(device.via_device_id)
+        while parent is not None and parent.id not in seen:
+            seen.add(parent.id)
+            if parent.origin:
+                device.origin = parent.origin
                 break
             if not parent.via_device_id:
                 break
@@ -507,18 +551,37 @@ def _transport(
         for prefix, transport in IDENTIFIER_PREFIX_TRANSPORTS:
             if value.startswith(prefix):
                 return transport
+        if IEEE_ADDRESS.match(value):
+            return "zigbee"
+        if domain in {"zwave_js_ui", "zwavejs2mqtt"} and ZWAVEJS_NODE.match(value):
+            return "zwave"
 
     # Behind a hub the transport is the hub's radio, not the hub's own uplink.
+    # A miss here is not the end of the search: the domain may still know, and
+    # the second pass can still inherit from a parent that resolved later.
     if raw.get("via_device_id"):
-        return (
-            HUB_RADIO_BY_DOMAIN.get(parent_domain or "")
-            or HUB_RADIO_BY_DOMAIN.get(domain or "")
-            or "unknown"
-        )
+        radio = HUB_RADIO_BY_DOMAIN.get(parent_domain or "") or HUB_RADIO_BY_DOMAIN.get(domain or "")
+        if radio:
+            return radio
 
-    if domain:
-        return DOMAIN_TRANSPORT_HINTS.get(domain, "unknown")
+    if domain and domain in DOMAIN_TRANSPORT_HINTS:
+        return DOMAIN_TRANSPORT_HINTS[domain]
+
+    # Last resort, and still evidence: a MAC or an address to open in a browser
+    # means the device is reachable over IP. Which medium carries the last hop
+    # is not written anywhere, so it is not claimed.
+    if _has_network_address(raw):
+        return "ip"
     return "unknown"
+
+
+def _has_network_address(raw: dict[str, Any]) -> bool:
+    """Whether the registry entry itself shows the device holds an address."""
+    for connection in raw.get("connections") or ():
+        if isinstance(connection, (list, tuple)) and connection and str(connection[0]) == "mac":
+            return True
+    url = str(raw.get("configuration_url") or "")
+    return url.startswith("http://") or url.startswith("https://")
 
 
 def _origin(raw: dict[str, Any], domain: str | None) -> str | None:

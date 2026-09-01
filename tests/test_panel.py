@@ -8,6 +8,7 @@ away from the core renders as `kind.something`. Both are caught here.
 
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -80,11 +81,27 @@ class TestTranslations(unittest.TestCase):
 
     def test_both_languages_are_complete(self) -> None:
         self.assertTrue(self.it, "the Italian table is empty")
+        # Check copy is authored in checks.json, in English, and that stays
+        # the canonical text: checkText() falls back to the document itself
+        # when a language has no entry. So an English key here would only
+        # duplicate the document, and its absence renders nothing raw.
+        ui_it = {key for key in self.it if not key.startswith(("chk.", "unv."))}
+        ui_en = {key for key in self.en if not key.startswith(("chk.", "unv."))}
         self.assertEqual(
-            self.it ^ self.en,
+            ui_it ^ ui_en,
             set(),
             "these keys exist in one language only and would render raw",
         )
+
+    def test_every_check_is_translated(self) -> None:
+        """The whole point of the fallback is that it never has to be used."""
+        checks = json.loads(
+            (ROOT / "talos_core" / "data" / "checks.json").read_text(encoding="utf-8")
+        )["checks"]
+        for check in checks:
+            for field in ("title", "detail", "remediation"):
+                if field in check or (field == "detail" and "unverifiable" in check):
+                    self.assertIn(f"{check['id']}.{field}", self.it, check["id"])
 
     def test_every_static_key_is_defined(self) -> None:
         used = set(re.findall(r'this\.t\(\s*"([\w.]+)"', SOURCE))
@@ -123,8 +140,19 @@ class TestTranslations(unittest.TestCase):
                 "map.detail",
                 "map.scope",
                 "role",
+                "settings.scope.item",
             },
         )
+
+    def test_every_scope_item_has_a_label(self) -> None:
+        """The list is driven by a constant, so a name added there without a
+        string would render the key to the user."""
+        items = re.search(r"const SCOPE_ITEMS = \[(.*?)\];", SOURCE, re.S)
+        assert items
+        for key in re.findall(r'"(\w+)"', items.group(1)):
+            with self.subTest(item=key):
+                self.assertIn(f"settings.scope.item.{key}", self.it)
+                self.assertIn(f"settings.scope.item.{key}", self.en)
 
     def test_every_integration_role_has_a_label(self) -> None:
         from talos_core.const import INTEGRATION_ROLES

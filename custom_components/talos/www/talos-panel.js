@@ -46,11 +46,6 @@ const I18N = {
     "base.unverified.note":
       "Non superati e non falliti: i dati disponibili non consentono di esprimersi. <strong>Non vanno conteggiati fra gli esiti positivi.</strong>",
     "base.findings": "Problematiche principali",
-    "base.limits.label": "Ambito dell'analisi",
-    "base.limits.scope":
-      "Talos osserva a quali indirizzi i dispositivi chiedono la risoluzione DNS. Non ispeziona il contenuto del traffico, non ne misura il volume, non esegue scansioni di porte, non tenta credenziali e non modifica alcuna configurazione. Ogni sorgente è interrogata in sola lettura.",
-    "base.limits.responsibility":
-      "Restano fuori dall'analisi e a carico dell'operatore: la segmentazione della rete, le credenziali dei dispositivi e dei servizi, gli aggiornamenti firmware, l'esposizione di Home Assistant verso internet e il traffico che cifra anche le proprie richieste DNS. Un esito privo di rilievi indica assenza di evidenze, non assenza di rischio.",
 
     "banner.declared":
       "<strong>Solo dati dichiarati.</strong> {reason}. Questa scansione contiene ciò che Home Assistant dichiara di sé: nessuna colonna “parlano fuori casa” è stata verificata, quindi le caselle vuote non significano assenza di traffico.",
@@ -81,7 +76,8 @@ const I18N = {
     "adv.matrix.unclassified": "Non classificati",
     "adv.matrix.unclassifiedSub": "iot_class assente",
     "adv.cell.localSilent": "Nessuna richiesta verso l'esterno osservata.",
-    "adv.cell.localEgress": "Telefonano a casa alle spalle di HA.",
+    "adv.cell.localEgress":
+      "Comandati localmente, ma osservati risolvere domini del produttore per conto proprio.",
     "adv.cell.cloudSilent": "Dichiarati cloud ma silenziosi. Da indagare, non è un merito.",
     "adv.cell.cloudEgress": "Dipendenza dichiarata e confermata.",
     "adv.cell.unclassified":
@@ -169,16 +165,16 @@ const I18N = {
     "opt.domain_rules_path": "File di regole domini aggiuntive",
     "opt.check_rules_path": "File di controlli alternativo",
     "opt.hint.max_observations":
-      "E' questo il limite che tiene a bada la dimensione del database.",
+      "È questo il limite che tiene a bada la dimensione del database.",
     "opt.hint.zone_trusted_lan":
-      "Uno o piu' intervalli CIDR separati da virgola, per esempio 192.168.50.0/24. Finche' restano vuoti, i controlli sulle zone si dichiarano non eseguibili invece di risultare superati.",
+      "Uno o più intervalli CIDR separati da virgola, per esempio 192.168.50.0/24. Finché restano vuoti, i controlli sulle zone si dichiarano non eseguibili invece di risultare superati.",
     "opt.hint.domain_rules_path":
       "Percorso assoluto a un file JSON o YAML. Le regole si aggiungono a quelle predefinite, non le sostituiscono.",
     "settings.system.ha": "Versione di Home Assistant",
-    "settings.system.collector": "Modalita' di raccolta",
+    "settings.system.collector": "Modalità di raccolta",
     "settings.system.lastScan": "Ultima scansione",
     "settings.system.observations": "Osservazioni memorizzate",
-    "settings.system.oldest": "Osservazione piu' vecchia",
+    "settings.system.oldest": "Osservazione più vecchia",
     "settings.system.dbSize": "Dimensione del database",
     "settings.system.pruned": "Righe rimosse all'ultima potatura",
     "mode.map": "Mappa",
@@ -248,6 +244,141 @@ const I18N = {
     "state.notLoaded": "non caricata",
     "base.offline.unavailable":
       "<strong>{n} entità</strong> non sono disponibili adesso: la loro integrazione non è caricata, quindi non funzionano né con internet né senza.",
+    "transport.ip": "Rete IP",
+
+    "base.checks": "Controlli eseguiti",
+    "base.checks.lead":
+      "Talos dichiara un elenco fisso di controlli. Alcuni sono eseguibili con i dati che raccoglie, altri richiedono sorgenti che non ha e restano dichiarati ma non implementati: compaiono fra i non eseguibili con il loro motivo, mai fra i superati.",
+    "base.checks.total":
+      "{total} controlli dichiarati: {passed} superati, {failed} con rilievi, {notrun} non eseguibili. Oltre a questi, {notes} limiti della raccolta, che non sono controlli e non concorrono ad alcun esito.",
+    "checks.group.notes": "Limiti della raccolta",
+    "adv.inventory": "Integrazioni",
+    "adv.inventory.lead":
+      "Tutto quello che Talos ricava dal registry per ogni config entry, senza interrogare nulla: cosa dichiara il manifest, in che stato è la entry, a quale indirizzo dice di collegarsi e che cosa le appartiene.",
+    "inv.class": "iot_class dichiarata",
+    "inv.role": "Ruolo",
+    "inv.state": "Stato della entry",
+    "inv.endpoint": "Indirizzo dichiarato",
+    "inv.origin": "Sistemi che pubblicano su questa entry",
+    "inv.source": "Provenienza",
+    "inv.source.builtin": "inclusa in Home Assistant",
+    "inv.source.custom": "installata a mano o via HACS",
+    "inv.counts": "{devices} dispositivi · {entities} entità",
+    "inv.none": "non dichiarato",
+    "base.unverified.notes":
+      "Elencati a parte anche <strong>{n} limiti della raccolta</strong>: punti in cui i dati non arrivano, che non sono controlli.",
+    "base.checks.tally.passed": "superati",
+    "base.checks.tally.failed": "con rilievi",
+    "base.checks.tally.unverified": "non eseguibili",
+    "checks.group.failed": "Con rilievi",
+    "checks.group.passed": "Superati",
+    "checks.group.unverified": "Non eseguibili",
+    "check.subjects": "Elementi interessati",
+    "check.do": "Cosa fare",
+    "check.why": "Perché non è stato eseguito",
+    "check.passedBody":
+      "Eseguito su questa scansione senza rilievi. Vale per i dati di questa scansione, non è una garanzia permanente.",
+    "check.none": "Nessuno.",
+    "check.expandHint": "Clicca una voce per vedere il dettaglio e gli elementi coinvolti.",
+
+    "evidence.how": "Come lo so",
+    "evidence.how.body":
+      "Chi contatta il produttore non viene stabilito con sonde: Talos legge il query log di AdGuard Home, associa l'IP del client al dispositivo tramite i lease DHCP e classifica il dominio richiesto. Nessuna porta viene scansionata e nessun contenuto viene ispezionato: si sa <strong>quale nome è stato risolto</strong>, non cosa è stato detto.",
+    "evidence.blocked.adguard":
+      "Questa sezione resta vuota perché AdGuard Home non è raggiungibile. Senza query log non esiste alcuna osservazione, e una casella vuota non significa assenza di traffico.",
+    "evidence.blocked.correlation":
+      "Il query log è leggibile ma nessun dispositivo è correlato a un indirizzo IP: senza lease DHCP le richieste restano attribuite a host sconosciuti. Attiva il server DHCP di AdGuard Home oppure fornisci i lease del router.",
+    "evidence.blocked.partial":
+      "Correlati {done} dispositivi su {total}. Su quelli non correlati un eventuale traffico verso il produttore non è visibile, quindi questo elenco è un minimo.",
+    "evidence.blocked.silent":
+      "Query log leggibile e dispositivi correlati: in questa finestra nessuno ha risolto domini classificati come cloud del produttore.",
+
+    "chk.local_with_egress.title": "Dispositivo locale che contatta il cloud del produttore",
+    "chk.local_with_egress.detail":
+      "Home Assistant li comanda localmente, ma il query log li ha visti risolvere domini del produttore per conto proprio. Questo dice con chi hanno parlato, non che cosa si sono detti.",
+    "chk.local_with_egress.remediation":
+      "Cerca nell'app del produttore il servizio cloud che gira in parallelo, spesso chiamato P2P, UID o accesso remoto. Disattivarlo non compromette il controllo locale da Home Assistant.",
+    "chk.resolver_bypass.title": "Dispositivo che aggira il resolver",
+    "chk.resolver_bypass.detail":
+      "Ha un lease DHCP ma non ha mai interrogato AdGuard: usa un server DNS scritto nel firmware. Su questo host ogni controllo basato sul DNS è cieco.",
+    "chk.resolver_bypass.remediation":
+      "Imposta il DNS di rete sul dispositivo, se lo consente. Altrimenti reindirizza la porta 53 sul router. Il DNS over HTTPS resta comunque fuori portata.",
+    "chk.integration_not_loaded.title": "Integrazione non caricata",
+    "chk.integration_not_loaded.detail":
+      "La config entry non è caricata, quindi le sue entità sono non disponibili adesso. Non è una questione di autonomia offline: non funzionano né con connettività né senza. Un broker fermo, un servizio che ha cambiato indirizzo o una migrazione fallita si presentano tutti così.",
+    "chk.integration_not_loaded.remediation":
+      "Apri Impostazioni, Dispositivi e servizi e leggi l'errore della entry. Se cita un broker o un server, verifica che il servizio sia effettivamente avviato e che l'indirizzo corrisponda ancora: un add-on fermato o rinominato è il caso più comune.",
+    "chk.custom_integration_cloud.title": "Integrazione di terze parti con accesso cloud",
+    "chk.custom_integration_cloud.detail":
+      "Integrazioni installate a mano o tramite HACS che dialogano con un servizio esterno. Non sono riviste da Home Assistant, e le credenziali che custodiscono passano per codice di terzi.",
+    "chk.custom_integration_cloud.remediation":
+      "Verifica che il repository sia mantenuto e che l'installazione sia stata una tua scelta. Non è un difetto in sé: è una superficie in più che stai scegliendo di considerare affidabile.",
+    "chk.device_on_trusted_lan.title": "Dispositivo che comunica verso l'esterno dalla LAN di fiducia",
+    "chk.device_on_trusted_lan.detail":
+      "Si trova sulla rete che ospita anche computer e telefoni, e raggiunge l'esterno per conto proprio.",
+    "chk.device_on_trusted_lan.remediation":
+      "Spostalo sulla VLAN IoT, se ne hai una. Se non ce l'hai, questo controllo è l'argomento migliore per costruirne una.",
+    "chk.cloud_declared_silent.title": "Integrazione cloud che non ha contattato nessuno",
+    "chk.cloud_declared_silent.detail":
+      "Dichiarata cloud dal manifest eppure silenziosa nel query log. Non è un merito: o il dispositivo non è correlato, o usa un resolver proprio, o l'integrazione non sta funzionando.",
+    "chk.cloud_declared_silent.remediation":
+      "Verifica che il dispositivo sia effettivamente correlato a un IP e che l'integrazione sia caricata. Un cloud che non parla mai di solito segnala un problema.",
+    "chk.mqtt_anonymous.title": "Broker MQTT che accetta accessi anonimi",
+    "chk.mqtt_anonymous.detail":
+      "Richiede un tentativo di connessione al broker senza credenziali. Talos non ha un client MQTT: il controllo non è implementato, quindi non è né superato né fallito.",
+    "chk.mqtt_unknown_client.title": "Client MQTT che non corrisponde ad alcun asset noto",
+    "chk.mqtt_unknown_client.detail":
+      "Richiede la sottoscrizione a $SYS/broker/clients/# e il confronto con il registry. Sorgente non ancora implementata.",
+    "chk.zwave_s2.title": "Nodo Z-Wave senza S2",
+    "chk.zwave_s2.detail":
+      "Richiede la security_class dal WebSocket di Z-Wave JS. Sorgente non ancora implementata.",
+    "chk.rtsp_cleartext.title": "Flusso RTSP in chiaro",
+    "chk.rtsp_cleartext.detail":
+      "Richiede di sapere su quali porte parlano i dispositivi. Il DNS non lo dice e la scansione delle porte è esclusa per scelta. Verificabile solo leggendo la configurazione di ogni integrazione video.",
+    "chk.arp_unknown.title": "Dispositivo in ARP assente dal registry di Home Assistant",
+    "chk.arp_unknown.detail":
+      "Dentro il container di Home Assistant la cache ARP contiene solo i peer con cui HA ha parlato di recente, non l'intera LAN. I lease DHCP restano la sorgente migliore e coprono già il caso: vedi il controllo dello zero.",
+
+    "unv.manifests_unavailable.title": "iot_class di alcune integrazioni",
+    "unv.entities_outside_registry.title": "Entità che non appartengono ad alcuna config entry",
+    "unv.entity_registry_unreadable.title": "Registry delle entità",
+    "unv.area_registry_unreadable.title": "Registry delle aree",
+    "unv.manifest_list_unreadable.title": "Elenco dei manifest",
+    "unv.entry_endpoints_unavailable.title": "Indirizzi a cui si collegano le integrazioni",
+    "unv.entry_endpoints_unavailable.detail":
+      "L'API WebSocket non espone i dati delle config entry, quindi da fuori non si può leggere a quale broker o server punta ciascuna integrazione. Eseguito come integrazione, Talos li legge in processo. Nient'altro è influenzato.",
+    "unv.dhcp_leases_unavailable.title": "Lease DHCP non disponibili: il controllo dello zero non è eseguibile",
+    "unv.dhcp_leases_unavailable.detail":
+      "Il registry di Home Assistant conosce i MAC, il query log conosce gli IP: i lease DHCP sono l'unico punto in cui i due si incontrano. Senza, ogni osservazione resta attribuita a un host sconosciuto, e Talos può dire che qualcuno ha contattato un produttore ma non quale dispositivo fosse. Nemmeno i client del resolver possono essere confrontati con i dispositivi in rete, quindi un apparecchio con DNS scritto nel firmware non emerge mai. Per copertura completa: attiva il server DHCP di AdGuard Home, oppure fornisci i lease del router. Questo controllo non è fallito, non è stato eseguito.",
+    "unv.resolver_bypassed.title": "Dispositivi che aggirano il resolver",
+    "unv.devices_without_identifier.title": "Dispositivi senza MAC nel registry",
+    "unv.unclassified_domains.title": "Domini non classificati",
+    "unv.doh.title": "Traffico DNS over HTTPS",
+    "unv.doh.detail":
+      "Un dispositivo che cifra anche le proprie richieste DNS (DoH, porta 443) è indistinguibile dal traffico ordinario. È un limite strutturale dichiarato: questo approccio non lo copre.",
+    "unv.observed_source_unavailable.title": "Lato osservato non disponibile in questa scansione",
+
+    "settings.section.scope": "Ambito dell'analisi",
+    "settings.scope.lead":
+      "Quello che segue non viene controllato da Talos e resta a carico tuo. Non è un elenco di difetti dell'integrazione: è il confine dichiarato del metodo.",
+    "settings.scope.does": "Cosa fa",
+    "settings.scope.doesBody":
+      "Legge in sola lettura i registry di Home Assistant e il query log di AdGuard Home, li correla tramite i lease DHCP e classifica i domini richiesti. Nessuna scansione di porte, nessun tentativo di credenziali, nessuna ispezione del contenuto del traffico, nessuna modifica alla configurazione.",
+    "settings.scope.doesNot": "Cosa non fa, e devi verificare a mano",
+    "settings.scope.item.segmentation":
+      "Segmentazione della rete: se i dispositivi IoT stiano su una VLAN separata da computer e telefoni.",
+    "settings.scope.item.credentials":
+      "Credenziali di dispositivi e servizi: password di default, account condivisi, token mai ruotati.",
+    "settings.scope.item.firmware": "Aggiornamenti firmware dei dispositivi e degli hub.",
+    "settings.scope.item.exposure":
+      "Esposizione di Home Assistant verso internet: reverse proxy, port forwarding, accesso remoto.",
+    "settings.scope.item.doh":
+      "Traffico che cifra anche le proprie richieste DNS: resta indistinguibile e non viene visto.",
+    "settings.scope.item.payload":
+      "Contenuto del traffico: cosa viene inviato al produttore non è ricavabile dal solo DNS.",
+    "settings.scope.closing":
+      "Un esito privo di rilievi indica assenza di evidenze, non assenza di rischio.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -295,11 +426,6 @@ const I18N = {
     "base.unverified.note":
       "Neither passed nor failed: the available data does not allow a verdict. <strong>They must not be counted among the positive results.</strong>",
     "base.findings": "Key findings",
-    "base.limits.label": "Scope of the analysis",
-    "base.limits.scope":
-      "Talos observes which addresses devices ask to resolve. It does not inspect traffic content, does not measure volume, performs no port scanning, attempts no credentials and modifies no configuration. Every source is read only.",
-    "base.limits.responsibility":
-      "Outside the analysis and the operator's responsibility: network segmentation, device and service credentials, firmware updates, Home Assistant's exposure to the internet, and traffic that encrypts its own DNS queries. A result with no findings indicates an absence of evidence, not an absence of risk.",
 
     "banner.declared":
       "<strong>Declared data only.</strong> {reason}. This scan holds what Home Assistant declares about itself: no “talking outside” column has been verified, so an empty cell does not mean an absence of traffic.",
@@ -329,7 +455,8 @@ const I18N = {
     "adv.matrix.unclassified": "Unclassified",
     "adv.matrix.unclassifiedSub": "no iot_class",
     "adv.cell.localSilent": "No outbound lookup observed.",
-    "adv.cell.localEgress": "Phoning home behind Home Assistant's back.",
+    "adv.cell.localEgress":
+      "Driven locally, yet observed resolving vendor domains on their own.",
     "adv.cell.cloudSilent": "Declared cloud but silent. Worth investigating, not a merit.",
     "adv.cell.cloudEgress": "Declared dependency, confirmed.",
     "adv.cell.unclassified": "iot_class calculated, assumed_state or missing: counted neither as local nor as cloud.",
@@ -495,6 +622,76 @@ const I18N = {
     "state.notLoaded": "not loaded",
     "base.offline.unavailable":
       "<strong>{n} entities</strong> are unavailable right now: their integration is not loaded, so they work neither with the internet nor without it.",
+    "transport.ip": "IP network",
+
+    "base.checks": "Checks run",
+    "base.checks.lead":
+      "Talos declares a fixed list of checks. Some run on the data it collects, the rest need sources it does not have and stay declared but not implemented: they appear among the ones that could not run, with their reason, never among the passes.",
+    "base.checks.total":
+      "{total} declared checks: {passed} passed, {failed} with findings, {notrun} could not run. On top of those, {notes} collection limits, which are not checks and settle nothing.",
+    "checks.group.notes": "Collection limits",
+    "adv.inventory": "Integrations",
+    "adv.inventory.lead":
+      "Everything Talos derives from the registry for each config entry, without asking anything: what the manifest declares, what state the entry is in, which address it says it connects to, and what belongs to it.",
+    "inv.class": "declared iot_class",
+    "inv.role": "Role",
+    "inv.state": "Entry state",
+    "inv.endpoint": "Declared address",
+    "inv.origin": "Systems publishing through this entry",
+    "inv.source": "Source",
+    "inv.source.builtin": "shipped with Home Assistant",
+    "inv.source.custom": "installed by hand or through HACS",
+    "inv.counts": "{devices} devices · {entities} entities",
+    "inv.none": "not declared",
+    "base.unverified.notes":
+      "Listed separately, <strong>{n} collection limits</strong>: places the data does not reach, which were never checks.",
+    "base.checks.tally.passed": "passed",
+    "base.checks.tally.failed": "with findings",
+    "base.checks.tally.unverified": "could not run",
+    "checks.group.failed": "With findings",
+    "checks.group.passed": "Passed",
+    "checks.group.unverified": "Could not run",
+    "check.subjects": "Affected",
+    "check.do": "What to do",
+    "check.why": "Why it did not run",
+    "check.passedBody":
+      "Ran on this scan with nothing to report. That covers this scan's data, it is not a standing guarantee.",
+    "check.none": "None.",
+    "check.expandHint": "Click an entry for the detail and the assets involved.",
+
+    "evidence.how": "How this is known",
+    "evidence.how.body":
+      "Who contacts the vendor is not established by probing: Talos reads the AdGuard Home query log, ties the client IP to a device through the DHCP leases, and classifies the domain that was asked for. No port is scanned and no payload is inspected: what is known is <strong>which name was resolved</strong>, not what was said.",
+    "evidence.blocked.adguard":
+      "This section stays empty because AdGuard Home is not reachable. With no query log there is no observation at all, and an empty cell does not mean an absence of traffic.",
+    "evidence.blocked.correlation":
+      "The query log is readable but no device is tied to an IP address: without DHCP leases the queries stay attributed to unknown hosts. Enable AdGuard Home's DHCP server or supply the router's leases.",
+    "evidence.blocked.partial":
+      "{done} of {total} devices correlated. On the rest, traffic to a vendor would not be visible, so this list is a minimum.",
+    "evidence.blocked.silent":
+      "Query log readable and devices correlated: in this window none of them resolved a domain classified as vendor cloud.",
+
+    "settings.section.scope": "Scope of the analysis",
+    "settings.scope.lead":
+      "What follows is not checked by Talos and stays with you. It is not a list of shortcomings: it is the declared boundary of the method.",
+    "settings.scope.does": "What it does",
+    "settings.scope.doesBody":
+      "Reads the Home Assistant registries and the AdGuard Home query log, read-only, correlates them through the DHCP leases and classifies the domains asked for. No port scanning, no credential attempts, no payload inspection, no configuration changes.",
+    "settings.scope.doesNot": "What it does not do, and you have to check by hand",
+    "settings.scope.item.segmentation":
+      "Network segmentation: whether IoT devices sit on a VLAN separate from computers and phones.",
+    "settings.scope.item.credentials":
+      "Device and service credentials: default passwords, shared accounts, tokens never rotated.",
+    "settings.scope.item.firmware": "Firmware updates on devices and hubs.",
+    "settings.scope.item.exposure":
+      "Home Assistant's own exposure to the internet: reverse proxy, port forwarding, remote access.",
+    "settings.scope.item.doh":
+      "Traffic that encrypts its DNS queries too: it stays indistinguishable and goes unseen.",
+    "settings.scope.item.payload":
+      "Payload: what is sent to the vendor cannot be derived from DNS alone.",
+    "settings.scope.closing":
+      "A clean result means no evidence was found, not that there is no risk.",
+
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -547,6 +744,7 @@ const STYLES = `
   --t-thread: #4a7d3f;
   --t-matter: #2b7f8c;
   --t-ble: #3f6ea0;
+  --t-ip: #3d6f86;
   --t-virtual: #8a7f6a;
   --t-unknown: #868d8e;
 
@@ -572,7 +770,7 @@ const STYLES = `
     --alert: #ff6f60; --attention: #d5a343;
     --t-zigbee: #52b195; --t-zwave: #93a5bd; --t-wifi: #52b2c8;
     --t-ethernet: #a396d6; --t-thread: #7fbb70; --t-matter: #63c3d1;
-    --t-ble: #7ba3d8; --t-virtual: #bdae94; --t-unknown: #8d9799;
+    --t-ble: #7ba3d8; --t-ip: #6f9fb8; --t-virtual: #bdae94; --t-unknown: #8d9799;
   }
 }
 * { box-sizing: border-box; }
@@ -638,6 +836,55 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .find__body { color: var(--ink-soft); font-size: 13.5px; max-width: 70ch; }
 .find__body strong { color: var(--ink); font-weight: 500; }
 .find__do { margin-top: 10px; padding: 9px 12px; background: var(--sunken); border-radius: var(--r-md); font-size: 13px; color: var(--ink-soft); }
+.exp {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--ink-mute);
+  border-radius: var(--r-md);
+  background: var(--card);
+  margin-bottom: 8px;
+}
+.exp[data-tone="alert"] { border-left-color: var(--alert); }
+.exp[data-tone="attention"] { border-left-color: var(--attention); }
+.exp[data-tone="pass"] { border-left-color: var(--k-local); }
+.exp[data-tone="info"] { border-left-color: var(--accent); }
+.exp > summary {
+  list-style: none; cursor: pointer; padding: 11px 14px;
+  display: flex; gap: 9px; align-items: center; font-size: 13.5px;
+}
+.exp > summary::-webkit-details-marker { display: none; }
+.exp > summary::before {
+  content: "›"; color: var(--ink-mute); font-size: 15px; line-height: 1;
+  display: inline-block; transition: transform .15s ease;
+}
+.exp[open] > summary::before { transform: rotate(90deg); }
+.exp > summary:hover { background: var(--sunken); }
+.exp__t { font-weight: 500; }
+.exp__sp { flex: 1 1 auto; }
+.exp__body {
+  padding: 2px 14px 14px 32px; font-size: 13px;
+  color: var(--ink-soft); max-width: 84ch;
+}
+.exp__body p { margin: 0 0 9px; }
+.exp__body p:last-child { margin-bottom: 0; }
+.exp__body strong { color: var(--ink); font-weight: 500; }
+.exp__do {
+  margin-top: 10px; padding: 9px 12px; background: var(--sunken);
+  border-radius: var(--r-md); font-size: 12.5px;
+}
+.exp__lab {
+  font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-mute); margin: 12px 0 5px;
+}
+.exp__rows { border-top: 1px solid var(--border); }
+.exp__row {
+  display: flex; gap: 12px; align-items: baseline;
+  padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12.5px;
+}
+.exp__row b { font-weight: 500; color: var(--ink); }
+.exp__row span { margin-left: auto; color: var(--ink-mute); text-align: right; }
+.tally { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 12px; font-size: 12.5px; color: var(--ink-soft); }
+.tally b { font-weight: 600; color: var(--ink); }
+.tally i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .note {
   border: 1px solid var(--border); border-left: 3px solid var(--ink-mute);
   border-radius: var(--r-lg); padding: 14px 18px; max-width: 78ch;
@@ -849,6 +1096,11 @@ svg.graph .edge { fill: none; }
 
 const PHONE_HOME = new Set(["vendor_cloud", "telemetry", "push_service", "cdn", "unknown"]);
 const SEVERITY_TONE = { high: "alert", medium: "attention", low: "info" };
+// Worst first, so the list opens on the thing that matters most.
+const SEVERITY_ORDER = ["high", "medium", "low"];
+// What Talos does not look at. Ordered the way someone would work
+// through them, not by severity: none of them is Talos's to judge.
+const SCOPE_ITEMS = ["segmentation", "credentials", "firmware", "exposure", "doh", "payload"];
 
 /* Above this many devices carrying a conduit, the first column groups by
  * integration. A hand-laid SVG stays readable at a few dozen nodes and not at
@@ -1196,7 +1448,14 @@ class TalosPanel extends HTMLElement {
     const localPct = a.entities_total ? (a.entities_local / a.entities_total) * 100 : 0;
     const exposed = d.exposure.devices_direct.length;
     const total = d.exposure.devices_total;
-    const unverified = ((d.checks || {}).unverified || []).length || d.unverified_count || 0;
+    // The headline number is declared checks that could not run. The notes
+    // about where the collection does not reach are counted next to it, not
+    // inside it: they were never checks.
+    const notVerified = ((d.checks || {}).unverified || []).filter((item) =>
+      String(item.id || "").startsWith("chk.")
+    );
+    const notes = ((d.checks || {}).unverified || []).length - notVerified.length;
+    const unverified = notVerified.length;
 
     return `<div class="stack">
       <div>
@@ -1256,7 +1515,9 @@ class TalosPanel extends HTMLElement {
           <div class="stat__label">${esc(this.t("base.unverified.label"))}</div>
           <div class="stat__value">${this.num(unverified)}<small>${esc(this.t("base.unverified.unit"))}</small></div>
           <div class="meter"><span style="width:100%;background:repeating-linear-gradient(90deg,var(--ink-mute) 0 4px,transparent 4px 8px)"></span></div>
-          <div class="stat__note">${this.t("base.unverified.note")}</div>
+          <div class="stat__note">${this.t("base.unverified.note")}${
+            notes ? ` ${this.t("base.unverified.notes", { n: this.num(notes) })}` : ""
+          }</div>
         </div>
       </div>
 
@@ -1265,12 +1526,196 @@ class TalosPanel extends HTMLElement {
         ${this.findings()}
       </div>
 
-      <div class="note">
-        <div class="note__label">${esc(this.t("base.limits.label"))}</div>
-        <p>${this.t("base.limits.scope")}</p>
-        <p>${this.t("base.limits.responsibility")}</p>
+      <div>
+        <h2 class="sec">${esc(this.t("base.checks"))}</h2>
+        ${this.checksSection()}
       </div>
     </div>`;
+  }
+
+  /* ── shared pieces ───────────────────────────────────────────────────── */
+
+  /** One disclosure block. Every list in the panel that has a detail behind a
+   *  summary uses this, so a line you can click looks the same everywhere.
+   *  Callers pass escaped markup: the copy carries deliberate emphasis. */
+  expander({ tone = "muted", title, chips = [], body, open = false }) {
+    return `<details class="exp" data-tone="${tone}"${open ? " open" : ""}>
+      <summary><span class="exp__t">${title}</span><span class="exp__sp"></span>${chips.join(
+        ""
+      )}</summary>
+      <div class="exp__body">${body}</div>
+    </details>`;
+  }
+
+  /** Check copy is written in checks.json, in English, and that stays the
+   *  canonical text. A translation wins for display only, and when there is
+   *  none the document's own words are shown rather than a key. */
+  checkText(item, field) {
+    const key = `${item.id}.${field}`;
+    const table = I18N[this._lang] || {};
+    if (table[key] !== undefined) return table[key];
+    if (I18N[FALLBACK_LANG][key] !== undefined) return I18N[FALLBACK_LANG][key];
+    return item[field] || "";
+  }
+
+  severityTone(severity) {
+    return severity === "high" ? "alert" : severity === "medium" ? "attention" : "info";
+  }
+
+  /** One row per asset a check names, with the evidence that made it a
+   *  subject. This is the answer to "who exactly", which is the only part of
+   *  a finding that leads to an action. */
+  subjectRows(result) {
+    const d = this._data;
+    const kind = result.subject_kind;
+    return result.subjects
+      .map((id) => {
+        let name = id;
+        let meta = "";
+        if (kind === "device") {
+          const device = d.labels.devices[id] || {};
+          name = device.name || id;
+          const contacted = this.contactedBy(id);
+          meta =
+            contacted ||
+            [
+              device.transport ? this.t(`transport.${device.transport}`) : "",
+              device.ip,
+              (d.labels.integrations[device.integration_id] || {}).title,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+        } else if (kind === "integration") {
+          const integration = d.labels.integrations[id] || {};
+          name = integration.title || id;
+          meta = [
+            integration.domain,
+            integration.iot_class,
+            integration.endpoint,
+            integration.state && integration.state !== "loaded" ? this.t("state.notLoaded") : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+        }
+        return `<div class="exp__row"><b>${esc(name)}</b><span class="mono">${esc(meta)}</span></div>`;
+      })
+      .join("");
+  }
+
+  /** Who a single device was seen resolving, and how insistently. */
+  contactedBy(deviceId) {
+    const byVendor = new Map();
+    this._data.conduits.forEach((conduit) => {
+      if (conduit.evidence !== "observed" || conduit.source.id !== deviceId) return;
+      const destination = this.destination(conduit.destination_id);
+      if (!PHONE_HOME.has(destination.kind)) return;
+      const key = destination.vendor || destination.fqdn;
+      byVendor.set(key, (byVendor.get(key) || 0) + (conduit.query_count || 0));
+    });
+    return [...byVendor.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([vendor, n]) => `${vendor} (${this.t("find.queries", { n: this.num(n) })})`)
+      .join(", ");
+  }
+
+  /** Why an observed-side section has nothing in it. An empty list and a
+   *  blind collector look identical on screen and mean opposite things. */
+  observedGap() {
+    const d = this._data;
+    if (d.observed_available === false) return this.t("evidence.blocked.adguard");
+    const c = d.correlation || {};
+    if (!c.devices_correlated) return this.t("evidence.blocked.correlation");
+    if (c.devices_correlated < c.devices_total) {
+      return this.t("evidence.blocked.partial", {
+        done: this.num(c.devices_correlated),
+        total: this.num(c.devices_total),
+      });
+    }
+    return this.t("evidence.blocked.silent");
+  }
+
+  /** The whole check run, grouped and colour coded. Passed is green, the
+   *  findings take their severity's colour, and what could not run is grey
+   *  on purpose: it is not an outcome and must not read like one. */
+  checksSection(includeUnverified = true) {
+    const checks = this._data.checks || { failed: [], passed: [], unverified: [] };
+
+    const failed = checks.failed
+      .slice()
+      .sort((a, b) => SEVERITY_ORDER.indexOf(a.severity) - SEVERITY_ORDER.indexOf(b.severity))
+      .map((result) => this.findingCard(result))
+      .join("");
+
+    const passed = checks.passed
+      .map((result) =>
+        this.expander({
+          tone: "pass",
+          title: esc(this.checkText(result, "title")),
+          chips: [`<span class="chip">${esc(this.t("adv.checks.passed"))}</span>`],
+          body: `<p>${esc(this.checkText(result, "detail") || this.t("check.passedBody"))}</p>`,
+        })
+      )
+      .join("");
+
+    // A check the engine declared but could not run, versus a note about
+    // where the collection itself does not reach. Both are "not an outcome",
+    // only the first belongs to the tally of declared checks.
+    const isDeclaredCheck = (item) => String(item.id || "").startsWith("chk.");
+    const notRun = checks.unverified.filter(isDeclaredCheck);
+    const notes = checks.unverified.filter((item) => !isDeclaredCheck(item));
+    const card = (check) =>
+      this.expander({
+        tone: "muted",
+        title: esc(this.checkText(check, "title")),
+        chips: [`<span class="chip">${esc(this.t(`reason.${check.reason}`))}</span>`],
+        body: `<div class="exp__lab">${esc(this.t("check.why"))}</div>
+          <p>${esc(this.checkText(check, "detail"))}</p>`,
+      });
+
+    const group = (label, dot, body, n) =>
+      `<div class="exp__lab"><i style="background:${dot}"></i>${esc(label)} · ${n}</div>` +
+      (body || `<p class="hint" style="margin:0 0 10px">${esc(this.t("check.none"))}</p>`);
+
+    return `<p class="page-sub" style="margin:0 0 10px">${esc(this.t("base.checks.lead"))}</p>
+      <div class="tally">
+        <span><i style="background:var(--k-local)"></i><b>${this.num(checks.passed.length)}</b> ${esc(
+          this.t("base.checks.tally.passed")
+        )}</span>
+        <span><i style="background:var(--alert)"></i><b>${this.num(checks.failed.length)}</b> ${esc(
+          this.t("base.checks.tally.failed")
+        )}</span>
+        <span><i style="background:var(--ink-mute)"></i><b>${this.num(
+          notRun.length
+        )}</b> ${esc(this.t("base.checks.tally.unverified"))}</span>
+        <span class="hint">${esc(this.t("check.expandHint"))}</span>
+      </div>
+      <p class="hint" style="margin:0 0 14px">${esc(
+        this.t("base.checks.total", {
+          total: this.num(checks.passed.length + checks.failed.length + notRun.length),
+          passed: this.num(checks.passed.length),
+          failed: this.num(checks.failed.length),
+          notrun: this.num(notRun.length),
+          notes: this.num(notes.length),
+        })
+      )}</p>
+      ${group(this.t("checks.group.failed"), "var(--alert)", failed, checks.failed.length)}
+      ${group(this.t("checks.group.passed"), "var(--k-local)", passed, checks.passed.length)}
+      ${
+        includeUnverified
+          ? group(
+              this.t("checks.group.unverified"),
+              "var(--ink-mute)",
+              notRun.map(card).join(""),
+              notRun.length
+            ) +
+            group(
+              this.t("checks.group.notes"),
+              "var(--ink-mute)",
+              notes.map(card).join(""),
+              notes.length
+            )
+          : ""
+      }`;
   }
 
   observedBanner() {
@@ -1279,46 +1724,28 @@ class TalosPanel extends HTMLElement {
     return `<div class="banner">${this.t("banner.declared", { reason: esc(reason) })}</div>`;
   }
 
-  subjectNames(result) {
-    return result.subjects.map((id) => {
-      if (result.subject_kind === "device") return this.deviceName(id);
-      if (result.subject_kind === "integration") return this.integrationName(id);
-      return id;
-    });
-  }
-
-  /** Extra prose for the egress finding: who was contacted, how insistently. */
-  egressDetail(result) {
-    const byVendor = new Map();
-    this._data.conduits.forEach((conduit) => {
-      if (conduit.evidence !== "observed" || conduit.source.kind !== "device") return;
-      if (!result.subjects.includes(conduit.source.id)) return;
-      const destination = this.destination(conduit.destination_id);
-      if (!PHONE_HOME.has(destination.kind)) return;
-      const key = destination.vendor || destination.fqdn;
-      byVendor.set(key, (byVendor.get(key) || 0) + (conduit.query_count || 0));
-    });
-    if (!byVendor.size) return "";
-    const list = [...byVendor.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([vendor, queries]) => `${vendor} (${this.t("find.queries", { n: this.num(queries) })})`)
-      .join(", ");
-    return this.t("find.contacted", { list: esc(list) });
-  }
-
   findingCard(result) {
-    const names = this.subjectNames(result);
-    const shown = names.slice(0, 6).join(", ");
-    const more = names.length > 6 ? ` +${names.length - 6}` : "";
-    const extra = result.id === "chk.local_with_egress" ? this.egressDetail(result) : "";
     const level = this.t(`severity.${result.severity}`);
-    return `<div class="find" data-tone="${SEVERITY_TONE[result.severity] || "info"}">
-      <div class="find__title">${esc(result.title)}
-        <span class="chip">${esc(this.t("find.severity", { level }))}</span></div>
-      <div class="find__body">${esc(result.detail)}${extra}
-        ${names.length ? `<br><span class="mono">${esc(shown)}${more}</span>` : ""}</div>
-      ${result.remediation ? `<div class="find__do">${esc(result.remediation)}</div>` : ""}
-    </div>`;
+    const remediation = this.checkText(result, "remediation");
+    const rows = this.subjectRows(result);
+    return this.expander({
+      tone: SEVERITY_TONE[result.severity] || "info",
+      title: esc(this.checkText(result, "title")),
+      chips: [
+        `<span class="chip">${esc(this.t("find.severity", { level }))}</span>`,
+        `<span class="chip">${this.num(result.subjects.length)}</span>`,
+      ],
+      body: `<p>${esc(this.checkText(result, "detail"))}</p>
+        ${
+          rows
+            ? `<div class="exp__lab">${esc(this.t("check.subjects"))}</div>
+               <div class="exp__rows">${rows}</div>`
+            : ""
+        }
+        ${remediation ? `<div class="exp__do"><strong>${esc(this.t("check.do"))}.</strong> ${esc(
+          remediation
+        )}</div>` : ""}`,
+    });
   }
 
   findings() {
@@ -1332,21 +1759,39 @@ class TalosPanel extends HTMLElement {
       const list = losses
         .map((l) => this.t("find.offline.entities", { n: l.entities, vendor: l.vendor }))
         .join(", ");
-      cards.push(`<div class="find" data-tone="attention">
-        <div class="find__title">${esc(this.t("find.offline.title", { vendor: losses[0].vendor }))}</div>
-        <div class="find__body">${esc(this.t("find.offline.body", { list }))}</div>
-        <div class="find__do">${this.t("find.offline.do")}</div>
-      </div>`);
+      cards.push(
+        this.expander({
+          tone: "attention",
+          title: esc(this.t("find.offline.title", { vendor: losses[0].vendor })),
+          chips: [`<span class="chip">${this.num(losses.length)}</span>`],
+          body: `<p>${esc(this.t("find.offline.body", { list }))}</p>
+            <div class="exp__rows">${losses
+              .map(
+                (l) => `<div class="exp__row"><b>${esc(l.vendor)}</b>
+                  <span class="mono">${esc(
+                    this.t("find.offline.entities", { n: l.entities, vendor: l.vendor })
+                  )}</span></div>`
+              )
+              .join("")}</div>
+            <div class="exp__do">${this.t("find.offline.do")}</div>`,
+        })
+      );
     }
 
     if (!cards.length) {
-      cards.push(`<div class="find" data-tone="info">
-        <div class="find__title">${esc(this.t("find.clean.title"))}</div>
-        <div class="find__body">${this.t("find.clean.body", {
-          passed: this.num(checks.passed.length),
-          unverified: this.num(checks.unverified.length),
-        })}</div>
-      </div>`);
+      cards.push(
+        this.expander({
+          tone: "info",
+          title: esc(this.t("find.clean.title")),
+          body: `<p>${this.t("find.clean.body", {
+            passed: this.num(checks.passed.length),
+            unverified: this.num(checks.unverified.length),
+          })}</p>
+          <div class="exp__lab">${esc(this.t("evidence.how"))}</div>
+          <p>${this.t("evidence.how.body")}</p>
+          <p>${esc(this.observedGap())}</p>`,
+        })
+      );
     }
     return cards.join("");
   }
@@ -1407,6 +1852,11 @@ class TalosPanel extends HTMLElement {
           ${d.matrix.infra_only.length ? this.t("adv.correlation.infra", { n: d.matrix.infra_only.length }) : ""}
           ${d.matrix.inherited.length ? this.t("adv.correlation.inherited", { n: d.matrix.inherited.length }) : ""}
         </p>
+        ${this.expander({
+          tone: "info",
+          title: esc(this.t("evidence.how")),
+          body: `<p>${this.t("evidence.how.body")}</p><p>${esc(this.observedGap())}</p>`,
+        })}
       </div>
 
       <div>
@@ -1433,6 +1883,14 @@ class TalosPanel extends HTMLElement {
       </div>
 
       <div>
+        <h2 class="sec">${esc(this.t("adv.inventory"))} · ${
+          Object.keys(d.labels.integrations || {}).length
+        }</h2>
+        <p class="page-sub" style="margin:0 0 12px">${esc(this.t("adv.inventory.lead"))}</p>
+        ${this.inventory()}
+      </div>
+
+      <div>
         <h2 class="sec">${esc(this.t("adv.checks"))}</h2>
         ${this.checkList()}
       </div>
@@ -1446,14 +1904,14 @@ class TalosPanel extends HTMLElement {
         <h2 class="sec">${esc(this.t("adv.unverified"))} · ${unverified.length}</h2>
         ${
           unverified
-            .map(
-              (check) => `<div class="check">
-          <div>
-            <div class="check__t">${esc(check.title)}</div>
-            <div class="check__w">${esc(check.detail)}</div>
-          </div>
-          <span class="chip">${esc(this.t(`reason.${check.reason}`))}</span>
-        </div>`
+            .map((check) =>
+              this.expander({
+                tone: "muted",
+                title: esc(this.checkText(check, "title")),
+                chips: [`<span class="chip">${esc(this.t(`reason.${check.reason}`))}</span>`],
+                body: `<div class="exp__lab">${esc(this.t("check.why"))}</div>
+                  <p>${esc(this.checkText(check, "detail"))}</p>`,
+              })
             )
             .join("") ||
           `<div class="check"><div class="check__t">${esc(this.t("adv.unverified.none"))}</div></div>`
@@ -1462,38 +1920,67 @@ class TalosPanel extends HTMLElement {
     </div>`;
   }
 
-  checkList() {
-    const checks = this._data.checks || { failed: [], passed: [] };
-    const failed = checks.failed
-      .map((result) => {
-        const names = this.subjectNames(result).slice(0, 8).join(", ");
-        const colour =
-          result.severity === "high" ? "alert" : result.severity === "medium" ? "attention" : "accent";
-        return `<div class="check" style="border-left-color:var(--${colour})">
-          <div>
-            <div class="check__t">${esc(result.title)}</div>
-            <div class="check__w">${esc(result.detail)}
-              ${names ? `<br><span class="mono">${esc(names)}</span>` : ""}
-              ${result.remediation ? `<br><em>${esc(result.remediation)}</em>` : ""}</div>
-          </div>
-          <span class="chip">${esc(this.t(`severity.${result.severity}`))} · ${result.subjects.length}</span>
-        </div>`;
+  /** Every config entry with what the registry says about it. Nothing here
+   *  is a judgement and nothing is probed: it is the declared side, laid out
+   *  so it can be read rather than inferred from the map. */
+  inventory() {
+    const d = this._data;
+    const integrations = d.labels.integrations || {};
+    const devices = Object.entries(d.labels.devices || {});
+
+    return Object.entries(integrations)
+      .map(([id, integration]) => {
+        const own = devices.filter(([, device]) => device.integration_id === id);
+        const origins = [...new Set(own.map(([, device]) => device.origin).filter(Boolean))];
+        const transports = [...new Set(own.map(([, device]) => device.transport))];
+        const notLoaded = integration.state && integration.state !== "loaded";
+        const row = (label, value) =>
+          `<div class="exp__row"><b>${esc(label)}</b><span class="mono">${esc(value)}</span></div>`;
+
+        return this.expander({
+          tone: notLoaded ? "alert" : "info",
+          title: esc(integration.title || id),
+          chips: [
+            `<span class="chip">${esc(integration.domain || "")}</span>`,
+            notLoaded
+              ? `<span class="chip chip--alert">${esc(this.t("state.notLoaded"))}</span>`
+              : "",
+            `<span class="chip">${this.num(own.length)}</span>`,
+          ].filter(Boolean),
+          body: `<div class="exp__rows">
+            ${row(this.t("inv.class"), integration.iot_class || this.t("inv.none"))}
+            ${row(
+              this.t("inv.role"),
+              this.t(`role.${integration.role || "unknown"}`) || this.t("inv.none")
+            )}
+            ${row(this.t("inv.state"), integration.state || "-")}
+            ${row(this.t("inv.endpoint"), integration.endpoint || this.t("inv.none"))}
+            ${row(
+              this.t("inv.source"),
+              integration.is_built_in === false
+                ? this.t("inv.source.custom")
+                : this.t("inv.source.builtin")
+            )}
+            ${row(
+              this.t("col.transport"),
+              transports.map((t) => this.t(`transport.${t}`)).join(", ") || "-"
+            )}
+            ${origins.length ? row(this.t("inv.origin"), origins.join(", ")) : ""}
+            ${row(
+              this.t("col.devices"),
+              this.t("inv.counts", {
+                devices: this.num(own.length),
+                entities: this.num(integration.entity_count || 0),
+              })
+            )}
+          </div>`,
+        });
       })
       .join("");
+  }
 
-    const passed = checks.passed
-      .map(
-        (result) => `<div class="check" style="border-left-color:var(--k-local)">
-        <div><div class="check__t">${esc(result.title)}</div></div>
-        <span class="chip">${esc(this.t("adv.checks.passed"))}</span>
-      </div>`
-      )
-      .join("");
-
-    return (
-      (failed || `<div class="check"><div class="check__t">${esc(this.t("adv.checks.none"))}</div></div>`) +
-      passed
-    );
+  checkList() {
+    return this.checksSection(false);
   }
 
   cell(ids, text, isKey) {
@@ -2492,6 +2979,22 @@ class TalosPanel extends HTMLElement {
             ? `<span class="status" data-tone="${this._saveStatus.tone}">${esc(this._saveStatus.text)}</span>`
             : ""
         }
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.scope"))}</h2>
+        <div class="note">
+          <div class="note__label">${esc(this.t("settings.scope.does"))}</div>
+          <p>${esc(this.t("settings.scope.doesBody"))}</p>
+        </div>
+        <div class="note">
+          <div class="note__label">${esc(this.t("settings.scope.doesNot"))}</div>
+          <p>${esc(this.t("settings.scope.lead"))}</p>
+          ${SCOPE_ITEMS.map(
+            (key) => `<p>· ${esc(this.t(`settings.scope.item.${key}`))}</p>`
+          ).join("")}
+          <p><strong>${esc(this.t("settings.scope.closing"))}</strong></p>
+        </div>
       </div>
 
       <div>

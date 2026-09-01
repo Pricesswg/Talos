@@ -56,6 +56,10 @@ TRANSPORTS: Final = frozenset(
         "ble",
         "thread",
         "matter",
+        # A device with a MAC and an IP is on the network. Whether the last
+        # metre is copper or radio is not in any registry, and guessing it
+        # would be inventing, so it stays "ip" rather than becoming "wifi".
+        "ip",
         "virtual",
         "unknown",
     }

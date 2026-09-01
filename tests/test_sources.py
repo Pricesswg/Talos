@@ -513,3 +513,72 @@ class TestDeclaredEndpoints(unittest.TestCase):
         self.assertIn(
             "unv.entry_endpoints_unavailable", {note.id for note in scan.unverified}
         )
+
+
+class TestTransportEvidence(unittest.TestCase):
+    """How a device is attached, from what the registry actually holds. The
+    case that matters is Zigbee2MQTT: it arrives through MQTT, and MQTT is a
+    bus, so the domain says nothing about the radio."""
+
+    @staticmethod
+    def transports(*devices: dict[str, Any]) -> dict[str, str]:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "state": "loaded", "endpoint": None}
+            ],
+            devices=[{"config_entries": ["e_mqtt"], "primary_config_entry": "e_mqtt", **d}
+                     for d in devices],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "mqtt", "iot_class": "local_push", "is_built_in": True}],
+        )
+        scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+        return {device.id: device.transport for device in scan.devices}
+
+    def test_a_bare_ieee_address_names_the_radio(self) -> None:
+        found = self.transports({"id": "d", "identifiers": [["mqtt", "0x00158d0001234567"]]})
+        self.assertEqual(found["d"], "zigbee")
+
+    def test_something_merely_hexadecimal_is_not_an_ieee_address(self) -> None:
+        found = self.transports({"id": "d", "identifiers": [["mqtt", "0xdeadbeef"]]})
+        self.assertEqual(found["d"], "unknown")
+
+    def test_a_mac_says_the_device_is_on_ip_and_no_more(self) -> None:
+        found = self.transports(
+            {"id": "d", "identifiers": [["mqtt", "gw"]], "connections": [["mac", "AA:BB:CC:00:11:22"]]}
+        )
+        self.assertEqual(found["d"], "ip")
+
+    def test_an_address_to_open_counts_the_same(self) -> None:
+        found = self.transports(
+            {"id": "d", "identifiers": [["mqtt", "nas"]],
+             "configuration_url": "http://192.168.50.10:5000"}
+        )
+        self.assertEqual(found["d"], "ip")
+
+    def test_no_evidence_stays_unknown(self) -> None:
+        found = self.transports({"id": "d", "identifiers": [["mqtt", "x1"]]})
+        self.assertEqual(found["d"], "unknown")
+
+    def test_a_leaf_takes_the_radio_and_the_system_of_its_bridge(self) -> None:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "state": "loaded", "endpoint": None}
+            ],
+            devices=[
+                {"id": "brg", "name": "Zigbee2MQTT Bridge", "config_entries": ["e_mqtt"],
+                 "primary_config_entry": "e_mqtt",
+                 "identifiers": [["mqtt", "zigbee2mqtt_bridge_0x001788"]], "via_device_id": None},
+                {"id": "leaf", "name": "Door sensor", "config_entries": ["e_mqtt"],
+                 "primary_config_entry": "e_mqtt", "identifiers": [["mqtt", "sensor-7"]],
+                 "via_device_id": "brg"},
+            ],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "mqtt", "iot_class": "local_push", "is_built_in": True}],
+        )
+        scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+        leaf = next(device for device in scan.devices if device.id == "leaf")
+        self.assertEqual(leaf.transport, "zigbee")
+        # The bus underneath is MQTT; the system that produced it is not.
+        self.assertEqual(leaf.origin, "zigbee2mqtt")
