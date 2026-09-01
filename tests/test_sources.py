@@ -367,3 +367,67 @@ class TestTransportDetection(unittest.TestCase):
         self.assertEqual(
             self.transport_of({"id": "p7", "via_device_id": "d_child_of_disabled"}), "unknown"
         )
+
+
+class TestOriginDetection(unittest.TestCase):
+    """An integration can be fed by more than one system.
+
+    An MQTT entry carries Zigbee2MQTT and a SwitchBot bridge at the same time.
+    The integration is the bus; the origin is what produced the device, and it
+    is only recorded when the two differ.
+    """
+
+    def origin_of(self, device: dict[str, Any]) -> str | None:
+        data = registry()
+        responses = {key: list(value) for key, value in data["responses"].items()}
+        responses["config/device_registry/list"] = [
+            *responses["config/device_registry/list"],
+            {
+                "name": "probe", "name_by_user": None, "manufacturer": None,
+                "model": None, "area_id": None, "config_entries": ["e_mqtt"],
+                "primary_config_entry": "e_mqtt", "connections": [],
+                "identifiers": [], "via_device_id": None, "disabled_by": None,
+                **device,
+            },
+        ]
+
+        class Replay:
+            ha_version = data["ha_version"]
+
+            async def send(self, command: dict[str, Any]) -> Any:
+                name = command["type"]
+                if name not in responses:
+                    raise CommandError(name, "unknown command", "unknown_command")
+                return responses[name]
+
+        scan = collect(Replay())
+        found = scan.device(device["id"])
+        assert found is not None
+        return found.origin
+
+    def test_zigbee2mqtt_is_recorded_as_the_origin(self) -> None:
+        self.assertEqual(
+            self.origin_of({"id": "o1", "identifiers": [["mqtt", "zigbee2mqtt_0x1"]]}),
+            "zigbee2mqtt",
+        )
+
+    def test_two_systems_on_one_entry_are_told_apart(self) -> None:
+        self.assertEqual(
+            self.origin_of({"id": "o2", "identifiers": [["mqtt", "switchbot_ab12"]]}),
+            "switchbot",
+        )
+
+    def test_nothing_recorded_when_the_integration_is_the_source(self) -> None:
+        # An ESPHome device under the ESPHome entry adds nothing to say.
+        self.assertIsNone(
+            self.origin_of(
+                {
+                    "id": "o3",
+                    "config_entries": ["e_mqtt"],
+                    "identifiers": [["mqtt", "nothing_we_know"]],
+                }
+            )
+        )
+
+    def test_the_field_stays_absent_for_ordinary_devices(self) -> None:
+        self.assertIsNone(self.origin_of({"id": "o4"}))

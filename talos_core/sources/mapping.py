@@ -74,6 +74,23 @@ HUB_RADIO_BY_DOMAIN: dict[str, str] = {
 # prefix is the only evidence in the registry that the thing is Zigbee.
 # Matched on the value's prefix, not as a substring, so a device merely named
 # after a protocol is not mistaken for one.
+# What actually produced the data, when it is not the integration that
+# registered it. An MQTT config entry can be fed by Zigbee2MQTT and by a
+# SwitchBot bridge at the same time: the integration is the bus, these are the
+# sources on it. Matched on the value's prefix, like the transports.
+IDENTIFIER_PREFIX_ORIGINS: tuple[tuple[str, str], ...] = (
+    ("zigbee2mqtt", "zigbee2mqtt"),
+    ("switchbot", "switchbot"),
+    ("tasmota", "tasmota"),
+    ("esphome", "esphome"),
+    ("shelly", "shelly"),
+    ("zwavejs2mqtt", "zwavejs2mqtt"),
+    ("z2m", "zigbee2mqtt"),
+    ("bthome", "bthome"),
+    ("govee", "govee"),
+    ("tuya", "tuya"),
+)
+
 IDENTIFIER_PREFIX_TRANSPORTS: tuple[tuple[str, str], ...] = (
     ("zigbee2mqtt", "zigbee"),
     ("zha", "zigbee"),
@@ -263,6 +280,7 @@ def _build_devices(
                 manufacturer=raw.get("manufacturer"),
                 model=raw.get("model"),
                 area=areas.get(raw.get("area_id")),
+                origin=_origin(raw, entry_domains.get(attributed[device_id])),
                 mac=_mac(raw),
                 # The device registry carries no address. The IP arrives from
                 # the DHCP leases on the observed side, joined on the MAC.
@@ -354,6 +372,22 @@ def _transport(
     if domain:
         return DOMAIN_TRANSPORT_HINTS.get(domain, "unknown")
     return "unknown"
+
+
+def _origin(raw: dict[str, Any], domain: str | None) -> str | None:
+    """Which system produced this device, when it is not the integration.
+
+    Returns None when the integration is the source, so the common case adds
+    nothing to the document and the field only appears where it says something.
+    """
+    for identifier in raw.get("identifiers") or ():
+        if not isinstance(identifier, (list, tuple)) or len(identifier) < 2:
+            continue
+        value = str(identifier[1]).lower()
+        for prefix, origin in IDENTIFIER_PREFIX_ORIGINS:
+            if value.startswith(prefix):
+                return None if origin == domain else origin
+    return None
 
 
 def _mac(raw: dict[str, Any]) -> str | None:

@@ -166,10 +166,20 @@ Three detail levels, stepped with the plus and minus buttons: transports, integr
 Labels sit horizontally under their node, and device labels appear as you zoom in, so a wide view
 stays readable and a close one names everything.
 
+An integration is not always the source. An MQTT entry can be fed by Zigbee2MQTT and a SwitchBot
+bridge at the same time, so when the devices under an integration come from different systems those
+sources get their own ring between the integration and its devices, read from the device identifiers.
+Links that cross an integration boundary, a Bluetooth proxy owned by ESPHome serving MQTT devices for
+instance, are drawn as dashed arcs across the tree, since `via_device` declares them.
+
 Three ways to narrow it down. A chip per transport keeps only that trunk. Clicking an integration
 isolates it, showing its devices and nothing else. The search box filters devices by name or area
 rather than dimming them, so what is left on screen is the answer. Any of them clears from the badge
 in the toolbar.
+
+The graph builds outwards one ring at a time rather than appearing at once, which makes the structure
+readable while it settles. The reveal is skipped when the browser asks for reduced motion, and while
+dragging.
 
 Nodes can be dragged, and the rest settle around them: after each layout a fixed number of
 relaxation passes push overlapping nodes apart and slide them back onto their ring, so a crowded

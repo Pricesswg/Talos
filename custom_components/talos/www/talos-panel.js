@@ -231,6 +231,11 @@ const I18N = {
     "map.clearScope": "Rimuovi il filtro",
     "map.click.integration": "Clicca un'integrazione per isolarne i dispositivi.",
     "map.filtered": "{n} dispositivi corrispondono",
+    "map.origins": "Sorgenti",
+    "map.origin.own": "diretto",
+    "map.legend.origin": "Sorgente dei dati",
+    "map.legend.bridge": "Collegamento fra integrazioni",
+    "map.bridges": "{n} collegamenti fra integrazioni",
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -461,6 +466,11 @@ const I18N = {
     "map.clearScope": "Clear the filter",
     "map.click.integration": "Click an integration to isolate its devices.",
     "map.filtered": "{n} devices match",
+    "map.origins": "Sources",
+    "map.origin.own": "direct",
+    "map.legend.origin": "Data source",
+    "map.legend.bridge": "Link between integrations",
+    "map.bridges": "{n} links between integrations",
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -718,6 +728,30 @@ svg.map .lbl--core { font-size: 15px; font-weight: 600; }
 svg.map .lbl--transport { font-size: 13.5px; font-weight: 500; }
 svg.map .sub { font-size: 10px; fill: var(--ink-mute); font-family: var(--font-mono); }
 svg.map .link { fill: none; stroke-opacity: .45; }
+svg.map .link--bridge { stroke-opacity: .8; stroke-dasharray: 7 5; }
+
+/* The reveal walks outwards, one ring at a time, so the structure builds
+   rather than appearing all at once. Only on a structural redraw: a drag
+   redraws every frame and would restart it forever. */
+@keyframes talos-node-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes talos-mark-in {
+  from { transform: scale(.2); }
+  60%  { transform: scale(1.18); }
+  to   { transform: scale(1); }
+}
+@keyframes talos-link-in { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+svg.map.animate .node { animation: talos-node-in 320ms ease-out backwards; }
+svg.map.animate .node__mark {
+  transform-box: fill-box; transform-origin: center;
+  animation: talos-mark-in 380ms cubic-bezier(.2, .9, .3, 1.25) backwards;
+}
+svg.map.animate .link {
+  stroke-dasharray: 1; animation: talos-link-in 420ms ease-out backwards;
+}
+svg.map.animate .link--bridge { stroke-dasharray: 7 5; animation: talos-node-in 420ms ease-out backwards; }
+@media (prefers-reduced-motion: reduce) {
+  svg.map.animate .node, svg.map.animate .node__mark, svg.map.animate .link { animation: none; }
+}
 svg.map .node { cursor: grab; }
 svg.map.dragging .node { cursor: grabbing; }
 svg.map .dim { opacity: .12; }
@@ -965,7 +999,7 @@ class TalosPanel extends HTMLElement {
 
     const map = host.querySelector("svg.map");
     if (map) {
-      this.drawMap(map);
+      this.drawMap(map, true);
       const search = host.querySelector("[data-action='map-search']");
       if (search) {
         // Redraw only the map, so the field keeps focus while typing.
@@ -1427,12 +1461,40 @@ class TalosPanel extends HTMLElement {
         transport,
         total: [...integrations.values()].reduce((sum, list) => sum + list.length, 0),
         integrations: [...integrations.entries()]
-          .map(([id, list]) => ({ id, devices: list.slice().sort(byName) }))
+          .map(([id, list]) => {
+            const devices = list.slice().sort(byName);
+            // An MQTT entry can be fed by Zigbee2MQTT and a SwitchBot bridge
+            // at once: the integration is the bus, these are its sources.
+            const sources = new Map();
+            devices.forEach((device) => {
+              const origin = device.origin || null;
+              if (!sources.has(origin)) sources.set(origin, []);
+              sources.get(origin).push(device);
+            });
+            return {
+              id,
+              devices,
+              sources: [...sources.entries()]
+                .map(([origin, list2]) => ({ origin, devices: list2 }))
+                .sort((a, b) => b.devices.length - a.devices.length),
+            };
+          })
           .sort((a, b) => b.devices.length - a.devices.length),
       }))
       .sort((a, b) => b.total - a.total);
 
-    return { groups, children, total: Object.keys(devices).length };
+    // A hub owned by another integration is a real, declared link between
+    // the two: it is how Zigbee2MQTT hangs off a coordinator entry, or a
+    // Bluetooth proxy off ESPHome.
+    const bridges = new Map();
+    Object.entries(devices).forEach(([id, device]) => {
+      const parent = device.via_device_id && devices[device.via_device_id];
+      if (!parent || parent.integration_id === device.integration_id) return;
+      const key = `${parent.integration_id}>${device.integration_id}`;
+      bridges.set(key, (bridges.get(key) || 0) + 1);
+    });
+
+    return { groups, children, bridges, total: Object.keys(devices).length };
   }
 
   viewMap() {
@@ -1491,7 +1553,9 @@ class TalosPanel extends HTMLElement {
           <span><span class="swatch swatch--round" style="background:var(--t-zigbee)"></span>${esc(this.t("map.legend.transport"))}</span>
           <span><span class="swatch swatch--round" style="background:var(--ink-mute)"></span>${esc(this.t("map.legend.integration"))}</span>
           <span><span class="swatch swatch--round" style="background:var(--ink-soft);width:6px;height:6px"></span>${esc(this.t("map.legend.device"))}</span>
+          <span><span class="swatch" style="background:none;border:2px dashed var(--ink-soft);border-radius:50%"></span>${esc(this.t("map.legend.origin"))}</span>
           <span><span class="swatch" style="background:none;border:2px solid var(--ink-soft);border-radius:50%"></span>${esc(this.t("map.legend.hub"))}</span>
+          <span><span class="swatch" style="height:0;width:16px;border-top:2px dashed var(--ink-mute);border-radius:0"></span>${esc(this.t("map.legend.bridge"))}</span>
         </div>
       </div>
 
@@ -1561,7 +1625,7 @@ class TalosPanel extends HTMLElement {
   mapLayout(stretch = 1) {
     const detail = this._detail || 2;
     const d = this._data;
-    const { groups: allGroups, children, total } = this.topology();
+    const { groups: allGroups, children, bridges, total } = this.topology();
     const query = (this._mapQuery || "").trim().toLowerCase();
     const scope = this._scope || null;
 
@@ -1586,8 +1650,9 @@ class TalosPanel extends HTMLElement {
     const CX = 0;
     const CY = 0;
     const R_TRANSPORT = 170;
-    const R_INTEGRATION = 330;
-    const R_DEVICE = 470;
+    const R_INTEGRATION = 300;
+    const R_ORIGIN = 385;
+    const R_DEVICE = 480;
     const MAX_DEVICES = (this._detail || 2) >= 3 ? 24 : 60;
 
     nodes.push({
@@ -1620,6 +1685,7 @@ class TalosPanel extends HTMLElement {
           shown,
           deviceMatch,
           pool,
+          budget,
           weight: open
             ? Math.max(MIN_OPEN_SLOTS, shown.length)
             : 1 + Math.sqrt(entry.devices.length) / 3,
@@ -1650,7 +1716,7 @@ class TalosPanel extends HTMLElement {
 
       let inner = cursor;
       integrations.forEach((item) => {
-        const { entry, integration, open, shown } = item;
+        const { entry, integration, open, shown, budget } = item;
         const iSpan = span * (item.weight / weight);
         const iMid = inner + iSpan / 2;
         inner += iSpan;
@@ -1673,35 +1739,90 @@ class TalosPanel extends HTMLElement {
 
         if (!open) return;
 
-        const step = iSpan / Math.max(shown.length, 1);
-        shown.forEach((device, position) => {
-          const angle = iMid - iSpan / 2 + step * (position + 0.5);
-          nodes.push({
-            id: `d:${device.id}`, kind: "device", angle,
-            x: CX + Math.cos(angle) * R_DEVICE * stretch,
-            y: CY + Math.sin(angle) * R_DEVICE,
-            rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 13,
-            label: device.name || device.id,
-            sub: device.area || device.ip || "",
-            colour, isHub: children.has(device.id),
-            hit: matches(device.name) || matches(device.area),
-          });
-          links.push({ from: iNode.id, to: `d:${device.id}`, colour, width: 0.7 });
+        // When the integration is fed by something other than itself, the
+        // sources get their own ring: that is the thing worth seeing. Built
+        // from the filtered pool, so a search narrows the sources too.
+        const bucketed = new Map();
+        item.pool.forEach((device) => {
+          const origin = device.origin || null;
+          if (!bucketed.has(origin)) bucketed.set(origin, []);
+          bucketed.get(origin).push(device);
         });
-        if (item.pool.length > shown.length) {
+        const buckets = [...bucketed.entries()]
+          .map(([origin, list]) => ({ origin, devices: list }))
+          .sort((a, b) => b.devices.length - a.devices.length);
+        const useOrigins = buckets.some((bucket) => bucket.origin);
+
+        let bucketCursor = iMid - iSpan / 2;
+        const totalInBuckets = buckets.reduce((sum, b) => sum + b.devices.length, 0) || 1;
+        let drawn = 0;
+
+        buckets.forEach((bucket) => {
+          const bSpan = iSpan * (bucket.devices.length / totalInBuckets);
+          const bMid = bucketCursor + bSpan / 2;
+          bucketCursor += bSpan;
+
+          let parentId = iNode.id;
+          if (useOrigins) {
+            const originId = `o:${entry.id}:${bucket.origin || "own"}`;
+            nodes.push({
+              id: originId, kind: "origin", angle: bMid,
+              x: CX + Math.cos(bMid) * R_ORIGIN * stretch,
+              y: CY + Math.sin(bMid) * R_ORIGIN,
+              rx: R_ORIGIN * stretch, ry: R_ORIGIN, pad: 24,
+              label: bucket.origin || this.t("map.origin.own"),
+              sub: String(bucket.devices.length), colour,
+              hit: matches(bucket.origin),
+            });
+            links.push({ from: iNode.id, to: originId, colour, width: 0.9 });
+            parentId = originId;
+          }
+
+          const remaining = Math.max(0, budget - drawn);
+          const bucketShown = bucket.devices.slice(0, remaining);
+          drawn += bucketShown.length;
+          const step = bSpan / Math.max(bucketShown.length, 1);
+          bucketShown.forEach((device, position) => {
+            const angle = bMid - bSpan / 2 + step * (position + 0.5);
+            nodes.push({
+              id: `d:${device.id}`, kind: "device", angle,
+              x: CX + Math.cos(angle) * R_DEVICE * stretch,
+              y: CY + Math.sin(angle) * R_DEVICE,
+              rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 13,
+              label: device.name || device.id,
+              sub: device.area || device.ip || "",
+              colour, isHub: children.has(device.id),
+              hit: matches(device.name) || matches(device.area),
+            });
+            links.push({ from: parentId, to: `d:${device.id}`, colour, width: 0.7 });
+          });
+        });
+
+        if (item.pool.length > drawn) {
           const angle = iMid + iSpan / 2;
           nodes.push({
             id: `more:${entry.id}`, kind: "more", angle,
             x: CX + Math.cos(angle) * R_DEVICE * stretch,
             y: CY + Math.sin(angle) * R_DEVICE,
             rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 22,
-            label: this.t("map.truncated", { n: item.pool.length - shown.length }),
+            label: this.t("map.truncated", { n: item.pool.length - drawn }),
             colour, sub: "",
           });
         }
       });
 
       cursor += span;
+    });
+
+    // Declared links that cross an integration boundary.
+    const present = new Set(nodes.map((node) => node.id));
+    (bridges || new Map()).forEach((count, key) => {
+      const [from, to] = key.split(">");
+      if (!present.has(`i:${from}`) || !present.has(`i:${to}`)) return;
+      links.push({
+        from: `i:${from}`, to: `i:${to}`, colour: "var(--ink-mute)",
+        width: 0.8 + Math.sqrt(count) / 3, bridge: true,
+      });
     });
 
     // A dragged node keeps where it was put, and the rest settle around it.
@@ -1758,7 +1879,7 @@ class TalosPanel extends HTMLElement {
     }
   }
 
-  drawMap(svg) {
+  drawMap(svg, animate = false) {
     const NS = "http://www.w3.org/2000/svg";
     const el = (name, attrs) => {
       const node = document.createElementNS(NS, name);
@@ -1766,6 +1887,7 @@ class TalosPanel extends HTMLElement {
       return node;
     };
     while (svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.classList.toggle("animate", Boolean(animate));
 
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
 
@@ -1807,12 +1929,17 @@ class TalosPanel extends HTMLElement {
       const to = byId.get(link.to);
       if (!from || !to) return;
       // Curved towards the centre so the branches read as branches.
+      // A bridge arcs the other way, so it reads as a shortcut across the
+      // tree rather than another branch of it.
+      const bow = link.bridge ? 1.35 : 0.72;
       const path = el("path", {
-        class: "link",
-        d: `M${from.x},${from.y} Q${(from.x + to.x) / 2 * 0.72},${(from.y + to.y) / 2 * 0.72} ${to.x},${to.y}`,
+        class: link.bridge ? "link link--bridge" : "link",
+        d: `M${from.x},${from.y} Q${((from.x + to.x) / 2) * bow},${((from.y + to.y) / 2) * bow} ${to.x},${to.y}`,
         stroke: link.colour,
         "stroke-width": link.width,
+        pathLength: "1",
       });
+      path.style.animationDelay = `${link.bridge ? 380 : 90}ms`;
       if (dimmed && !(to.hit || from.hit)) path.classList.add("dim");
       linkLayer.appendChild(path);
     });
@@ -1830,13 +1957,23 @@ class TalosPanel extends HTMLElement {
       } else if (node.kind === "more") {
         // Nothing but the label: it is a note, not a thing on the network.
       } else {
-        const radius = node.kind === "transport" ? 13 : node.kind === "integration" ? 8 : 4.5;
-        group.appendChild(el("circle", {
+        const radius =
+          node.kind === "transport" ? 13
+          : node.kind === "integration" ? 8
+          : node.kind === "origin" ? 6 : 4.5;
+        const mark = el("circle", {
+          class: "node__mark",
           cx: node.x, cy: node.y, r: radius,
-          fill: node.kind === "device" && node.isHub ? "var(--surface)" : node.colour,
+          fill:
+            node.kind === "origin" || (node.kind === "device" && node.isHub)
+              ? "var(--surface)"
+              : node.colour,
           stroke: node.colour,
-          "stroke-width": node.kind === "device" && node.isHub ? 2.5 : 0,
-        }));
+          "stroke-width":
+            node.kind === "origin" ? 2 : node.kind === "device" && node.isHub ? 2.5 : 0,
+        });
+        if (node.kind === "origin") mark.setAttribute("stroke-dasharray", "3 2");
+        group.appendChild(mark);
         if (node.kind === "integration" && node.open) {
           group.appendChild(el("circle", {
             cx: node.x, cy: node.y, r: radius + 4,
@@ -1849,7 +1986,8 @@ class TalosPanel extends HTMLElement {
       // the left half and is worse to scan than a straight line of names.
       const below = node.kind === "core" ? 40
         : node.kind === "transport" ? 26
-        : node.kind === "integration" ? 20 : 13;
+        : node.kind === "integration" ? 20
+        : node.kind === "origin" ? 17 : 13;
       const isDevice = node.kind === "device" || node.kind === "more";
 
       const label = el("text", {
@@ -1877,6 +2015,13 @@ class TalosPanel extends HTMLElement {
         sub.textContent = node.kind === "integration" ? `${node.sub} · ${node.count}` : node.sub;
         group.appendChild(sub);
       }
+
+      const depth =
+        node.kind === "core" ? 0
+        : node.kind === "transport" ? 1
+        : node.kind === "integration" ? 2
+        : node.kind === "origin" ? 3 : 4;
+      group.style.animationDelay = `${depth * 110}ms`;
 
       if (node.kind === "integration") {
         // A generous invisible target: the dot itself is 8px.

@@ -134,6 +134,9 @@ def ws_derived(
                         "model": device.model,
                         "ip": device.ip,
                         "integration_id": device.integration_id,
+                        # The system that produced it, when that is not the
+                        # integration that registered it.
+                        "origin": device.origin,
                         # The map draws the hub hierarchy and the weight of
                         # each branch from these two.
                         "via_device_id": device.via_device_id,

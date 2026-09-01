@@ -89,6 +89,10 @@ class Device:
     mac: str | None = None
     ip: str | None = None
     zone: str = "unknown"
+    # The system that produced the device, when it is not the integration that
+    # registered it. An MQTT entry can be fed by Zigbee2MQTT and a SwitchBot
+    # bridge at once; the integration is the bus, this is the source on it.
+    origin: str | None = None
     via_device_id: str | None = None
     entity_count: int = 0
 
@@ -111,6 +115,7 @@ class Device:
             mac=raw.get("mac"),
             ip=raw.get("ip"),
             zone=raw.get("zone") or "unknown",
+            origin=raw.get("origin"),
             via_device_id=raw.get("via_device_id"),
             entity_count=int(raw.get("entity_count") or 0),
         )
@@ -127,6 +132,7 @@ class Device:
             "mac": self.mac,
             "ip": self.ip,
             "zone": self.zone,
+            "origin": self.origin,
             "via_device_id": self.via_device_id,
             "entity_count": self.entity_count,
         }

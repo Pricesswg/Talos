@@ -246,7 +246,7 @@ def _check_devices(out: list[Finding], raw: dict[str, Any]) -> _Index:
         _field(out, path, entry, "integration_id", _STR)
         _field(out, path, entry, "name", _STR)
         _field(out, path, entry, "transport", _STR, enum=TRANSPORTS)
-        for optional in ("manufacturer", "model", "area", "mac", "ip"):
+        for optional in ("manufacturer", "model", "area", "mac", "ip", "origin"):
             _field(out, path, entry, optional, _STR, required=False, nullable=True)
         _field(out, path, entry, "zone", _STR, required=False, nullable=True, enum=ZONES)
         _field(out, path, entry, "via_device_id", _STR, required=False, nullable=True)
