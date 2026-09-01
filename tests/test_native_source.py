@@ -225,8 +225,8 @@ class TestScanFromRegistries(unittest.TestCase):
         lamp = self.scan.device("d_lamp")
         assert bridge is not None and lamp is not None
         self.assertEqual(bridge.transport, "ethernet")
-        # Behind a hub: not the integration's own transport.
-        self.assertEqual(lamp.transport, "unknown")
+        # Behind the bridge: the hub's radio, not the hub's uplink.
+        self.assertEqual(lamp.transport, "zigbee")
 
     def test_device_less_entities_reach_their_integration(self) -> None:
         mobile = self.scan.integration("e_mobile")

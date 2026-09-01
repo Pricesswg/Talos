@@ -388,7 +388,7 @@ class TestFullPipeline(unittest.TestCase):
     def test_autonomy_is_unaffected_by_observation(self) -> None:
         # Observed egress is exposure, not a functional dependency: the
         # offline picture must not move because a camera chattered.
-        self.assertEqual(self.derived.autonomy.entities_local, 9)
+        self.assertEqual(self.derived.autonomy.entities_local, 10)
         self.assertNotIn("Reolink", {loss.vendor for loss in self.derived.autonomy.losses})
 
     def test_transport_protocol_is_satisfied_by_the_fake(self) -> None:

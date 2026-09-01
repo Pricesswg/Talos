@@ -23,9 +23,13 @@ from typing import Any, Iterable
 from ..const import SCHEMA_VERSION
 from ..model import Correlation, Device, Integration, Scan, UnverifiedCheck
 
-# A device registry does not say how a device is attached. The domain is the
-# best hint available; anything not listed stays `unknown`, which is honest and
-# stays visible rather than being folded into a plausible default.
+# A device registry does not say how a device is attached. The domain is one
+# hint among several; anything still unresolved stays `unknown`, which is
+# honest and stays visible rather than folded into a plausible default.
+#
+# `mqtt` is deliberately absent. MQTT is a bus, not a radio: what rides on it
+# can be Zigbee, Bluetooth or a script on a Pi, and the transport has to come
+# from the identifiers instead.
 DOMAIN_TRANSPORT_HINTS: dict[str, str] = {
     "zha": "zigbee",
     "deconz": "zigbee",
@@ -43,7 +47,43 @@ DOMAIN_TRANSPORT_HINTS: dict[str, str] = {
     "bthome": "ble",
     "sonos": "wifi",
     "cast": "wifi",
+    "tuya": "wifi",
+    "wled": "wifi",
+    "yeelight": "wifi",
+    "roborock": "wifi",
+    "switchbot": "ble",
+    "androidtv": "wifi",
+    "samsungtv": "wifi",
 }
+
+# What a hub's own radio is. Not the same as how the hub reaches Home
+# Assistant: a Hue bridge sits on ethernet and speaks Zigbee to its bulbs, so
+# a device behind it is Zigbee even though its integration says ethernet.
+HUB_RADIO_BY_DOMAIN: dict[str, str] = {
+    "hue": "zigbee",
+    "zha": "zigbee",
+    "deconz": "zigbee",
+    "zwave_js": "zwave",
+    "matter": "matter",
+    "thread": "thread",
+    "bluetooth": "ble",
+}
+
+# Device identifiers carry what the bus itself will not say. Zigbee2MQTT
+# registers its devices through MQTT with an identifier of its own, and that
+# prefix is the only evidence in the registry that the thing is Zigbee.
+# Matched on the value's prefix, not as a substring, so a device merely named
+# after a protocol is not mistaken for one.
+IDENTIFIER_PREFIX_TRANSPORTS: tuple[tuple[str, str], ...] = (
+    ("zigbee2mqtt", "zigbee"),
+    ("zha", "zigbee"),
+    ("deconz", "zigbee"),
+    ("zwavejs", "zwave"),
+    ("zwave_js", "zwave"),
+    ("bthome", "ble"),
+    ("switchbot", "ble"),
+    ("esphome", "wifi"),
+)
 
 # Connection types in a device registry entry that pin the transport down
 # better than the domain does.
@@ -215,7 +255,11 @@ def _build_devices(
                 id=device_id,
                 integration_id=attributed[device_id],
                 name=raw.get("name_by_user") or raw.get("name") or device_id,
-                transport=_transport(raw, entry_domains.get(attributed[device_id])),
+                transport=_transport(
+                    raw,
+                    entry_domains.get(attributed[device_id]),
+                    entry_domains.get(attributed.get(raw.get("via_device_id") or "", "")),
+                ),
                 manufacturer=raw.get("manufacturer"),
                 model=raw.get("model"),
                 area=areas.get(raw.get("area_id")),
@@ -231,7 +275,35 @@ def _build_devices(
             )
         )
 
+    _inherit_hub_radio(kept)
     return kept
+
+
+# Radios a child can only be speaking if its hub speaks them.
+RADIO_TRANSPORTS: frozenset[str] = frozenset({"zigbee", "zwave", "thread", "matter", "ble"})
+
+
+def _inherit_hub_radio(devices: list[Device]) -> None:
+    """Give a still-unknown child the radio its hub was found to speak.
+
+    The identifier prefixes cover the integrations we know by name; this
+    catches the rest. If a hub resolved to Zigbee, everything hanging off it
+    is on Zigbee too, whatever bus carried the discovery message.
+    """
+    by_id = {device.id: device for device in devices}
+    for device in devices:
+        if device.transport != "unknown" or not device.via_device_id:
+            continue
+        seen: set[str] = {device.id}
+        parent = by_id.get(device.via_device_id)
+        while parent is not None and parent.id not in seen:
+            seen.add(parent.id)
+            if parent.transport in RADIO_TRANSPORTS:
+                device.transport = parent.transport
+                break
+            if not parent.via_device_id:
+                break
+            parent = by_id.get(parent.via_device_id)
 
 
 def _primary_entry(raw: dict[str, Any], known_entries: set[str]) -> str | None:
@@ -246,19 +318,39 @@ def _primary_entry(raw: dict[str, Any], known_entries: set[str]) -> str | None:
     return None
 
 
-def _transport(raw: dict[str, Any], domain: str | None) -> str:
+def _transport(
+    raw: dict[str, Any], domain: str | None, parent_domain: str | None = None
+) -> str:
+    """Best evidence first, and `unknown` when there is none.
+
+    A connection type is stated by the integration and settles it. Failing
+    that, an identifier prefix can name a protocol the config entry cannot:
+    Zigbee2MQTT devices arrive through MQTT and only their identifier says
+    they are Zigbee. Only then does the hub, and last the domain.
+    """
     for connection in raw.get("connections") or ():
         if not isinstance(connection, (list, tuple)) or not connection:
             continue
         hinted = CONNECTION_TRANSPORT.get(str(connection[0]))
         if hinted:
             return hinted
-    # The domain hint describes how the integration reaches its own hub, not
-    # how the hub reaches its children: a Hue bridge is on ethernet, the lamps
-    # behind it are not. Anything sitting under a via_device stays unknown
-    # rather than inheriting a transport it demonstrably does not use.
+
+    for identifier in raw.get("identifiers") or ():
+        if not isinstance(identifier, (list, tuple)) or len(identifier) < 2:
+            continue
+        value = str(identifier[1]).lower()
+        for prefix, transport in IDENTIFIER_PREFIX_TRANSPORTS:
+            if value.startswith(prefix):
+                return transport
+
+    # Behind a hub the transport is the hub's radio, not the hub's own uplink.
     if raw.get("via_device_id"):
-        return "unknown"
+        return (
+            HUB_RADIO_BY_DOMAIN.get(parent_domain or "")
+            or HUB_RADIO_BY_DOMAIN.get(domain or "")
+            or "unknown"
+        )
+
     if domain:
         return DOMAIN_TRANSPORT_HINTS.get(domain, "unknown")
     return "unknown"

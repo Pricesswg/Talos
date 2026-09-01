@@ -36,6 +36,8 @@ def device_to_dict(device: Any) -> dict[str, Any]:
         "config_entries": sorted(getattr(device, "config_entries", ()) or ()),
         "primary_config_entry": getattr(device, "primary_config_entry", None),
         "connections": [list(pair) for pair in (getattr(device, "connections", ()) or ())],
+        # The only evidence that a device behind MQTT is actually Zigbee.
+        "identifiers": [list(pair) for pair in (getattr(device, "identifiers", ()) or ())],
         "via_device_id": getattr(device, "via_device_id", None),
         "disabled_by": _enum_value(getattr(device, "disabled_by", None)),
     }

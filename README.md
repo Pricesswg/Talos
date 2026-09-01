@@ -78,7 +78,14 @@ becomes an `unknown_host` conduit instead of being dropped.
 
 **4. Classify and attribute.** Domains are resolved against `talos_core/data/domains.json`: vendor
 cloud, telemetry, push service, CDN, NTP, updates, local broker. Unclassified domains stay counted
-and listed. Zigbee and Z-Wave nodes carry no IP and therefore cannot have direct egress, so when
+and listed.
+
+The transport of a device is read from the best evidence available, in order: a connection type
+stated by the integration, then an identifier prefix, then the radio its hub was found to speak,
+then the integration domain. The identifier step matters because a bus is not a radio: Zigbee2MQTT
+devices arrive through the MQTT integration, so the config entry says `mqtt` and only the device
+identifier says Zigbee. Anything still unresolved stays `unknown` and visible rather than being
+folded into a plausible default. Zigbee and Z-Wave nodes carry no IP and therefore cannot have direct egress, so when
 their hub is observed contacting a vendor the children get an `inherited` conduit pointing at that
 hub, rather than a fabricated direct one. Nine Hue bulbs behind one talkative bridge are one thing to
 fix, not ten.

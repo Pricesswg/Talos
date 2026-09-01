@@ -96,7 +96,11 @@ class TestWebSocketCollection(unittest.TestCase):
     def test_devices_kept_and_dropped(self) -> None:
         ids = {d.id for d in self.scan.devices}
         self.assertEqual(
-            ids, {"d_cam1", "d_bridge", "d_lamp", "d_tuya", "d_z2m", "d_child_of_disabled"}
+            ids,
+            {
+                "d_cam1", "d_bridge", "d_lamp", "d_tuya",
+                "d_z2m", "d_z2m_bridge", "d_child_of_disabled",
+            },
         )
         self.assertNotIn("d_disabled", ids)  # switched off
         self.assertNotIn("d_orphan", ids)  # its config entry is gone
@@ -128,10 +132,15 @@ class TestWebSocketCollection(unittest.TestCase):
     def test_transport_hints(self) -> None:
         by_id = {d.id: d.transport for d in self.scan.devices}
         self.assertEqual(by_id["d_cam1"], "wifi")  # from the domain
-        self.assertEqual(by_id["d_z2m"], "zigbee")  # from the connection type
+        # Arrives through MQTT, which says nothing: only the identifier does.
+        self.assertEqual(by_id["d_z2m"], "zigbee")
+        self.assertEqual(by_id["d_z2m_bridge"], "zigbee")
         self.assertEqual(by_id["d_bridge"], "ethernet")
-        # Behind a hub: the integration's transport is the hub's, not its own.
-        self.assertEqual(by_id["d_lamp"], "unknown")
+        # Behind the bridge: the transport is the hub's radio, not the hub's
+        # own uplink. A Hue bridge is on ethernet and speaks Zigbee.
+        self.assertEqual(by_id["d_lamp"], "zigbee")
+        # Its hub was dropped and nothing else says what it is.
+        self.assertEqual(by_id["d_child_of_disabled"], "unknown")
 
     def test_entity_counts_per_device(self) -> None:
         by_id = {d.id: d.entity_count for d in self.scan.devices}
@@ -156,7 +165,7 @@ class TestWebSocketCollection(unittest.TestCase):
 
     def test_correlation_counts_joinable_devices(self) -> None:
         # Only three devices carry a MAC the observed side could join on.
-        self.assertEqual(self.scan.correlation.devices_total, 6)
+        self.assertEqual(self.scan.correlation.devices_total, 7)
         self.assertEqual(self.scan.correlation.devices_correlated, 3)
 
 
@@ -226,9 +235,9 @@ class TestDeclaredOnlyDerivations(unittest.TestCase):
         # The integration with no manifest must not be counted as local.
         self.assertEqual(self.derived.autonomy.entities_unclassified, 0)
         self.assertEqual(self.derived.autonomy.entities_cloud, 5)  # tuya 2 + mobile_app 3
-        # reolink 3 + hue 3 + mqtt 3
-        self.assertEqual(self.derived.autonomy.entities_local, 9)
-        self.assertEqual(self.derived.autonomy.entities_total, 14)
+        # reolink 3 + hue 3 + mqtt 4
+        self.assertEqual(self.derived.autonomy.entities_local, 10)
+        self.assertEqual(self.derived.autonomy.entities_total, 15)
 
     def test_losses_fall_back_to_the_integration_title(self) -> None:
         # Nothing declares a destination yet, so the vendor label is the name
@@ -264,3 +273,97 @@ class TestBuildScanDirectly(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTransportDetection(unittest.TestCase):
+    """The bus a device arrives on is not the radio it speaks.
+
+    Zigbee2MQTT is the case that matters: its devices reach Home Assistant
+    through the MQTT integration, so the config entry says `mqtt` and only the
+    device identifier says Zigbee.
+    """
+
+    def scan_with(self, device: dict[str, Any]) -> Any:
+        data = registry()
+        responses = {key: list(value) for key, value in data["responses"].items()}
+        responses["config/device_registry/list"] = [
+            *responses["config/device_registry/list"],
+            {
+                "name": "probe", "name_by_user": None, "manufacturer": None,
+                "model": None, "area_id": None, "config_entries": ["e_mqtt"],
+                "primary_config_entry": "e_mqtt", "connections": [],
+                "identifiers": [], "via_device_id": None, "disabled_by": None,
+                **device,
+            },
+        ]
+
+        class Replay:
+            ha_version = data["ha_version"]
+
+            async def send(self, command: dict[str, Any]) -> Any:
+                name = command["type"]
+                if name not in responses:
+                    raise CommandError(name, "unknown command", "unknown_command")
+                return responses[name]
+
+        return collect(Replay())
+
+    def transport_of(self, device: dict[str, Any]) -> str:
+        scan = self.scan_with(device)
+        found = scan.device(device["id"])
+        assert found is not None
+        return found.transport
+
+    def test_mqtt_alone_says_nothing(self) -> None:
+        # A bus carries anything; guessing here would be inventing.
+        self.assertEqual(self.transport_of({"id": "p1"}), "unknown")
+
+    def test_zigbee2mqtt_identifier_is_evidence(self) -> None:
+        self.assertEqual(
+            self.transport_of(
+                {"id": "p2", "identifiers": [["mqtt", "zigbee2mqtt_0x00158d00012345"]]}
+            ),
+            "zigbee",
+        )
+
+    def test_identifier_matches_on_the_prefix_not_anywhere(self) -> None:
+        # A device merely named after a protocol is not one.
+        self.assertEqual(
+            self.transport_of({"id": "p3", "identifiers": [["mqtt", "my_zigbee2mqtt_clone"]]}),
+            "unknown",
+        )
+
+    def test_a_connection_type_outranks_an_identifier(self) -> None:
+        self.assertEqual(
+            self.transport_of(
+                {
+                    "id": "p4",
+                    "connections": [["zwave", "12"]],
+                    "identifiers": [["mqtt", "zigbee2mqtt_0x1"]],
+                }
+            ),
+            "zwave",
+        )
+
+    def test_a_child_takes_the_hubs_radio(self) -> None:
+        # The Hue bridge is on ethernet and speaks Zigbee to its bulbs.
+        self.assertEqual(
+            self.transport_of(
+                {"id": "p5", "config_entries": ["e_hue"], "primary_config_entry": "e_hue",
+                 "via_device_id": "d_bridge"}
+            ),
+            "zigbee",
+        )
+
+    def test_a_child_inherits_a_radio_the_hub_was_found_to_speak(self) -> None:
+        # The bridge resolved to Zigbee from its own identifier; whatever hangs
+        # off it is on Zigbee too, whatever bus carried the discovery message.
+        self.assertEqual(
+            self.transport_of({"id": "p6", "via_device_id": "d_z2m_bridge"}), "zigbee"
+        )
+
+    def test_a_child_of_a_hub_with_no_known_radio_stays_unknown(self) -> None:
+        # d_child_of_disabled has no transport of its own, so it passes none on.
+        self.assertEqual(
+            self.transport_of({"id": "p7", "via_device_id": "d_child_of_disabled"}), "unknown"
+        )
