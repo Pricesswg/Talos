@@ -82,9 +82,16 @@ Running totals per client and domain live in a dedicated SQLite file under `conf
 the recorder database, because AdGuard's retention rolls over and a device that resolved a domain
 four thousand times last week would otherwise read as a handful today.
 
-**3. Join the two.** The device registry knows MACs. The query log knows IPs. The DHCP leases are the
-only place both appear on the same row, which is why they matter. Anything the join cannot attribute
-becomes an `unknown_host` conduit instead of being dropped.
+**3. Join the two.** The device registry knows MACs. The query log knows IPs. Something has to hold
+both, and there are two candidates. The DHCP leases are the usual one. The other is already inside
+Home Assistant: a router-based device tracker, AsusWRT, UniFi, Fritz, OPNsense, publishes an `ip` and
+a `mac` attribute for every host it sees, and Talos reads those from the entity states. Only those two
+attributes are read, and only when both are present and the address parses as an IP, because a
+hostname would join with nothing while looking like a correlation that worked. A lease wins over a
+tracker when both know a MAC, and `correlation.method` names the sources that actually carried the
+join, `mac_dhcp`, `mac_tracker`, `mac_dhcp_tracker`, or `none`. It matters because an install whose
+router does the DHCP has no leases to read, and used to correlate exactly nothing. Anything the join
+cannot attribute becomes an `unknown_host` conduit instead of being dropped.
 
 **4. Classify and attribute.** Domains are resolved against `talos_core/data/domains.json`: vendor
 cloud, telemetry, push service, CDN, NTP, updates, local broker. Unclassified domains stay counted
@@ -95,7 +102,10 @@ stated by the integration, then an identifier prefix, then the radio its hub was
 then the integration domain. The identifier step matters because a bus is not a radio: Zigbee2MQTT
 devices arrive through the MQTT integration, so the config entry says `mqtt` and only the device
 identifier says Zigbee. Anything still unresolved stays `unknown` and visible rather than being
-folded into a plausible default. Zigbee and Z-Wave nodes carry no IP and therefore cannot have direct egress, so when
+folded into a plausible default. A device Home Assistant itself marks as an `entry_type` of service,
+a Supervisor add-on or a HACS repository, is `virtual`: it is a registry entry, not something attached
+to a network, and calling it undetermined said the wrong thing about hundreds of rows. Zigbee and
+Z-Wave nodes carry no IP and therefore cannot have direct egress, so when
 their hub is observed contacting a vendor the children get an `inherited` conduit pointing at that
 hub, rather than a fabricated direct one. Nine Hue bulbs behind one talkative bridge are one thing to
 fix, not ten.

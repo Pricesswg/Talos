@@ -398,5 +398,51 @@ class TestFullPipeline(unittest.TestCase):
         self.assertGreaterEqual(self.derived.unverified_count, 5)
 
 
+
+class TestCorrelationSources(unittest.TestCase):
+    """Which of the two places a MAC and an IP meet actually carried the
+    join. A method nobody used has no business in the report."""
+
+    @staticmethod
+    def with_addresses(scan: Scan) -> Scan:
+        """The same declared scan, as if a router tracker had named the IPs."""
+        from dataclasses import replace
+
+        known = {"ec:71:db:11:22:33": "192.168.1.42"}
+        return replace(
+            scan,
+            devices=[
+                replace(device, ip=known.get(device.mac or "")) for device in scan.devices
+            ],
+        )
+
+    def test_leases_alone(self) -> None:
+        merged = merge_observed(declared_scan(), collect(FakeHttp(adguard())))
+        self.assertEqual(merged.correlation.method, "mac_dhcp")
+        self.assertTrue(merged.correlation.devices_correlated)
+
+    def test_a_tracker_carries_the_join_when_the_router_does_the_dhcp(self) -> None:
+        facts = collect(FakeHttp(adguard(), dhcp=False))
+        merged = merge_observed(self.with_addresses(declared_scan()), facts)
+        self.assertEqual(merged.correlation.method, "mac_tracker")
+        self.assertEqual(merged.correlation.devices_correlated, 1)
+        # And the observation stops belonging to nobody.
+        owned = [
+            conduit
+            for conduit in merged.conduits
+            if conduit.evidence == "observed" and conduit.source.kind == "device"
+        ]
+        self.assertTrue(owned)
+
+    def test_with_neither_the_method_says_so_instead_of_naming_one(self) -> None:
+        merged = merge_observed(declared_scan(), collect(FakeHttp(adguard(), dhcp=False)))
+        self.assertEqual(merged.correlation.method, "none")
+        self.assertEqual(merged.correlation.devices_correlated, 0)
+
+    def test_the_lease_wins_over_the_older_declared_address(self) -> None:
+        merged = merge_observed(self.with_addresses(declared_scan()), collect(FakeHttp(adguard())))
+        self.assertEqual(merged.correlation.method, "mac_dhcp")
+        self.assertEqual(validate(merged.to_dict()), [])
+
 if __name__ == "__main__":
     unittest.main()

@@ -4,11 +4,12 @@ This is where `evidence: observed` and `evidence: inherited` enter the
 document, and where the tool stops describing what Home Assistant already
 knows and starts adding something.
 
-The join runs on the MAC. A device registry has no address, and a query log
-has no MAC: **the DHCP leases are the only place the two meet.** Without them
-Talos can still see that someone spoke to a vendor, but not which device it
-was, and every observation falls back to `unknown_host`. That degradation is
-reported, never hidden.
+The join runs on the MAC. A device registry has no address and a query log has
+no MAC, so something has to hold both. The DHCP leases are the usual place;
+a router based device tracker already inside Home Assistant is the other, and
+an install whose router does the DHCP is not condemned to zero correlation
+because of it. What could not be attributed falls back to `unknown_host`, and
+which sources actually carried the join is recorded rather than assumed.
 """
 
 from __future__ import annotations
@@ -37,9 +38,18 @@ def merge_observed(
     zones = zones or ZoneMap()
 
     lease_ip_by_mac = {lease.mac: lease.ip for lease in facts.leases}
+    from_leases = 0
+    from_declared = 0
     devices = []
     for device in scan.devices:
-        ip = lease_ip_by_mac.get(device.mac) if device.mac else device.ip
+        leased = lease_ip_by_mac.get(device.mac) if device.mac else None
+        # A lease is the fresher of the two, so it wins; the address Home
+        # Assistant already held covers everything the leases do not reach.
+        ip = leased or device.ip
+        if leased:
+            from_leases += 1
+        elif ip:
+            from_declared += 1
         # A zone is only assigned once an address is known and a range was
         # configured for it; otherwise it stays unknown on purpose.
         devices.append(replace(device, ip=ip, zone=zones.zone_for(ip) if ip else device.zone))
@@ -102,10 +112,21 @@ def merge_observed(
         correlation=Correlation(
             devices_total=len(devices),
             devices_correlated=sum(1 for d in devices if d.ip),
-            method="mac_dhcp",
+            method=_method(from_leases, from_declared),
         ),
         unverified=[*scan.unverified, *_notes(scan, facts, classifier, devices, ignored)],
     )
+
+
+def _method(from_leases: int, from_declared: int) -> str:
+    """Name the sources that actually carried the join, not the ones that
+    were available. A method nobody used has no business in the report."""
+    used = []
+    if from_leases:
+        used.append("dhcp")
+    if from_declared:
+        used.append("tracker")
+    return f"mac_{'_'.join(used)}" if used else "none"
 
 
 def _inherit_through_hubs(
@@ -185,10 +206,11 @@ def _notes(
                 reason="missing_data",
                 detail=(
                     "The Home Assistant registry knows MACs, the query log knows IPs:"
-                    " DHCP leases are the only place the two meet. Without them every"
-                    " observation stays attributed to an unknown host, and Talos can"
-                    " say that somebody contacted a vendor but not which device it"
-                    " was. Nor can the resolver's clients be compared against the"
+                    " DHCP leases are one of the two places the two meet, and a"
+                    " router based device tracker inside Home Assistant is the other:"
+                    " whatever the trackers already know is used, and the rest of the"
+                    " observations stay attributed to an unknown host. Nor can the"
+                    " resolver's clients be compared against the"
                     " devices on the network, so an appliance with a hardcoded DNS"
                     " server never surfaces. For full coverage: enable AdGuard Home's"
                     " DHCP server, or supply the router's leases. This check did not"

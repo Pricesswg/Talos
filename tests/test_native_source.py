@@ -300,5 +300,81 @@ class TestEntryEndpoint(unittest.TestCase):
         self.assertNotIn("hunter2", str(endpoint))
         self.assertNotIn("sk-live-0001", str(endpoint))
 
+
+class TestAddressesFromStates(unittest.TestCase):
+    """The MAC to IP pairs Home Assistant already holds. Without them, an
+    install whose router does the DHCP correlates nothing at all."""
+
+    @staticmethod
+    def state(**attributes: Any) -> Any:
+        return types.SimpleNamespace(attributes=attributes)
+
+    def test_a_router_tracker_supplies_both_halves_of_the_join(self) -> None:
+        found = native.state_address(self.state(mac="AA:BB:CC:11:22:33", ip="192.168.50.42"))
+        self.assertEqual(found, {"mac": "aa:bb:cc:11:22:33", "ip": "192.168.50.42"})
+
+    def test_the_dashed_form_is_the_same_mac(self) -> None:
+        found = native.state_address(self.state(mac_address="AA-BB-CC-11-22-33", ip_address="10.0.0.9"))
+        self.assertEqual(found["mac"], "aa:bb:cc:11:22:33")
+
+    def test_half_a_pair_is_worth_nothing(self) -> None:
+        self.assertIsNone(native.state_address(self.state(mac="aa:bb:cc:11:22:33")))
+        self.assertIsNone(native.state_address(self.state(ip="192.168.50.42")))
+
+    def test_a_hostname_is_not_an_address(self) -> None:
+        """It would join with nothing and look like a correlation that worked."""
+        self.assertIsNone(
+            native.state_address(self.state(mac="aa:bb:cc:11:22:33", ip="nas.local"))
+        )
+
+    def test_one_row_per_mac(self) -> None:
+        found = native.addresses_from_states(
+            [
+                self.state(mac="aa:bb:cc:11:22:33", ip="192.168.50.10"),
+                self.state(mac="AA:BB:CC:11:22:33", ip="192.168.50.11"),
+                self.state(friendly_name="no address here"),
+            ]
+        )
+        self.assertEqual(found, [{"mac": "aa:bb:cc:11:22:33", "ip": "192.168.50.11"}])
+
+
+class TestServiceEntries(unittest.TestCase):
+    """A HACS repository and a Supervisor add-on are registry entries, not
+    things attached to a network. Home Assistant says so itself."""
+
+    def test_a_service_entry_is_virtual_not_undetermined(self) -> None:
+        raw = native.device_to_dict(
+            types.SimpleNamespace(
+                id="d1",
+                name="File editor",
+                entry_type="service",
+                connections=set(),
+                identifiers={("hassio", "core_configurator")},
+                config_entries={"e1"},
+                primary_config_entry="e1",
+                via_device_id=None,
+                disabled_by=None,
+                configuration_url=None,
+            )
+        )
+        self.assertEqual(raw["entry_type"], "service")
+
+    def test_the_configuration_url_is_carried_through(self) -> None:
+        raw = native.device_to_dict(
+            types.SimpleNamespace(
+                id="d2",
+                name="NAS",
+                entry_type=None,
+                connections=set(),
+                identifiers=set(),
+                config_entries={"e1"},
+                primary_config_entry="e1",
+                via_device_id=None,
+                disabled_by=None,
+                configuration_url="http://192.168.50.10:5000",
+            )
+        )
+        self.assertEqual(raw["configuration_url"], "http://192.168.50.10:5000")
+
 if __name__ == "__main__":
     unittest.main()

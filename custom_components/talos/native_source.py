@@ -12,6 +12,7 @@ Every `homeassistant.*` import is deferred into the method that needs it.
 
 from __future__ import annotations
 
+import ipaddress
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
@@ -39,6 +40,12 @@ def device_to_dict(device: Any) -> dict[str, Any]:
         # The only evidence that a device behind MQTT is actually Zigbee.
         "identifiers": [list(pair) for pair in (getattr(device, "identifiers", ()) or ())],
         "via_device_id": getattr(device, "via_device_id", None),
+        # Home Assistant marks its own non-physical entries: an add-on, a HACS
+        # repository, a Proxmox guest. Saying "undetermined transport" about
+        # those is wrong, they are not attached to anything.
+        "entry_type": _enum_value(getattr(device, "entry_type", None)),
+        # An address to open in a browser is evidence the thing is on IP.
+        "configuration_url": getattr(device, "configuration_url", None),
         "disabled_by": _enum_value(getattr(device, "disabled_by", None)),
     }
 
@@ -110,6 +117,45 @@ def integration_to_dict(integration: Any) -> dict[str, Any] | None:
     }
 
 
+# Attributes a tracker uses for the two halves of the join. Router based
+# trackers (AsusWRT, UniFi, OPNsense, Fritz) publish both, which is exactly
+# what the DHCP leases would have provided.
+ADDRESS_IP_KEYS = ("ip", "ip_address", "ipv4")
+ADDRESS_MAC_KEYS = ("mac", "mac_address", "source_mac")
+
+
+def state_address(state: Any) -> dict[str, str] | None:
+    """A MAC and an IP for the same host, as some entity already reports them.
+
+    The device registry knows MACs and the query log knows IPs, and the DHCP
+    leases are usually where the two meet. A router based device tracker is
+    the other place they meet, and it is already in Home Assistant, so an
+    install whose router does the DHCP is not condemned to zero correlation.
+    """
+    attributes = getattr(state, "attributes", None) or {}
+    mac = next((attributes[key] for key in ADDRESS_MAC_KEYS if attributes.get(key)), None)
+    ip = next((attributes[key] for key in ADDRESS_IP_KEYS if attributes.get(key)), None)
+    if not mac or not ip:
+        return None
+    try:
+        # The query log reports addresses, so a hostname here would join with
+        # nothing and quietly look like a correlation that worked.
+        ipaddress.ip_address(str(ip))
+    except ValueError:
+        return None
+    return {"mac": str(mac).lower().replace("-", ":"), "ip": str(ip)}
+
+
+def addresses_from_states(states: Iterable[Any]) -> list[dict[str, str]]:
+    """Every MAC to IP pair the states expose, newest wins on a repeat."""
+    found: dict[str, dict[str, str]] = {}
+    for state in states:
+        address = state_address(state)
+        if address:
+            found[address["mac"]] = address
+    return list(found.values())
+
+
 def payload_from_registries(
     *,
     config_entries: Iterable[Any],
@@ -117,6 +163,7 @@ def payload_from_registries(
     entities: Iterable[Any],
     areas: Iterable[Any],
     integrations: Iterable[Any],
+    states: Iterable[Any] = (),
 ) -> RegistryPayload:
     """Normalise in-process registry objects into the shared payload shape."""
     manifests = [
@@ -130,6 +177,7 @@ def payload_from_registries(
         entities=[entity_to_dict(entity) for entity in entities],
         areas=[area_to_dict(area) for area in areas],
         manifests=manifests,
+        addresses=addresses_from_states(states),
     )
 
 
@@ -162,6 +210,7 @@ class NativeSource:
             entities=list(entities),
             areas=list(areas),
             integrations=list(resolved.values()),
+            states=self._hass.states.async_all(),
         )
 
         # Normalisation walks every device and entity; on a large install that

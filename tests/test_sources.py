@@ -582,3 +582,57 @@ class TestTransportEvidence(unittest.TestCase):
         self.assertEqual(leaf.transport, "zigbee")
         # The bus underneath is MQTT; the system that produced it is not.
         self.assertEqual(leaf.origin, "zigbee2mqtt")
+
+
+class TestKnownAddresses(unittest.TestCase):
+    """An address Home Assistant already holds lands on the device, so the
+    observed side has something to join against without DHCP leases."""
+
+    @staticmethod
+    def build(addresses: list[dict[str, Any]]) -> Scan:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e1", "domain": "asuswrt", "state": "loaded", "endpoint": None}
+            ],
+            devices=[
+                {"id": "d1", "name": "Laptop", "config_entries": ["e1"],
+                 "primary_config_entry": "e1", "identifiers": [],
+                 "connections": [["mac", "AA:BB:CC:11:22:33"]]},
+                {"id": "d2", "name": "Nothing known", "config_entries": ["e1"],
+                 "primary_config_entry": "e1", "identifiers": [["asuswrt", "x"]],
+                 "connections": []},
+            ],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "asuswrt", "iot_class": "local_polling", "is_built_in": True}],
+            addresses=addresses,
+        )
+        return build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+
+    def test_the_address_reaches_the_device_with_that_mac(self) -> None:
+        scan = self.build([{"mac": "aa:bb:cc:11:22:33", "ip": "192.168.50.42"}])
+        self.assertEqual({d.id: d.ip for d in scan.devices}, {"d1": "192.168.50.42", "d2": None})
+
+    def test_nothing_is_invented_for_a_device_nobody_tracks(self) -> None:
+        scan = self.build([])
+        self.assertEqual([d.ip for d in scan.devices], [None, None])
+        self.assertEqual(validate(scan.to_dict()), [])
+
+
+class TestServiceEntriesAreVirtual(unittest.TestCase):
+    def test_home_assistant_saying_service_settles_the_transport(self) -> None:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e1", "domain": "hassio", "state": "loaded", "endpoint": None}
+            ],
+            devices=[
+                {"id": "d1", "name": "File editor", "config_entries": ["e1"],
+                 "primary_config_entry": "e1", "entry_type": "service",
+                 "identifiers": [["hassio", "core_configurator"]], "connections": []},
+            ],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "hassio", "iot_class": None, "is_built_in": True}],
+        )
+        scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+        self.assertEqual(scan.devices[0].transport, "virtual")

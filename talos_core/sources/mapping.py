@@ -206,7 +206,15 @@ CONNECTION_TRANSPORT: dict[str, str] = {
 class RegistryPayload:
     """Everything a collector managed to read, plus what it could not."""
 
-    __slots__ = ("config_entries", "devices", "entities", "areas", "manifests", "notes")
+    __slots__ = (
+        "config_entries",
+        "devices",
+        "entities",
+        "areas",
+        "manifests",
+        "addresses",
+        "notes",
+    )
 
     def __init__(
         self,
@@ -216,6 +224,9 @@ class RegistryPayload:
         entities: Iterable[dict[str, Any]] = (),
         areas: Iterable[dict[str, Any]] = (),
         manifests: Iterable[dict[str, Any]] = (),
+        # MAC to IP pairs Home Assistant already holds, from whatever entity
+        # publishes both. The other place the two halves of the join meet.
+        addresses: Iterable[dict[str, Any]] = (),
         notes: Iterable[UnverifiedCheck] = (),
     ) -> None:
         self.config_entries = list(config_entries)
@@ -223,6 +234,7 @@ class RegistryPayload:
         self.entities = list(entities)
         self.areas = list(areas)
         self.manifests = list(manifests)
+        self.addresses = list(addresses)
         self.notes = list(notes)
 
 
@@ -241,7 +253,9 @@ def build_scan(
     known_entries = {i.id for i in integrations}
 
     entry_domains = {i.id: i.domain for i in integrations}
-    devices = _build_devices(payload.devices, known_entries, entry_domains, areas)
+    devices = _build_devices(
+        payload.devices, known_entries, entry_domains, areas, payload.addresses
+    )
     _count_entities(payload.entities, integrations, devices)
     _mark_aggregators(integrations, devices)
 
@@ -413,9 +427,15 @@ def _build_devices(
     known_entries: set[str],
     entry_domains: dict[str, str],
     areas: dict[str, Any],
+    addresses: Iterable[dict[str, Any]] = (),
 ) -> list[Device]:
     kept: list[Device] = []
     attributed: dict[str, str] = {}
+    ip_by_mac = {
+        str(entry.get("mac")).lower(): str(entry.get("ip"))
+        for entry in addresses
+        if entry.get("mac") and entry.get("ip")
+    }
 
     for raw in raw_devices:
         device_id = raw.get("id")
@@ -448,9 +468,11 @@ def _build_devices(
                 area=areas.get(raw.get("area_id")),
                 origin=_origin(raw, entry_domains.get(attributed[device_id])),
                 mac=_mac(raw),
-                # The device registry carries no address. The IP arrives from
-                # the DHCP leases on the observed side, joined on the MAC.
-                ip=None,
+                # The device registry carries no address of its own. The IP
+                # comes from whatever else in Home Assistant already knows it,
+                # a router based tracker most often, and the DHCP leases add
+                # to this on the observed side. Both join on the MAC.
+                ip=ip_by_mac.get(_mac(raw) or ""),
                 zone="unknown",
                 # Drop a parent we did not keep, rather than emit a dangling
                 # reference the validator would rightly reject.
@@ -532,11 +554,18 @@ def _transport(
 ) -> str:
     """Best evidence first, and `unknown` when there is none.
 
+    Home Assistant's own `entry_type` settles it before anything else: a
+    service entry is an add-on, a repository or a cloud account, and none of
+    those is attached to a network in the sense this column means.
+
     A connection type is stated by the integration and settles it. Failing
     that, an identifier prefix can name a protocol the config entry cannot:
     Zigbee2MQTT devices arrive through MQTT and only their identifier says
     they are Zigbee. Only then does the hub, and last the domain.
     """
+    if str(raw.get("entry_type") or "") == "service":
+        return "virtual"
+
     for connection in raw.get("connections") or ():
         if not isinstance(connection, (list, tuple)) or not connection:
             continue
