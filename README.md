@@ -238,6 +238,15 @@ socket, and the stored password is never sent back: the panel is told only wheth
 leaving the password box empty keeps the stored one rather than clearing it. Leave the address empty
 and it uses the broker the MQTT config entry already names, so the usual case is two fields.
 
+The address is normalised on the way in: what somebody reads off the EMQX dashboard and types is
+`192.168.50.92:18083`, which without a scheme parses to no host at all and fails in a way that says
+nothing about the cause, so the scheme is filled in and a pasted `/api/v5` tail is dropped.
+
+Every route that was filled in is tested, and the form is stored either way. A route that does not
+answer is a configuration with a problem, not an invalid form: refusing to save threw away what had
+just been typed, so a key that needed a permission fixed on the broker could not be kept while the
+user went and fixed it. Both results come back, so filling in both says something about both.
+
 The connection is tested before it is stored, and the three outcomes are distinct. Reached with
 `$SYS` readable is a working account. Reached but `$SYS` silent is also saved, because that is a
 valid account with a limit, and the panel says so instead of pretending the check will now run.

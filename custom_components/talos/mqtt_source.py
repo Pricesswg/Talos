@@ -300,6 +300,28 @@ async def collect_via_home_assistant(
     return MqttFacts(available=True, route="session", clients=match_clients(found, scan))
 
 
+def normalise_api_url(raw: str) -> str:
+    """Make an address typed by a person into one a client can use.
+
+    `192.168.50.92:18083` is what somebody reads off the EMQX dashboard and
+    types in, and without a scheme it parses to nothing at all: the request
+    then goes to a URL with no host and fails in a way that says nothing about
+    what went wrong. A pasted `/api/v5` tail is dropped for the same reason,
+    since the path is added back on every request.
+    """
+    text = str(raw or "").strip()
+    if not text:
+        return ""
+    if "://" not in text:
+        text = f"http://{text}"
+    text = text.rstrip("/")
+    for tail in ("/api/v5/clients", "/api/v5", "/api"):
+        if text.endswith(tail):
+            text = text[: -len(tail)]
+            break
+    return text.rstrip("/")
+
+
 async def collect_via_api(
     hass: Any, scan: Scan, api: dict[str, Any]
 ) -> MqttFacts:
@@ -321,7 +343,7 @@ async def collect_via_api(
     from .core import ObservedAuthError, ObservedError
     from .http_transport import HassHttpTransport
 
-    url = str(api.get("url") or "").strip().rstrip("/")
+    url = normalise_api_url(api.get("url") or "")
     if not url:
         return MqttFacts(available=False, route="api", error="no EMQX API address configured")
 

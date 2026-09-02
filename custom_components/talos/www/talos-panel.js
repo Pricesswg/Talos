@@ -477,6 +477,10 @@ const I18N = {
     "mqtt.okNoSys": "Account salvato, ma $SYS non risponde",
     "mqtt.okNoSys.sub":
       "La connessione funziona e le credenziali sono valide, ma questo utente non riesce a leggere $SYS. Serve il permesso di sottoscrivere $SYS/# sul broker. Il controllo sui client resta non eseguibile finché non ce l'ha.",
+    "mqtt.savedNotWorking": "Salvato, ma nessuna strada ha risposto",
+    "mqtt.savedNotWorking.sub":
+      "I valori sono memorizzati, così puoi sistemare i permessi sul broker senza doverli riscrivere. La prossima scansione riprova da sola.",
+
     "mqtt.failed": "Connessione al broker fallita",
     "mqtt.cleared": "Account rimosso",
     "mqtt.cleared.sub": "Torno a usare la sessione dell'integrazione MQTT.",
@@ -494,7 +498,7 @@ const I18N = {
     "mqtt.api": "API EMQX 5",
     "mqtt.api.url": "Indirizzo API",
     "mqtt.api.url.hint":
-      "EMQX 5 ha tolto i topic per client da $SYS, quindi la sottoscrizione lì non può rispondere: restano solo contatori. La sua API invece elenca i client connessi adesso, con l'indirizzo da cui si sono collegati, che permette di associarli ai dispositivi e non solo al nome. Metti lo stesso indirizzo che usi nel browser per aprire la dashboard, schema compreso, di norma sulla porta 18083.",
+      "EMQX 5 ha tolto i topic per client da $SYS, quindi la sottoscrizione lì non può rispondere: restano solo contatori. La sua API invece elenca i client connessi adesso, con l'indirizzo da cui si sono collegati, che permette di associarli ai dispositivi e non solo al nome. Metti lo stesso indirizzo con cui apri la dashboard nel browser, di norma sulla porta 18083. Lo schema puoi ometterlo.",
     "mqtt.api.key": "API key",
     "mqtt.api.secret": "API secret",
     "mqtt.api.secret.set": "impostato, lascia vuoto per non cambiarlo",
@@ -948,6 +952,10 @@ const I18N = {
     "mqtt.okNoSys": "Account saved, but $SYS does not answer",
     "mqtt.okNoSys.sub":
       "The connection works and the credentials are valid, but this user cannot read $SYS. It needs permission to subscribe to $SYS/# on the broker. The client check stays unable to run until it has it.",
+    "mqtt.savedNotWorking": "Saved, but no route answered",
+    "mqtt.savedNotWorking.sub":
+      "The values are stored, so you can fix the permissions on the broker without typing them again. The next scan tries on its own.",
+
     "mqtt.failed": "Could not connect to the broker",
     "mqtt.cleared": "Account removed",
     "mqtt.cleared.sub": "Back to using the MQTT integration's session.",
@@ -965,7 +973,7 @@ const I18N = {
     "mqtt.api": "EMQX 5 API",
     "mqtt.api.url": "API address",
     "mqtt.api.url.hint":
-      "EMQX 5 removed the per-client topics from $SYS, so a subscription there cannot answer: only counters are left. Its API does list the clients connected right now, with the address each connected from, which ties them to devices and not just to a name. Use the same address you open the dashboard with in a browser, scheme included, usually on port 18083.",
+      "EMQX 5 removed the per-client topics from $SYS, so a subscription there cannot answer: only counters are left. Its API does list the clients connected right now, with the address each connected from, which ties them to devices and not just to a name. Use the same address you open the dashboard with in a browser, usually on port 18083. The scheme can be left out.",
     "mqtt.api.key": "API key",
     "mqtt.api.secret": "API secret",
     "mqtt.api.secret.set": "stored, leave empty to keep it",
@@ -3829,6 +3837,7 @@ class TalosPanel extends HTMLElement {
             <div class="field" style="grid-column:1/-1">
               <label for="mqtt-api-url">${esc(this.t("mqtt.api.url"))}</label>
               <input id="mqtt-api-url" type="text" spellcheck="false"
+                     placeholder="192.168.50.92:18083"
                      value="${esc(mqtt.mqtt_api_url || "")}" autocomplete="off">
               <span class="hint">${esc(this.t("mqtt.api.url.hint"))}</span>
             </div>
@@ -4080,14 +4089,41 @@ class TalosPanel extends HTMLElement {
     await this.waitForReload();
     if (result.cleared) {
       this.setBusy("ok", this.t("mqtt.cleared"), this.t("mqtt.cleared.sub"));
-    } else if (result.route === "api") {
+      return;
+    }
+
+    // Saved either way. What the bar reports is whether anything answered,
+    // and when nothing did it names each route with its own reason, because
+    // "rejected the key" and "no route to host" need different fixes.
+    const tried = result.tried || [];
+    const working = tried.find((item) => item.ok);
+    const failures = tried
+      .filter((item) => !item.ok)
+      .map((item) => `${this.t(`mqtt.route.${item.route}`)}: ${item.error || "-"}`)
+      .join(" · ");
+
+    if (!working) {
+      this.setBusy(
+        "error",
+        this.t("mqtt.savedNotWorking"),
+        failures || this.t("mqtt.savedNotWorking.sub")
+      );
+    } else if (working.route === "api") {
       this.setBusy(
         "ok",
         this.t("mqtt.okApi"),
-        this.t("mqtt.okApi.sub", { n: this.num(result.clients) })
+        [this.t("mqtt.okApi.sub", { n: this.num(working.clients) }), failures]
+          .filter(Boolean)
+          .join(" · ")
       );
-    } else if (result.sys_readable) {
-      this.setBusy("ok", this.t("mqtt.ok"), this.t("mqtt.ok.sub", { n: this.num(result.clients) }));
+    } else if (working.sys_readable) {
+      this.setBusy(
+        "ok",
+        this.t("mqtt.ok"),
+        [this.t("mqtt.ok.sub", { n: this.num(working.clients) }), failures]
+          .filter(Boolean)
+          .join(" · ")
+      );
     } else {
       this.setBusy("ok", this.t("mqtt.okNoSys"), this.t("mqtt.okNoSys.sub"));
     }

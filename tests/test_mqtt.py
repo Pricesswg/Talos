@@ -414,3 +414,47 @@ class TestClientSubjects(unittest.TestCase):
         self.assertIn(
             "chk.mqtt_unknown_client", {r.id for r in derive(scan).checks.unverified}
         )
+
+
+class TestApiAddress(unittest.TestCase):
+    """An address is typed by a person reading it off a dashboard, and what
+    they read has no scheme on it."""
+
+    def setUp(self) -> None:
+        self.source = _load_mqtt_source()
+
+    def test_a_bare_host_and_port_becomes_usable(self) -> None:
+        """Without this the request goes to a URL with no host at all and
+        fails in a way that says nothing about what went wrong."""
+        self.assertEqual(
+            self.source.normalise_api_url("192.168.50.92:18083"),
+            "http://192.168.50.92:18083",
+        )
+
+    def test_a_scheme_that_is_there_is_kept(self) -> None:
+        self.assertEqual(
+            self.source.normalise_api_url("https://emqx.local:18083"),
+            "https://emqx.local:18083",
+        )
+
+    def test_a_trailing_slash_goes(self) -> None:
+        self.assertEqual(
+            self.source.normalise_api_url("http://10.0.0.4:18083/"), "http://10.0.0.4:18083"
+        )
+
+    def test_a_pasted_api_path_is_dropped(self) -> None:
+        """The path is added back on every request, so leaving it would ask
+        for /api/v5/api/v5/clients."""
+        for pasted in (
+            "http://10.0.0.4:18083/api/v5",
+            "http://10.0.0.4:18083/api/v5/clients",
+            "10.0.0.4:18083/api",
+        ):
+            with self.subTest(pasted=pasted):
+                self.assertEqual(
+                    self.source.normalise_api_url(pasted), "http://10.0.0.4:18083"
+                )
+
+    def test_nothing_stays_nothing(self) -> None:
+        self.assertEqual(self.source.normalise_api_url(""), "")
+        self.assertEqual(self.source.normalise_api_url("   "), "")

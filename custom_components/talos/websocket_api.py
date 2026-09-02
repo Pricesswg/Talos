@@ -32,7 +32,12 @@ from .const import (
     TEXT_OPTIONS,
 )
 from .coordinator import TalosCoordinator
-from .mqtt_source import NO_CLIENT_IDS, collect_via_api, read_sys_blocking
+from .mqtt_source import (
+    NO_CLIENT_IDS,
+    collect_via_api,
+    normalise_api_url,
+    read_sys_blocking,
+)
 from .core import subnets, suggestions
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
@@ -300,7 +305,7 @@ async def ws_set_mqtt(
 
     password = msg[CONF_MQTT_PASSWORD] or entry.data.get(CONF_MQTT_PASSWORD, "")
     secret = msg[CONF_MQTT_API_SECRET] or entry.data.get(CONF_MQTT_API_SECRET, "")
-    api_url = msg[CONF_MQTT_API_URL].strip()
+    api_url = normalise_api_url(msg[CONF_MQTT_API_URL])
     updated = {
         CONF_MQTT_HOST: msg[CONF_MQTT_HOST].strip(),
         CONF_MQTT_PORT: int(msg[CONF_MQTT_PORT] or DEFAULT_MQTT_PORT),
@@ -312,7 +317,15 @@ async def ws_set_mqtt(
         CONF_MQTT_API_SECRET: secret,
     }
 
-    # Try it before storing it, by whichever route it would actually use.
+    # Every route that was filled in is tried, and the form is stored either
+    # way. Refusing to save on a failed test threw away what the user had just
+    # typed, so a key that needed a permission fixed on the broker could not
+    # be kept while they went and fixed it. A route that does not work is a
+    # configuration with a problem, not an invalid form, and it is reported as
+    # one: both results come back, so filling in both says something about
+    # both instead of only about the preferred one.
+    tried: list[dict[str, Any]] = []
+
     if api_url:
         facts = await collect_via_api(
             hass,
@@ -324,46 +337,57 @@ async def ws_set_mqtt(
                 "verify_ssl": bool(entry.data.get(CONF_VERIFY_SSL, True)),
             },
         )
-        if not facts.available:
-            connection.send_result(msg["id"], {"ok": False, "error": facts.error})
-            return
-        reached = {
-            "ok": True,
-            "route": "api",
-            "clients": len(facts.clients),
-            "unmatched": len(facts.unmatched),
-            "sys_readable": True,
-        }
-    else:
-        # A broker that answers but keeps $SYS to itself is a working account
-        # with a limit, not a rejected form, so only a connection failure
-        # stops the save.
-        host = updated[CONF_MQTT_HOST] or _entry_broker(coordinator)
-        if host:
-            found, error = await hass.async_add_executor_job(
-                read_sys_blocking,
-                host,
-                updated[CONF_MQTT_PORT],
-                updated[CONF_MQTT_USERNAME],
-                password,
-                updated[CONF_MQTT_TLS],
-                1.5,
-            )
-            if error and error != NO_CLIENT_IDS:
-                connection.send_result(msg["id"], {"ok": False, "error": error})
-                return
-            reached = {
-                "ok": True,
+        tried.append(
+            {
+                "route": "api",
+                "ok": facts.available,
+                "error": facts.error,
+                "clients": len(facts.clients),
+                "unmatched": len(facts.unmatched),
+            }
+        )
+
+    host = updated[CONF_MQTT_HOST] or _entry_broker(coordinator)
+    if host and (updated[CONF_MQTT_USERNAME] or updated[CONF_MQTT_HOST]):
+        found, error = await hass.async_add_executor_job(
+            read_sys_blocking,
+            host,
+            updated[CONF_MQTT_PORT],
+            updated[CONF_MQTT_USERNAME],
+            password,
+            updated[CONF_MQTT_TLS],
+            1.5,
+        )
+        # Reached but keeping $SYS to itself is a working account with a
+        # limit, and stays distinct from a broker that refused the connection.
+        reachable = not error or error == NO_CLIENT_IDS
+        tried.append(
+            {
                 "route": "account",
+                "ok": reachable,
+                "error": None if reachable else error,
                 "clients": len(found),
                 "unmatched": 0,
                 "sys_readable": bool(found),
             }
-        else:
-            reached = {"ok": True, "route": "session", "clients": 0, "sys_readable": False}
+        )
 
     hass.config_entries.async_update_entry(entry, data={**entry.data, **updated})
-    connection.send_result(msg["id"], reached)
+    working = next((item for item in tried if item["ok"]), None)
+    connection.send_result(
+        msg["id"],
+        {
+            # Saved either way; `working` says whether anything answered.
+            "ok": True,
+            "saved": True,
+            "url": api_url,
+            "tried": tried,
+            "route": (working or {}).get("route", "session"),
+            "clients": (working or {}).get("clients", 0),
+            "unmatched": (working or {}).get("unmatched", 0),
+            "sys_readable": bool(working) and (working.get("clients", 0) > 0),
+        },
+    )
 
 
 def _entry_broker(coordinator: TalosCoordinator) -> str:
