@@ -415,6 +415,8 @@ def _build_integrations(
                 is_built_in=bool((manifest or {}).get("is_built_in", False)),
                 state=entry.get("state") or "loaded",
                 role=INTEGRATION_ROLE_BY_DOMAIN.get(domain, "unknown"),
+                # Only meaningful for an entry that names somewhere to connect.
+                authenticated=(entry.get("endpoint") or {}).get("authenticated"),
                 dependencies=list((manifest or {}).get("dependencies") or []),
             )
         )
@@ -660,16 +662,22 @@ def _count_entities(
         if entity.get("disabled_by"):
             continue
         device_id = entity.get("device_id")
-        entry_id = entity.get("config_entry_id")
+        # An entity can name one config entry while its device belongs to
+        # another: a Zigbee2MQTT device on the MQTT entry with an entity
+        # owned by a helper, say. Both entries carry it, which is what makes
+        # the total at least the sum of the devices rather than less.
+        entries = set()
+        if entity.get("config_entry_id"):
+            entries.add(entity["config_entry_id"])
 
         if device_id in device_entry:
             per_device[device_id] = per_device.get(device_id, 0) + 1
-            entry_id = entry_id or device_entry[device_id]
+            entries.add(device_entry[device_id])
         elif device_id:
             # Its device was skipped (disabled, or attributed to nothing).
             continue
 
-        if entry_id:
+        for entry_id in entries:
             per_integration[entry_id] = per_integration.get(entry_id, 0) + 1
 
     for device in devices:

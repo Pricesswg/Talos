@@ -75,7 +75,6 @@ class TestEngineOnTheReferenceHouse(unittest.TestCase):
     def test_unimplemented_checks_are_declared_not_omitted(self) -> None:
         declared = {check.id for check in self.report.unverified}
         for check_id in (
-            "chk.mqtt_anonymous",
             "chk.mqtt_unknown_client",
             "chk.zwave_s2",
             "chk.rtsp_cleartext",
@@ -92,7 +91,7 @@ class TestEngineOnTheReferenceHouse(unittest.TestCase):
         )
         self.assertEqual(counts["passed"], len(self.report.passed))
         # The unverified are counted on their own, never inside the passes.
-        self.assertNotIn("chk.mqtt_anonymous", {r.id for r in self.report.passed})
+        self.assertNotIn("chk.mqtt_unknown_client", {r.id for r in self.report.passed})
 
 
 class TestPreconditions(unittest.TestCase):
@@ -260,3 +259,42 @@ class TestZonesThroughTheMerge(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAnonymousBroker(unittest.TestCase):
+    """Proved by Home Assistant's own connection, not by a probe: an entry
+    that reaches a broker with no credential is the broker's answer."""
+
+    @staticmethod
+    def report_for(**endpoint: object):
+        from talos_core.sources.mapping import RegistryPayload, build_scan
+
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "title": "Mosquitto",
+                 "state": "loaded", "endpoint": endpoint or None}
+            ],
+            devices=[],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "mqtt", "iot_class": "local_push", "is_built_in": True}],
+        )
+        scan = build_scan(payload, generated_at="2026-09-01T00:00:00+00:00", collector="native")
+        return derive(scan).checks
+
+    def test_no_credential_on_the_entry_is_the_finding(self) -> None:
+        report = self.report_for(host="core-mosquitto", port=1883, authenticated=False)
+        result = next(r for r in report.failed if r.id == "chk.mqtt_anonymous")
+        self.assertEqual(result.severity, "high")
+        self.assertEqual(result.subjects, ("e_mqtt",))
+
+    def test_an_authenticated_entry_passes(self) -> None:
+        report = self.report_for(host="core-mosquitto", port=1883, authenticated=True)
+        self.assertIn("chk.mqtt_anonymous", {r.id for r in report.passed})
+
+    def test_an_unreadable_entry_is_unverified_not_passed(self) -> None:
+        """The WebSocket collector cannot read entry data. Not knowing is not
+        the same as knowing there is nothing."""
+        report = self.report_for()
+        self.assertIn("chk.mqtt_anonymous", {r.id for r in report.unverified})
+        self.assertNotIn("chk.mqtt_anonymous", {r.id for r in report.passed})

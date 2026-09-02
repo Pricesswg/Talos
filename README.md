@@ -152,6 +152,7 @@ It checks:
 - Third-party integrations, not shipped with Home Assistant, that declare cloud access
 - Devices reaching outside from the trusted LAN rather than from an IoT VLAN
 - Integrations declared cloud that were never seen contacting anything
+- An MQTT broker reached with no credentials, and clients on it that match nothing Talos knows
 - Config entries that are not loaded, whose entities are unavailable right now rather than
   merely cloud-dependent
 - Which entities stop working when the internet drops, and which vendor accounts for most of them
@@ -165,10 +166,19 @@ It does not check, and will not:
   report says "dependency detected" and never "data exfiltration"
 - Nothing is modified. Every source is read-only
 
-Five checks in the rule file are declared but not implemented yet: anonymous MQTT broker, unknown
-MQTT clients, Z-Wave nodes without S2, cleartext RTSP, and ARP against the registry. They appear in
-the unverified list with the reason and the source that would be needed, rather than being silently
-absent.
+Three checks in the rule file are declared but not implemented yet: Z-Wave nodes without S2,
+cleartext RTSP, and ARP against the registry. They appear in the unverified list with the reason and
+the source that would be needed, rather than being silently absent.
+
+The two MQTT checks are implemented, and neither of them probes the broker. **Anonymous access** is
+read off the config entry: if Home Assistant reaches the broker carrying no credential at all, then
+the broker accepts anonymous connections, and that is the broker's own answer already on record.
+Whether a credential exists is the only thing read, never its value. **Unknown clients** come from a
+read-only subscription to `$SYS` on the session the MQTT integration already holds, so there is no
+second client and no credentials of Talos's own. Client ids are matched against the names in the
+scan, and anything left over is reported as unmatched, which is not the same as hostile. Mosquitto
+publishes only counters under `$SYS` unless it was built otherwise, and on that answer the check
+declares itself unable to run rather than passing on an empty list.
 
 ### Unverified is its own category
 

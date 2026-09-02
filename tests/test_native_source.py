@@ -276,7 +276,7 @@ class TestEntryEndpoint(unittest.TestCase):
     def test_it_reads_the_broker_an_entry_points_at(self) -> None:
         self.assertEqual(
             self.endpoint({"broker": "a0d7b954-emqx", "port": 1883}),
-            {"host": "a0d7b954-emqx", "port": 1883},
+            {"host": "a0d7b954-emqx", "port": 1883, "authenticated": False},
         )
 
     def test_a_string_port_still_resolves(self) -> None:
@@ -296,8 +296,11 @@ class TestEntryEndpoint(unittest.TestCase):
                 "access_token": "eyJhbGci",
             }
         )
-        self.assertEqual(set(endpoint), {"host", "port"})
+        self.assertEqual(set(endpoint), {"host", "port", "authenticated"})
+        # The fact that there are credentials, never one of them.
+        self.assertIs(endpoint["authenticated"], True)
         self.assertNotIn("hunter2", str(endpoint))
+        self.assertNotIn("simon", str(endpoint))
         self.assertNotIn("sk-live-0001", str(endpoint))
 
 

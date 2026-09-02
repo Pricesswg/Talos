@@ -31,6 +31,8 @@ from .model import (
     Destination,
     Device,
     Integration,
+    MqttClient,
+    MqttFacts,
     Scan,
     SourceRef,
     UnverifiedCheck,
@@ -53,6 +55,8 @@ __all__ = [
     "InheritedExposure",
     "Integration",
     "Matrix",
+    "MqttClient",
+    "MqttFacts",
     "PruneReport",
     "RetentionPolicy",
     "SCHEMA_VERSION",
@@ -75,4 +79,4 @@ __all__ = [
     "validate",
 ]
 
-__version__ = "1.7.0"
+__version__ = "1.8.0"

@@ -70,6 +70,11 @@ def area_to_dict(area: Any) -> dict[str, Any]:
 # document meant to be exported and shared.
 ENDPOINT_HOST_KEYS = ("broker", "host", "server", "hostname", "address", "url")
 ENDPOINT_PORT_KEYS = ("port",)
+# Keys whose presence means the entry authenticates. The values are never
+# read, never stored and never leave the config entry: only whether there is
+# one, because an entry that reaches a broker with none of these is standing
+# proof that the broker accepts anybody.
+CREDENTIAL_KEYS = ("username", "password", "token", "access_token", "api_key", "client_secret")
 
 
 def entry_endpoint(entry: Any) -> dict[str, Any] | None:
@@ -84,7 +89,11 @@ def entry_endpoint(entry: Any) -> dict[str, Any] | None:
     if not host:
         return None
     port = next((data[key] for key in ENDPOINT_PORT_KEYS if data.get(key)), None)
-    return {"host": host, "port": int(port) if isinstance(port, (int, str)) and str(port).isdigit() else None}
+    return {
+        "host": host,
+        "port": int(port) if isinstance(port, (int, str)) and str(port).isdigit() else None,
+        "authenticated": any(bool(data.get(key)) for key in CREDENTIAL_KEYS),
+    }
 
 
 def config_entry_to_dict(entry: Any) -> dict[str, Any]:

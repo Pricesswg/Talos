@@ -60,6 +60,7 @@ from .core import (
     merge_observed,
 )
 from .http_transport import HassHttpTransport
+from .mqtt_source import collect_mqtt
 from .native_source import NativeSource
 
 _LOGGER = logging.getLogger(__name__)
@@ -206,6 +207,13 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
                         ),
                     )
                 )
+
+        # Only when the MQTT integration is loaded, because the whole point is
+        # to reuse the session it already holds rather than open one.
+        if "mqtt" in self.hass.config.components:
+            scan.mqtt = await collect_mqtt(self.hass, scan)
+            if scan.mqtt.error:
+                _LOGGER.debug("Talos: MQTT facts unavailable: %s", scan.mqtt.error)
 
         derived = await self.hass.async_add_executor_job(derive, scan, self._engine)
 

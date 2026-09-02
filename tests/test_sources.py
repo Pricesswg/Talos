@@ -636,3 +636,37 @@ class TestServiceEntriesAreVirtual(unittest.TestCase):
         )
         scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
         self.assertEqual(scan.devices[0].transport, "virtual")
+
+
+class TestEntityCountInvariant(unittest.TestCase):
+    """An integration's total has to be at least the sum of its devices.
+    The validator enforces it as TALOS-C010, so the mapping has to hold it."""
+
+    def test_an_entity_owned_elsewhere_still_counts_for_both(self) -> None:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "state": "loaded", "endpoint": None},
+                {"entry_id": "e_helper", "domain": "template", "state": "loaded"},
+            ],
+            devices=[
+                {"id": "d1", "name": "Sensor", "config_entries": ["e_mqtt"],
+                 "primary_config_entry": "e_mqtt", "identifiers": [["mqtt", "s1"]],
+                 "connections": []},
+            ],
+            entities=[
+                # Sits on the MQTT device, but names the helper entry.
+                {"entity_id": "sensor.a", "device_id": "d1", "config_entry_id": "e_helper"},
+                {"entity_id": "sensor.b", "device_id": "d1", "config_entry_id": "e_mqtt"},
+            ],
+            areas=[],
+            manifests=[
+                {"domain": "mqtt", "iot_class": "local_push", "is_built_in": True},
+                {"domain": "template", "iot_class": "local_push", "is_built_in": True},
+            ],
+        )
+        scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+        counts = {i.id: i.entity_count for i in scan.integrations}
+        self.assertEqual(scan.devices[0].entity_count, 2)
+        self.assertEqual(counts["e_mqtt"], 2)
+        self.assertEqual(counts["e_helper"], 1)
+        self.assertEqual(validate(scan.to_dict()), [])

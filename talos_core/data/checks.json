@@ -98,19 +98,32 @@
       "id": "chk.mqtt_anonymous",
       "title": "MQTT broker allowing anonymous access",
       "severity": "high",
-      "unverifiable": {
-        "reason": "missing_data",
-        "detail": "Requires an attempt to connect to the broker without credentials. Talos has no MQTT client today: the check is not implemented, so it is neither passed nor failed."
-      }
+      "requires": [
+        "entry_endpoints"
+      ],
+      "selector": {
+        "type": "integration_where",
+        "domain_in": [
+          "mqtt"
+        ],
+        "authenticated": false
+      },
+      "detail": "The MQTT config entry reaches its broker with no credential at all, which means the broker accepts anonymous connections. This is not a probe: Home Assistant is already connected that way, so the broker's answer is on record. Anything on the same network can publish to any topic, including the ones your devices act on.",
+      "remediation": "Add a user to the broker and give Home Assistant that user. On the Mosquitto add-on it is one line in the add-on configuration; on EMQX it is the built-in database under Access Control. Then turn anonymous access off, and reconfigure any other client that was relying on it."
     },
     {
       "id": "chk.mqtt_unknown_client",
       "title": "MQTT client matching no known asset",
       "severity": "high",
-      "unverifiable": {
-        "reason": "missing_data",
-        "detail": "Requires subscribing to $SYS/broker/clients/# and comparing against the registry. Source not implemented yet."
-      }
+      "requires": [
+        "mqtt_clients"
+      ],
+      "selector": {
+        "type": "mqtt_client_where",
+        "matched": false
+      },
+      "detail": "The broker reports these clients connected and none of them matches a config entry, a device or an add-on Talos knows about. A client id is all a broker has to go on, so an unmatched one is not proof of an intruder, but it is something publishing into your topics that nothing in Home Assistant accounts for.",
+      "remediation": "Match each id against what you run yourself: Zigbee2MQTT, a Tasmota device, an ESP, a script on another machine. Anything left over after that is worth chasing. Giving every client of your own an explicit, recognisable client id makes this check useful instead of noisy."
     },
     {
       "id": "chk.zwave_s2",

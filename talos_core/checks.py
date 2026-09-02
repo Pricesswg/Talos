@@ -48,6 +48,15 @@ PRECONDITION_REASONS: dict[str, str] = {
         "integration manifests unreadable: iot_class and is_built_in are not"
         " trustworthy in this scan"
     ),
+    "mqtt_clients": (
+        "the broker reported no client list: without $SYS there is nothing to"
+        " compare against the registry, and an empty list is not an answer"
+    ),
+    "entry_endpoints": (
+        "no config entry stated where it connects: from outside Home Assistant"
+        " that data is not exposed, so whether a connection carries credentials"
+        " is unknown rather than absent"
+    ),
 }
 
 
@@ -231,6 +240,15 @@ class _Context:
             return any(device.zone != "unknown" for device in self.scan.devices)
         if name == "dhcp_leases":
             return "unv.dhcp_leases_unavailable" not in self.unverified_ids
+        if name == "mqtt_clients":
+            return bool(self.scan.mqtt and self.scan.mqtt.available)
+        if name == "entry_endpoints":
+            # None means the question does not apply. If it applies to nobody,
+            # the collector could not read it, and silence is not a pass.
+            return any(
+                integration.authenticated is not None
+                for integration in self.scan.integrations
+            )
         if name == "manifests":
             return not (
                 {"unv.manifests_unavailable", "unv.manifest_list_unreadable"}
@@ -254,12 +272,18 @@ def _select(
         wanted_classes = set(selector.get("iot_class_in") or ())
         excluded_states = set(selector.get("state_not_in") or ())
         built_in = selector.get("is_built_in")
+        wanted_domains = set(selector.get("domain_in") or ())
+        authenticated = selector.get("authenticated")
         matched = [
             integration.id
             for integration in scan.integrations
             if (built_in is None or integration.is_built_in is bool(built_in))
             and (not wanted_classes or integration.iot_class in wanted_classes)
             and (not excluded_states or integration.state not in excluded_states)
+            and (not wanted_domains or integration.domain in wanted_domains)
+            # `is` on purpose: None means the question does not apply to this
+            # entry, and must not match a check looking for False.
+            and (authenticated is None or integration.authenticated is bool(authenticated))
         ]
         return "integration", tuple(sorted(matched))
 
@@ -273,6 +297,20 @@ def _select(
             and (not needs_egress or device.id in context.phone_home_devices)
         ]
         return "device", tuple(sorted(matched))
+
+    if kind == "mqtt_client_where":
+        # A client the broker knows and the registry does not. Reported by
+        # client id, because that is the only name the broker has for it.
+        facts = scan.mqtt
+        if facts is None:
+            return "unknown", ()
+        matched = selector.get("matched")
+        clients = [
+            client.client_id
+            for client in facts.clients
+            if matched is None or bool(client.matched) is bool(matched)
+        ]
+        return "unknown", tuple(sorted(clients))
 
     if kind == "unverified_present":
         check_id = selector.get("check_id") or ""

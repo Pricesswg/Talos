@@ -42,6 +42,11 @@ class Integration:
     # media stream. Neither is a transport: Zigbee2MQTT rides on MQTT and an
     # ONVIF camera rides on Wi-Fi.
     role: str = "unknown"
+    # Whether the config entry carries any credential for the endpoint it
+    # names. Only the fact, never the value: an entry that connects to a
+    # broker with nothing at all is proof the broker takes anyone. None means
+    # the entry names no endpoint, so the question does not apply.
+    authenticated: bool | None = None
     dependencies: list[str] = field(default_factory=list)
     # Every entity of the config entry, including the ones that belong to no
     # device: notify targets, weather, TTS. Counting entities device by device
@@ -63,6 +68,7 @@ class Integration:
             is_built_in=bool(_req(raw, "is_built_in", path)),
             state=raw.get("state") or "loaded",
             role=raw.get("role") or "unknown",
+            authenticated=raw.get("authenticated"),
             dependencies=list(raw.get("dependencies") or []),
             entity_count=int(raw.get("entity_count") or 0),
         )
@@ -76,6 +82,7 @@ class Integration:
             "is_built_in": self.is_built_in,
             "state": self.state,
             "role": self.role,
+            "authenticated": self.authenticated,
             "dependencies": list(self.dependencies),
             "entity_count": self.entity_count,
         }
@@ -246,6 +253,68 @@ class Conduit:
         return out
 
 
+@dataclass(frozen=True, slots=True)
+class MqttClient:
+    """One client the broker itself reports as connected.
+
+    The id is whatever the client chose to call itself, which is the only
+    handle a broker has on it. Matching it back to something in the registry
+    is the whole point: a publisher nobody can name can still write to every
+    topic your automations read.
+    """
+
+    client_id: str
+    address: str | None = None
+    matched: str | None = None
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any], path: str) -> MqttClient:
+        return cls(
+            client_id=_req(raw, "client_id", path),
+            address=raw.get("address"),
+            matched=raw.get("matched"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"client_id": self.client_id, "address": self.address, "matched": self.matched}
+
+
+@dataclass(frozen=True, slots=True)
+class MqttFacts:
+    """What the broker reported about itself, read-only over $SYS.
+
+    `available` false means the subscription produced nothing, which is not
+    the same as a broker with no clients: the difference decides whether the
+    client check runs or is declared unverified.
+    """
+
+    available: bool = False
+    error: str | None = None
+    clients: tuple[MqttClient, ...] = ()
+
+    @property
+    def unmatched(self) -> tuple[MqttClient, ...]:
+        return tuple(client for client in self.clients if not client.matched)
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any], path: str) -> MqttFacts:
+        return cls(
+            available=bool(raw.get("available")),
+            error=raw.get("error"),
+            clients=tuple(
+                MqttClient.from_dict(r, f"{path}.clients[{i}]")
+                for i, r in enumerate(raw.get("clients") or [])
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "available": self.available,
+            "error": self.error,
+            "clients": [client.to_dict() for client in self.clients],
+        }
+
+
 @dataclass(slots=True)
 class Correlation:
     """How much of the declarative side could be joined to the observed side.
@@ -325,6 +394,9 @@ class Scan:
     destinations: list[Destination] = field(default_factory=list)
     conduits: list[Conduit] = field(default_factory=list)
     correlation: Correlation = field(default_factory=Correlation)
+    # Absent when no broker was read, which is different from a broker that
+    # reported nothing.
+    mqtt: MqttFacts | None = None
     unverified: list[UnverifiedCheck] = field(default_factory=list)
 
     # ── lookups ───────────────────────────────────────────────────────────
@@ -384,6 +456,7 @@ class Scan:
                 for i, r in enumerate(raw.get("conduits") or [])
             ],
             correlation=Correlation.from_dict(raw.get("correlation") or {}, "$.correlation"),
+            mqtt=MqttFacts.from_dict(raw["mqtt"], "$.mqtt") if raw.get("mqtt") else None,
             unverified=[
                 UnverifiedCheck.from_dict(r, f"$.unverified[{i}]")
                 for i, r in enumerate(raw.get("unverified") or [])
@@ -401,5 +474,6 @@ class Scan:
             "destinations": [d.to_dict() for d in self.destinations],
             "conduits": [c.to_dict() for c in self.conduits],
             "correlation": self.correlation.to_dict(),
+            **({"mqtt": self.mqtt.to_dict()} if self.mqtt else {}),
             "unverified": [u.to_dict() for u in self.unverified],
         }

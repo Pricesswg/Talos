@@ -13,6 +13,8 @@ try:  # repository checkout, or an installed talos-core
     from talos_core import (  # noqa: F401
         Correlation,
         Derived,
+        MqttClient,
+        MqttFacts,
         RetentionPolicy,
         Scan,
         TalosStore,
@@ -28,15 +30,19 @@ try:  # repository checkout, or an installed talos-core
         ObservedAuthError,
         ObservedError,
         aggregate,
+        match_clients,
         merge_observed,
     )
     from talos_core.export_html import render_html, render_json  # noqa: F401
     from talos_core.sources.mapping import RegistryPayload, build_scan  # noqa: F401
+    from talos_core.suggest import subnets, suggestions  # noqa: F401
 except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     from .vendor.talos_core import (  # type: ignore[no-redef]  # noqa: F401
         CheckEngine,
         Correlation,
         Derived,
+        MqttClient,
+        MqttFacts,
         RetentionPolicy,
         Scan,
         TalosStore,
@@ -52,6 +58,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
         ObservedAuthError,
         ObservedError,
         aggregate,
+        match_clients,
         merge_observed,
     )
     from .vendor.talos_core.export_html import (  # type: ignore[no-redef]  # noqa: F401
@@ -62,6 +69,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
         RegistryPayload,
         build_scan,
     )
+    from .vendor.talos_core.suggest import subnets, suggestions  # type: ignore[no-redef]  # noqa: F401
 
 __all__ = [
     "AdGuardCollector",
@@ -74,13 +82,18 @@ __all__ = [
     "ObservedError",
     "RegistryPayload",
     "RetentionPolicy",
+    "MqttClient",
+    "MqttFacts",
     "Scan",
     "TalosStore",
+    "subnets",
+    "suggestions",
     "UnverifiedCheck",
     "ZoneMap",
     "aggregate",
     "build_scan",
     "derive",
+    "match_clients",
     "merge_observed",
     "render_html",
     "render_json",

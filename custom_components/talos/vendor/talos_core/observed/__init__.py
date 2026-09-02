@@ -16,6 +16,7 @@ from .mapping import (
     run_zero_check,
 )
 from .merge import merge_observed
+from .mqtt import known_tokens, match_clients
 
 __all__ = [
     "AdGuardCollector",
@@ -32,6 +33,7 @@ __all__ = [
     "ObservedSource",
     "ZeroCheck",
     "aggregate",
+    "match_clients",
     "merge_observed",
     "parse_clients",
     "parse_leases",

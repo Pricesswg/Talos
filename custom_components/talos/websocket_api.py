@@ -23,6 +23,7 @@ from .const import (
     TEXT_OPTIONS,
 )
 from .coordinator import TalosCoordinator
+from .core import subnets, suggestions
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
 
@@ -36,6 +37,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_status)
     websocket_api.async_register_command(hass, ws_scan)
     websocket_api.async_register_command(hass, ws_derived)
+    websocket_api.async_register_command(hass, ws_suggest)
     websocket_api.async_register_command(hass, ws_refresh)
     websocket_api.async_register_command(hass, ws_set_options)
 
@@ -67,6 +69,13 @@ def ws_status(
         msg["id"],
         {
             "last_update_success": coordinator.last_update_success,
+            # The timestamp is the last scan that worked. Without this, a
+            # coordinator that has been failing for a day reads as idle.
+            "last_error": (
+                None
+                if coordinator.last_update_success
+                else str(coordinator.last_exception or "the scan failed")
+            ),
             "generated_at": data.scan.generated_at if data else None,
             "ha_version": data.scan.ha_version if data else None,
             "observed_available": data.observed_available if data else False,
@@ -189,6 +198,36 @@ def ws_derived(
 
 
 @websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/suggest"})
+@callback
+def ws_suggest(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Values for the options the user left empty, derived from the scan.
+
+    Proposed, never applied: a subnet Talos saw traffic on is a good guess for
+    the trusted LAN and a bad one for the guest network, and only the person
+    who built the network can tell them apart.
+    """
+    coordinator = _coordinator(hass)
+    if coordinator is None or coordinator.data is None:
+        _not_ready(connection, msg["id"])
+        return
+    scan = coordinator.data.scan
+    connection.send_result(
+        msg["id"],
+        {
+            "suggestions": [
+                item.to_dict() for item in suggestions(scan, dict(coordinator.entry.options))
+            ],
+            "subnets": [
+                {"network": network, "hosts": hosts} for network, hosts in subnets(scan)
+            ],
+        },
+    )
+
+
+@websocket_api.require_admin
 @websocket_api.websocket_command(
     {
         vol.Required("type"): f"{DOMAIN}/options/set",
@@ -247,5 +286,22 @@ async def ws_refresh(
     if coordinator is None:
         _not_ready(connection, msg["id"])
         return
-    await coordinator.async_request_refresh()
-    connection.send_result(msg["id"], {"requested": True})
+    # Not async_request_refresh: that one is debounced, so a user pressing
+    # the button twice would be told nothing happened. This runs now and
+    # answers with the outcome, which is what the button needs to show.
+    await coordinator.async_refresh()
+    data = coordinator.data
+    connection.send_result(
+        msg["id"],
+        {
+            "ok": coordinator.last_update_success,
+            "generated_at": data.scan.generated_at if data else None,
+            "error": (
+                None
+                if coordinator.last_update_success
+                else str(coordinator.last_exception or "the scan failed")
+            ),
+            "observed_available": data.observed_available if data else False,
+            "observed_error": data.observed_error if data else None,
+        },
+    )

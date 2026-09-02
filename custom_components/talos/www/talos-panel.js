@@ -325,10 +325,14 @@ const I18N = {
       "Verifica che il dispositivo sia effettivamente correlato a un IP e che l'integrazione sia caricata. Un cloud che non parla mai di solito segnala un problema.",
     "chk.mqtt_anonymous.title": "Broker MQTT che accetta accessi anonimi",
     "chk.mqtt_anonymous.detail":
-      "Richiede un tentativo di connessione al broker senza credenziali. Talos non ha un client MQTT: il controllo non è implementato, quindi non è né superato né fallito.",
+      "La config entry MQTT raggiunge il proprio broker senza alcuna credenziale, il che significa che il broker accetta connessioni anonime. Non è una sonda: Home Assistant è già collegato così, quindi la risposta del broker è agli atti. Qualunque cosa sulla stessa rete può pubblicare su qualunque topic, compresi quelli su cui i tuoi dispositivi agiscono.",
+    "chk.mqtt_anonymous.remediation":
+      "Crea un utente sul broker e assegnalo a Home Assistant. Sull'add-on Mosquitto è una riga nella configurazione dell'add-on, su EMQX è il database integrato sotto Access Control. Poi disattiva l'accesso anonimo, e riconfigura gli altri client che ci facevano affidamento.",
     "chk.mqtt_unknown_client.title": "Client MQTT che non corrisponde ad alcun asset noto",
     "chk.mqtt_unknown_client.detail":
-      "Richiede la sottoscrizione a $SYS/broker/clients/# e il confronto con il registry. Sorgente non ancora implementata.",
+      "Il broker riporta questi client connessi e nessuno corrisponde a una config entry, a un dispositivo o a un add-on che Talos conosca. Un broker ha solo il client id per identificarli, quindi uno senza corrispondenza non è la prova di un intruso, ma è qualcosa che pubblica nei tuoi topic e di cui nulla in Home Assistant rende conto.",
+    "chk.mqtt_unknown_client.remediation":
+      "Confronta ogni id con quello che fai girare tu: Zigbee2MQTT, un Tasmota, un ESP, uno script su un'altra macchina. Quello che avanza vale la pena inseguirlo. Dare a ogni tuo client un client id esplicito e riconoscibile rende questo controllo utile invece che rumoroso.",
     "chk.zwave_s2.title": "Nodo Z-Wave senza S2",
     "chk.zwave_s2.detail":
       "Richiede la security_class dal WebSocket di Z-Wave JS. Sorgente non ancora implementata.",
@@ -378,6 +382,65 @@ const I18N = {
       "Contenuto del traffico: cosa viene inviato al produttore non è ricavabile dal solo DNS.",
     "settings.scope.closing":
       "Un esito privo di rilievi indica assenza di evidenze, non assenza di rischio.",
+
+    "busy.scanning": "Scansione in corso",
+    "busy.scanning.sub": "Sto rileggendo i registry e il query log. I dati a schermo sono quelli della scansione precedente finché non finisce.",
+    "busy.saving": "Salvataggio in corso",
+    "busy.saving.sub": "Le opzioni vengono scritte e l'integrazione si ricarica. Ci vuole qualche secondo, non è bloccata.",
+    "busy.reloading": "Ricaricamento dei dati",
+    "busy.reloading.sub": "L'integrazione è ripartita, sto rileggendo lo stato.",
+    "busy.scanOk": "Scansione completata",
+    "busy.scanOk.sub": "Dati aggiornati alle {when}.",
+    "busy.saveOk": "Impostazioni salvate",
+    "busy.saveOk.sub": "Applicate alla scansione appena eseguita.",
+    "busy.scanError": "Scansione fallita",
+    "busy.saveError": "Salvataggio fallito",
+    "busy.stale": "L'ultimo tentativo di scansione è fallito",
+    "busy.stale.sub": "A schermo ci sono i dati dell'ultima scansione riuscita, del {when}. Motivo: {reason}",
+
+    "filter.search": "Cerca per nome, dominio o indirizzo",
+    "filter.all": "Tutte",
+    "filter.loaded": "Caricate",
+    "filter.notLoaded": "Non caricate",
+    "filter.cloud": "Cloud",
+    "filter.custom": "HACS",
+    "filter.withEndpoint": "Con indirizzo",
+    "filter.none": "Nessuna integrazione corrisponde a questo filtro.",
+    "filter.count": "{shown} su {total}",
+
+    "sugg.label": "Rilevato dalla scansione:",
+    "sugg.use": "Usa",
+    "sugg.detail.zone_trusted_lan":
+      "La subnet più popolata di questa scansione. Impostala solo se è la rete su cui stanno computer e telefoni, perché è questo che il controllo intende per rete di fiducia.",
+    "sugg.detail.zone_iot_vlan":
+      "Una seconda subnet con traffico in questa scansione. Se i dispositivi IoT sono quelli che ci stanno sopra, è la VLAN IoT; se non lo sono, lasciala vuota invece di riempirla.",
+    "sugg.hosts": "{n} host",
+
+    "settings.section.advice": "Consigli per l'utente",
+    "settings.advice.lead":
+      "Talos legge in sola lettura i registry di Home Assistant e il query log di AdGuard Home, li correla e classifica i domini richiesti. Non esegue scansioni di porte, non prova credenziali, non ispeziona il contenuto del traffico e non modifica nulla. Quello che segue resta quindi fuori dalla sua portata e a carico tuo: non è un elenco di difetti dell'integrazione, è il confine dichiarato del metodo.",
+    "settings.advice.items": "Verifiche a carico dell'utente",
+    "settings.guide": "Mini guida: tenere in ordine una rete domotica",
+    "settings.guide.lead":
+      "Sei cose che nella pratica fanno la differenza, in ordine di quanto rendono rispetto alla fatica che costano.",
+    "settings.guide.h.1": "1. Separa le reti prima di tutto il resto",
+    "settings.guide.p.1":
+      "Una VLAN per i dispositivi IoT e una per computer e telefoni. È l'intervento che rende innocui tutti gli altri problemi: una telecamera compromessa su una VLAN isolata non arriva ai tuoi file. Se il router non fa VLAN, la rete ospiti è un ripiego accettabile per i dispositivi che non devono parlare con nient'altro in casa.",
+    "settings.guide.h.2": "2. Metti il DHCP e il DNS sotto il tuo controllo",
+    "settings.guide.p.2":
+      "Un solo server DHCP che conosce tutti i lease e un solo resolver da cui passano tutte le richieste. Serve a te per sapere chi è chi, e serve a Talos per correlare: senza uno dei due, metà dei controlli si dichiara non eseguibile. Se AdGuard Home fa anche il DHCP, i due dati arrivano già uniti.",
+    "settings.guide.h.3": "3. Blocca la porta 53 in uscita sul router",
+    "settings.guide.p.3":
+      "Molti dispositivi hanno un DNS scritto nel firmware e ignorano quello che gli dai. Reindirizzare la porta 53 verso il tuo resolver li riporta in riga. Chi cifra anche il DNS (DoH sulla 443) resta comunque fuori portata: è un limite, non un difetto da risolvere.",
+    "settings.guide.h.4": "4. Preferisci l'integrazione locale a quella cloud",
+    "settings.guide.p.4":
+      "Quando esistono entrambe scegli la locale, anche se ha meno funzioni. Zigbee, Z-Wave, Matter, ESPHome e Modbus continuano a funzionare con il modem staccato. Un'integrazione cloud smette, e con lei ogni automazione che la usa.",
+    "settings.guide.h.5": "5. Dai un'identità a ogni cosa che pubblica",
+    "settings.guide.p.5":
+      "Client id MQTT espliciti, nomi dei dispositivi coerenti, riservazioni DHCP per quello che conta. Costa dieci minuti e trasforma un elenco di indirizzi anonimi in qualcosa che si legge. È anche la differenza fra un controllo utile e uno rumoroso.",
+    "settings.guide.h.6": "6. Aggiorna quello che espone qualcosa, ignora il resto",
+    "settings.guide.p.6":
+      "Firmware di router, hub, telecamere e qualunque cosa raggiungibile da fuori. Una lampadina Zigbee dietro un bridge non è una priorità. Se qualcosa è esposto su internet, quello viene prima di tutto il resto in questo elenco.",
 
     "severity.high": "alta",
     "severity.medium": "media",
@@ -692,6 +755,65 @@ const I18N = {
     "settings.scope.closing":
       "A clean result means no evidence was found, not that there is no risk.",
 
+    "busy.scanning": "Scan running",
+    "busy.scanning.sub": "Reading the registries and the query log again. What is on screen is the previous scan until this finishes.",
+    "busy.saving": "Saving",
+    "busy.saving.sub": "Writing the options and reloading the integration. It takes a few seconds, it is not stuck.",
+    "busy.reloading": "Reloading data",
+    "busy.reloading.sub": "The integration is back up, reading its state again.",
+    "busy.scanOk": "Scan complete",
+    "busy.scanOk.sub": "Data as of {when}.",
+    "busy.saveOk": "Settings saved",
+    "busy.saveOk.sub": "Applied to the scan that just ran.",
+    "busy.scanError": "Scan failed",
+    "busy.saveError": "Saving failed",
+    "busy.stale": "The last scan attempt failed",
+    "busy.stale.sub": "What is on screen is the last scan that worked, from {when}. Reason: {reason}",
+
+    "filter.search": "Search by name, domain or address",
+    "filter.all": "All",
+    "filter.loaded": "Loaded",
+    "filter.notLoaded": "Not loaded",
+    "filter.cloud": "Cloud",
+    "filter.custom": "HACS",
+    "filter.withEndpoint": "With an address",
+    "filter.none": "No integration matches this filter.",
+    "filter.count": "{shown} of {total}",
+
+    "sugg.label": "Found in this scan:",
+    "sugg.use": "Use",
+    "sugg.detail.zone_trusted_lan":
+      "The busiest subnet in this scan. Set it only if this is the network your computers and phones are on, because that is what the trusted LAN check means by trusted.",
+    "sugg.detail.zone_iot_vlan":
+      "A second subnet carrying traffic in this scan. If your IoT devices are the ones on it, this is the IoT VLAN; if they are not, leave it empty rather than filling it in.",
+    "sugg.hosts": "{n} hosts",
+
+    "settings.section.advice": "Advice",
+    "settings.advice.lead":
+      "Talos reads the Home Assistant registries and the AdGuard Home query log, read-only, correlates them and classifies the domains asked for. It does not scan ports, try credentials, inspect payloads or change anything. What follows is therefore out of its reach and stays with you: not a list of shortcomings, the declared boundary of the method.",
+    "settings.advice.items": "Checks that stay with you",
+    "settings.guide": "Short guide: keeping a home automation network in order",
+    "settings.guide.lead":
+      "Six things that make a difference in practice, ordered by what they return for the effort they cost.",
+    "settings.guide.h.1": "1. Separate the networks before anything else",
+    "settings.guide.p.1":
+      "One VLAN for IoT devices, one for computers and phones. It is the change that makes every other problem survivable: a compromised camera on an isolated VLAN does not reach your files. If the router cannot do VLANs, the guest network is an acceptable stand-in for devices that need to talk to nothing else in the house.",
+    "settings.guide.h.2": "2. Own the DHCP and the DNS",
+    "settings.guide.p.2":
+      "One DHCP server that knows every lease, one resolver every query goes through. You need it to know who is who, and Talos needs it to correlate: without either, half the checks declare themselves unable to run. If AdGuard Home also does the DHCP, the two halves arrive already joined.",
+    "settings.guide.h.3": "3. Block outbound port 53 at the router",
+    "settings.guide.p.3":
+      "Plenty of devices carry a DNS server in firmware and ignore the one you hand them. Redirecting port 53 to your own resolver brings them back in line. Anything that encrypts its DNS too, DoH on 443, stays out of reach: that is a limit, not a fault to fix.",
+    "settings.guide.h.4": "4. Prefer the local integration to the cloud one",
+    "settings.guide.p.4":
+      "When both exist, take the local one even if it has fewer features. Zigbee, Z-Wave, Matter, ESPHome and Modbus keep working with the modem unplugged. A cloud integration stops, and every automation built on it stops with it.",
+    "settings.guide.h.5": "5. Give everything that publishes a name",
+    "settings.guide.p.5":
+      "Explicit MQTT client ids, consistent device names, DHCP reservations for what matters. It costs ten minutes and turns a list of anonymous addresses into something readable. It is also the difference between a useful check and a noisy one.",
+    "settings.guide.h.6": "6. Update what is exposed, ignore the rest",
+    "settings.guide.p.6":
+      "Firmware on routers, hubs, cameras and anything reachable from outside. A Zigbee bulb behind a bridge is not a priority. If something is exposed to the internet, it comes before everything else on this list.",
+
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -836,11 +958,55 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .find__body { color: var(--ink-soft); font-size: 13.5px; max-width: 70ch; }
 .find__body strong { color: var(--ink); font-weight: 500; }
 .find__do { margin-top: 10px; padding: 9px 12px; background: var(--sunken); border-radius: var(--r-md); font-size: 13px; color: var(--ink-soft); }
+/* One bar for every long operation. Colours come from the Home Assistant
+   theme where it defines them, so it stays readable in both light and dark
+   and in whatever palette the user picked. */
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; margin: 0 0 4px;
+  border: 1px solid var(--border); border-left: 3px solid var(--tone);
+  border-radius: var(--r-md); background: var(--surface);
+  font-size: 13px; color: var(--ink);
+}
+.toast[data-tone="busy"] { --tone: var(--info-color, var(--accent)); }
+.toast[data-tone="ok"] { --tone: var(--success-color, var(--k-local)); }
+.toast[data-tone="error"] { --tone: var(--error-color, var(--alert)); }
+.toast__dot {
+  width: 9px; height: 9px; border-radius: 50%; background: var(--tone); flex: none;
+}
+.toast[data-tone="busy"] .toast__dot { animation: talos-pulse 1.1s ease-in-out infinite; }
+@keyframes talos-pulse { 0%,100% { opacity: 1 } 50% { opacity: .25 } }
+.toast__sub { color: var(--ink-mute); font-size: 12.5px; }
+.icon-btn[data-busy="1"] svg { animation: talos-spin 1s linear infinite; }
+@keyframes talos-spin { to { transform: rotate(360deg) } }
+
+.filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 0 0 12px; }
+.filters input[type="search"] {
+  flex: 1 1 220px; min-width: 180px; padding: 7px 11px;
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 13px;
+}
+.filters input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip--filter[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.sugg {
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  margin-top: 6px; font-size: 12.5px; color: var(--ink-mute);
+}
+.sugg button {
+  border: 1px solid var(--accent); color: var(--accent-ink, var(--accent));
+  background: var(--accent-soft); border-radius: var(--r-pill);
+  padding: 2px 10px; font-size: 12px; font-weight: 500;
+}
+.guide { margin-top: 10px; }
+.guide h4 { margin: 14px 0 5px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.guide h4:first-child { margin-top: 0; }
+.guide p { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); max-width: 84ch; }
+
 .exp {
   border: 1px solid var(--border);
   border-left: 3px solid var(--ink-mute);
   border-radius: var(--r-md);
-  background: var(--card);
+  background: var(--surface);
   margin-bottom: 8px;
 }
 .exp[data-tone="alert"] { border-left-color: var(--alert); }
@@ -1101,6 +1267,8 @@ const SEVERITY_ORDER = ["high", "medium", "low"];
 // What Talos does not look at. Ordered the way someone would work
 // through them, not by severity: none of them is Talos's to judge.
 const SCOPE_ITEMS = ["segmentation", "credentials", "firmware", "exposure", "doh", "payload"];
+// The short guide, ordered by what each step returns for the effort it costs.
+const GUIDE_STEPS = [1, 2, 3, 4, 5, 6];
 
 /* Above this many devices carrying a conduit, the first column groups by
  * integration. A hand-laid SVG stays readable at a few dozen nodes and not at
@@ -1194,16 +1362,20 @@ class TalosPanel extends HTMLElement {
 
   /* ── data ────────────────────────────────────────────────────────────── */
 
-  async load() {
+  async load({ quiet = false } = {}) {
     this._loading = true;
-    this.render();
+    if (!quiet) this.render();
     try {
-      const [derived, status] = await Promise.all([
+      const [derived, status, suggested] = await Promise.all([
         this._hass.callWS({ type: "talos/derived" }),
         this._hass.callWS({ type: "talos/status" }),
+        // Advisory only: an older integration without the command must not
+        // take the whole panel down with it.
+        this._hass.callWS({ type: "talos/suggest" }).catch(() => ({ suggestions: [] })),
       ]);
       this._data = derived;
       this._status = status;
+      this._suggestions = (suggested || {}).suggestions || [];
       this._error = null;
     } catch (err) {
       this._error = err && err.message ? err.message : String(err);
@@ -1213,13 +1385,81 @@ class TalosPanel extends HTMLElement {
     }
   }
 
-  async refresh() {
-    try {
-      await this._hass.callWS({ type: "talos/refresh" });
-    } catch (err) {
-      this._error = err && err.message ? err.message : String(err);
+  /** What the panel is doing right now, in one place. `ok` clears itself so
+   *  a success does not sit on screen forever; an error stays until the next
+   *  operation, because it is the only record the user gets of it. */
+  setBusy(tone, title, sub) {
+    if (this._busyTimer) {
+      window.clearTimeout(this._busyTimer);
+      this._busyTimer = null;
     }
-    await this.load();
+    this._busy = tone ? { tone, title, sub } : null;
+    this.render();
+    if (tone === "ok") {
+      this._busyTimer = window.setTimeout(() => {
+        this._busy = null;
+        this._busyTimer = null;
+        this.render();
+      }, 6000);
+    }
+  }
+
+  busyBar() {
+    // A scan that has been failing since yesterday reads as an idle panel
+    // unless the timestamp is put next to the reason.
+    const status = this._status || {};
+    const busy =
+      this._busy ||
+      (status.last_update_success === false
+        ? {
+            tone: "error",
+            title: this.t("busy.stale"),
+            sub: this.t("busy.stale.sub", {
+              when: this.when(status.generated_at),
+              reason: status.last_error || "-",
+            }),
+          }
+        : null);
+    if (!busy) return "";
+    return `<div class="toast" data-tone="${busy.tone}" role="status">
+      <span class="toast__dot"></span>
+      <span><strong>${esc(busy.title)}</strong>${
+        busy.sub ? ` <span class="toast__sub">${esc(busy.sub)}</span>` : ""
+      }</span>
+    </div>`;
+  }
+
+  when(value) {
+    return value
+      ? new Date(value).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB")
+      : this.t("app.never");
+  }
+
+  async refresh() {
+    if (this._scanning) return;
+    this._scanning = true;
+    this.setBusy("busy", this.t("busy.scanning"), this.t("busy.scanning.sub"));
+    let result = null;
+    try {
+      result = await this._hass.callWS({ type: "talos/refresh" });
+    } catch (err) {
+      result = { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+    await this.load({ quiet: true });
+    this._scanning = false;
+    if (result && result.ok) {
+      this.setBusy(
+        "ok",
+        this.t("busy.scanOk"),
+        this.t("busy.scanOk.sub", { when: this.when(result.generated_at) })
+      );
+    } else {
+      this.setBusy(
+        "error",
+        this.t("busy.scanError"),
+        (result && result.error) || this._error || ""
+      );
+    }
   }
 
   deviceName(id) {
@@ -1279,6 +1519,7 @@ class TalosPanel extends HTMLElement {
     host.innerHTML =
       this.toolbar() +
       `<div class="wrap">` +
+      this.busyBar() +
       (this._mode === "base"
         ? this.viewBase()
         : this._mode === "map"
@@ -1295,7 +1536,21 @@ class TalosPanel extends HTMLElement {
       });
     });
     const refresh = host.querySelector("[data-action='refresh']");
-    if (refresh) refresh.addEventListener("click", () => this.refresh());
+    if (refresh) {
+      if (this._scanning) refresh.dataset.busy = "1";
+      refresh.addEventListener("click", () => this.refresh());
+    }
+
+    this.wireInventory(host);
+
+    host.querySelectorAll("[data-suggest]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const input = host.querySelector(`#opt-${button.dataset.suggest}`);
+        if (!input) return;
+        input.value = button.dataset.value;
+        input.focus();
+      });
+    });
 
     this.wireSections(host);
 
@@ -1368,6 +1623,49 @@ class TalosPanel extends HTMLElement {
    * The key is the view plus the heading's position, which is stable across
    * languages and reloads; the text is not. Kept per browser, like the
    * language, since it is a reading preference and not configuration. */
+  /** The reason a value is proposed, in the reader's language. The backend
+   *  writes it in English, which stands in only if nothing translates it. */
+  suggestionDetail(key, found) {
+    const translated = this.t(`sugg.detail.${key}`);
+    return translated.startsWith("sugg.detail.") ? found.detail || "" : translated;
+  }
+
+  /** Redraw only the inventory, so the search field keeps focus and the
+   *  caret while the list under it changes. */
+  renderInventory(host) {
+    const container = host.querySelector("[data-inventory]");
+    if (!container) return;
+    // activeElement lives on the shadow root, not on the container div.
+    const active = this.shadowRoot.activeElement;
+    const focused = active === host.querySelector("[data-action='inv-search']");
+    const caret = focused ? active.selectionStart : null;
+    container.innerHTML = this.inventory();
+    this.wireInventory(host);
+    if (focused) {
+      const field = host.querySelector("[data-action='inv-search']");
+      if (field) {
+        field.focus();
+        if (caret != null) field.setSelectionRange(caret, caret);
+      }
+    }
+  }
+
+  wireInventory(host) {
+    const search = host.querySelector("[data-action='inv-search']");
+    if (search) {
+      search.addEventListener("input", (event) => {
+        this._invQuery = event.target.value;
+        this.renderInventory(host);
+      });
+    }
+    host.querySelectorAll("[data-invfilter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        this._invFilter = button.dataset.invfilter;
+        this.renderInventory(host);
+      });
+    });
+  }
+
   wireSections(host) {
     const collapsed = this._collapsed || (this._collapsed = this.readCollapsed());
     host.querySelectorAll("h2.sec").forEach((heading, index) => {
@@ -1417,9 +1715,7 @@ class TalosPanel extends HTMLElement {
 
   toolbar() {
     const status = this._status || {};
-    const when = status.generated_at
-      ? new Date(status.generated_at).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB")
-      : this.t("app.never");
+    const when = this.when(status.generated_at);
     return `
       <div class="bar">
         <div>
@@ -1887,7 +2183,7 @@ class TalosPanel extends HTMLElement {
           Object.keys(d.labels.integrations || {}).length
         }</h2>
         <p class="page-sub" style="margin:0 0 12px">${esc(this.t("adv.inventory.lead"))}</p>
-        ${this.inventory()}
+        <div data-inventory>${this.inventory()}</div>
       </div>
 
       <div>
@@ -1923,12 +2219,64 @@ class TalosPanel extends HTMLElement {
   /** Every config entry with what the registry says about it. Nothing here
    *  is a judgement and nothing is probed: it is the declared side, laid out
    *  so it can be read rather than inferred from the map. */
+  /** Filters over the inventory. Each one answers a question somebody
+   *  actually asks of a list this long: which are broken, which are cloud,
+   *  which did I install myself, which one is called something like this. */
+  inventoryFilters() {
+    const counts = this.inventoryCounts();
+    const chip = (id, label, n) =>
+      `<button class="chip chip--filter" data-invfilter="${id}"
+         aria-pressed="${(this._invFilter || "all") === id}">${esc(label)}
+         <span class="mono">${this.num(n)}</span></button>`;
+    return `<div class="filters">
+      <input type="search" data-action="inv-search" spellcheck="false"
+             placeholder="${esc(this.t("filter.search"))}" value="${esc(this._invQuery || "")}">
+      ${chip("all", this.t("filter.all"), counts.all)}
+      ${chip("notLoaded", this.t("filter.notLoaded"), counts.notLoaded)}
+      ${chip("loaded", this.t("filter.loaded"), counts.loaded)}
+      ${chip("cloud", this.t("filter.cloud"), counts.cloud)}
+      ${chip("custom", this.t("filter.custom"), counts.custom)}
+      ${chip("endpoint", this.t("filter.withEndpoint"), counts.endpoint)}
+    </div>`;
+  }
+
+  inventoryCounts() {
+    const all = Object.values((this._data && this._data.labels.integrations) || {});
+    const isCloud = (i) => String(i.iot_class || "").startsWith("cloud");
+    return {
+      all: all.length,
+      loaded: all.filter((i) => !i.state || i.state === "loaded").length,
+      notLoaded: all.filter((i) => i.state && i.state !== "loaded").length,
+      cloud: all.filter(isCloud).length,
+      custom: all.filter((i) => i.is_built_in === false).length,
+      endpoint: all.filter((i) => i.endpoint).length,
+    };
+  }
+
+  /** Whether one entry survives the search box and the active chip. */
+  inventoryMatches(id, integration) {
+    const filter = this._invFilter || "all";
+    const loaded = !integration.state || integration.state === "loaded";
+    if (filter === "loaded" && !loaded) return false;
+    if (filter === "notLoaded" && loaded) return false;
+    if (filter === "cloud" && !String(integration.iot_class || "").startsWith("cloud")) return false;
+    if (filter === "custom" && integration.is_built_in !== false) return false;
+    if (filter === "endpoint" && !integration.endpoint) return false;
+
+    const query = (this._invQuery || "").trim().toLowerCase();
+    if (!query) return true;
+    return [integration.title, integration.domain, integration.endpoint, integration.iot_class, id]
+      .filter(Boolean)
+      .some((field) => String(field).toLowerCase().includes(query));
+  }
+
   inventory() {
     const d = this._data;
     const integrations = d.labels.integrations || {};
     const devices = Object.entries(d.labels.devices || {});
 
-    return Object.entries(integrations)
+    const rows = Object.entries(integrations)
+      .filter(([id, integration]) => this.inventoryMatches(id, integration))
       .map(([id, integration]) => {
         const own = devices.filter(([, device]) => device.integration_id === id);
         const origins = [...new Set(own.map(([, device]) => device.origin).filter(Boolean))];
@@ -1977,6 +2325,20 @@ class TalosPanel extends HTMLElement {
         });
       })
       .join("");
+
+    const shown = Object.entries(integrations).filter(([id, integration]) =>
+      this.inventoryMatches(id, integration)
+    ).length;
+    return (
+      this.inventoryFilters() +
+      `<p class="hint" style="margin:0 0 10px">${esc(
+        this.t("filter.count", {
+          shown: this.num(shown),
+          total: this.num(Object.keys(integrations).length),
+        })
+      )}</p>` +
+      (rows || `<p class="status">${esc(this.t("filter.none"))}</p>`)
+    );
   }
 
   checkList() {
@@ -2871,6 +3233,22 @@ class TalosPanel extends HTMLElement {
       <input id="opt-${key}" type="text" data-option="${key}" spellcheck="false"
              value="${esc(value)}">
       ${hint.startsWith("opt.hint.") ? "" : `<span class="hint">${esc(hint)}</span>`}
+      ${this.suggestionFor(key)}
+    </div>`;
+  }
+
+  /** What the scan can propose for an option the user left empty. Offered as
+   *  a button, never written on its own: Talos saw traffic on a subnet, it
+   *  did not decide which of your networks that is. */
+  suggestionFor(key) {
+    const found = (this._suggestions || []).find((item) => item.option === key);
+    if (!found) return "";
+    return `<div class="sugg">
+      <span>${esc(this.t("sugg.label"))}</span>
+      <button type="button" data-suggest="${esc(key)}" data-value="${esc(found.value)}">
+        ${esc(this.t("sugg.use"))} <span class="mono">${esc(found.value)}</span></button>
+      <span>${esc(this.t("sugg.hosts", { n: this.num(found.hosts) }))}</span>
+      <span class="hint">${esc(this.suggestionDetail(key, found))}</span>
     </div>`;
   }
 
@@ -2982,22 +3360,6 @@ class TalosPanel extends HTMLElement {
       </div>
 
       <div>
-        <h2 class="sec">${esc(this.t("settings.section.scope"))}</h2>
-        <div class="note">
-          <div class="note__label">${esc(this.t("settings.scope.does"))}</div>
-          <p>${esc(this.t("settings.scope.doesBody"))}</p>
-        </div>
-        <div class="note">
-          <div class="note__label">${esc(this.t("settings.scope.doesNot"))}</div>
-          <p>${esc(this.t("settings.scope.lead"))}</p>
-          ${SCOPE_ITEMS.map(
-            (key) => `<p>· ${esc(this.t(`settings.scope.item.${key}`))}</p>`
-          ).join("")}
-          <p><strong>${esc(this.t("settings.scope.closing"))}</strong></p>
-        </div>
-      </div>
-
-      <div>
         <h2 class="sec">${esc(this.t("settings.section.system"))}</h2>
         <div class="panel-card"><dl class="kv">
           <dt>${esc(this.t("settings.system.ha"))}</dt><dd class="mono">${esc(status.ha_version || "-")}</dd>
@@ -3010,6 +3372,26 @@ class TalosPanel extends HTMLElement {
           <dt>${esc(this.t("settings.system.dbSize"))}</dt><dd class="mono">${esc(bytes)}</dd>
           <dt>${esc(this.t("settings.system.pruned"))}</dt><dd class="mono">${this.num(removed)}</dd>
         </dl></div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.advice"))}</h2>
+        <div class="note">
+          <div class="note__label">${esc(this.t("settings.advice.items"))}</div>
+          <p>${esc(this.t("settings.advice.lead"))}</p>
+          ${SCOPE_ITEMS.map(
+            (key) => `<p>· ${esc(this.t(`settings.scope.item.${key}`))}</p>`
+          ).join("")}
+          <p><strong>${esc(this.t("settings.scope.closing"))}</strong></p>
+        </div>
+        ${this.expander({
+          tone: "info",
+          title: esc(this.t("settings.guide")),
+          body: `<p>${esc(this.t("settings.guide.lead"))}</p><div class="guide">${GUIDE_STEPS.map(
+            (n) => `<h4>${esc(this.t(`settings.guide.h.${n}`))}</h4>
+              <p>${esc(this.t(`settings.guide.p.${n}`))}</p>`
+          ).join("")}</div>`,
+        })}
       </div>
     </div>`;
   }
@@ -3025,21 +3407,45 @@ class TalosPanel extends HTMLElement {
 
     this._saving = true;
     this._saveStatus = null;
-    this.render();
+    this.setBusy("busy", this.t("busy.saving"), this.t("busy.saving.sub"));
     try {
       await this._hass.callWS({ type: "talos/options/set", options });
-      this._saveStatus = { tone: "ok", text: this.t("settings.saved") };
-      this._saving = false;
-      this.render();
-      // Updating the entry reloads the integration, so give it a moment
-      // before asking for the new state.
-      setTimeout(() => this.load(), 2500);
     } catch (err) {
       const reason = err && err.message ? err.message : String(err);
-      this._saveStatus = { tone: "error", text: this.t("settings.error", { reason }) };
       this._saving = false;
-      this.render();
+      this._saveStatus = { tone: "error", text: this.t("settings.error", { reason }) };
+      this.setBusy("error", this.t("busy.saveError"), reason);
+      return;
     }
+
+    // Writing the options reloads the integration, and until it is back up
+    // every command answers "not ready". Waiting for it beats a fixed delay
+    // that is either too short to work or too long to feel alive.
+    this.setBusy("busy", this.t("busy.reloading"), this.t("busy.reloading.sub"));
+    const ready = await this.waitForReload();
+    this._saving = false;
+    if (ready) {
+      this._saveStatus = { tone: "ok", text: this.t("settings.saved") };
+      this.setBusy("ok", this.t("busy.saveOk"), this.t("busy.saveOk.sub"));
+    } else {
+      this._saveStatus = { tone: "error", text: this.t("settings.error", { reason: "timeout" }) };
+      this.setBusy("error", this.t("busy.saveError"), this.t("busy.reloading.sub"));
+    }
+  }
+
+  /** Poll until the integration answers again, then reload the whole panel. */
+  async waitForReload(attempts = 20, delayMs = 700) {
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+      try {
+        await this._hass.callWS({ type: "talos/status" });
+        await this.load({ quiet: true });
+        return true;
+      } catch (err) {
+        // Still reloading. The next attempt is the only useful reaction.
+      }
+    }
+    return false;
   }
 
   /* ── graph ───────────────────────────────────────────────────────────── */

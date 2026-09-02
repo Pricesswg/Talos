@@ -22,6 +22,7 @@ from talos_core.const import (
 from talos_core.checks import SEVERITIES
 
 ROOT = Path(__file__).resolve().parent.parent
+SUGGEST = (ROOT / "talos_core" / "suggest.py").read_text(encoding="utf-8")
 PANEL = ROOT / "custom_components" / "talos" / "www" / "talos-panel.js"
 CONST = ROOT / "custom_components" / "talos" / "const.py"
 SOURCE = PANEL.read_text(encoding="utf-8")
@@ -141,8 +142,31 @@ class TestTranslations(unittest.TestCase):
                 "map.scope",
                 "role",
                 "settings.scope.item",
+                "settings.guide.h",
+                "settings.guide.p",
+                "sugg.detail",
             },
         )
+
+    def test_every_suggestible_option_explains_itself(self) -> None:
+        """A suggestion with no rationale is a value appearing from nowhere."""
+        options = re.findall(r'option="(zone_\w+)"', SUGGEST)
+        self.assertTrue(options, "the suggester proposes nothing")
+        for option in set(options):
+            with self.subTest(option=option):
+                self.assertIn(f"sugg.detail.{option}", self.it)
+                self.assertIn(f"sugg.detail.{option}", self.en)
+
+    def test_every_guide_step_has_both_halves(self) -> None:
+        """The list is driven by a constant, so a step added there without a
+        heading and a body would render two keys to the user."""
+        steps = re.search(r"const GUIDE_STEPS = \[(.*?)\];", SOURCE, re.S)
+        assert steps
+        for number in re.findall(r"\d+", steps.group(1)):
+            for part in ("h", "p"):
+                with self.subTest(step=f"{part}{number}"):
+                    self.assertIn(f"settings.guide.{part}.{number}", self.it)
+                    self.assertIn(f"settings.guide.{part}.{number}", self.en)
 
     def test_every_scope_item_has_a_label(self) -> None:
         """The list is driven by a constant, so a name added there without a
@@ -283,3 +307,19 @@ class TestNoExternalResources(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStyles(unittest.TestCase):
+    """A colour that resolves to nothing renders transparent and looks like a
+    layout bug, which is exactly how it reached production once."""
+
+    def test_every_custom_property_used_is_defined_or_has_a_fallback(self) -> None:
+        styles = re.search(r"const STYLES = `(.*?)`;", SOURCE, re.S)
+        assert styles
+        block = styles.group(1)
+        # Several are declared on one line, so anchoring to the line start
+        # would miss all but the first.
+        defined = set(re.findall(r"(--[\w-]+)\s*:", block))
+        for name in set(re.findall(r"var\((--[\w-]+)\s*\)", block)):
+            with self.subTest(property=name):
+                self.assertIn(name, defined, "used with no fallback and never defined")
