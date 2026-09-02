@@ -179,13 +179,19 @@ holds, so there is no second connection and no credentials of Talos's own. The c
 brokers reserve the `$SYS` tree for an account that holds the right to read it, and the MQTT
 integration's user has no reason to be one, so on a locked-down broker that path returns nothing.
 
-For those, Talos takes its own read-only account: broker, port, user, password and a TLS flag, set in
-the config flow under Settings, Devices and services, Talos, Reconfigure, alongside the AdGuard
-fields and stored the same way. The password never reaches the panel, which shows the address, the
-user, whether a password is set, and what the last read actually got. Leave the address empty and it
-uses the broker the MQTT config entry already names, so the usual case is two fields. The connection
-is tested when you save. Talos publishes nothing and subscribes to `$SYS` and nothing else, under the
-fixed client id `talos-scanner` so its own connection is recognisable in the list it reads.
+For those, Talos takes its own read-only account: broker, port, user, password and a TLS flag. Set it
+either in the panel under Settings, or in the config flow through Settings, Devices and services,
+Talos, Reconfigure. Both write the same config entry, both go over the same authenticated admin
+socket, and the stored password is never sent back: the panel is told only whether one is set, and
+leaving the password box empty keeps the stored one rather than clearing it. Leave the address empty
+and it uses the broker the MQTT config entry already names, so the usual case is two fields.
+
+The connection is tested before it is stored, and the three outcomes are distinct. Reached with
+`$SYS` readable is a working account. Reached but `$SYS` silent is also saved, because that is a
+valid account with a limit, and the panel says so instead of pretending the check will now run.
+Refused is not saved, and the broker's own words are shown. Talos publishes nothing and subscribes to
+`$SYS` and nothing else, under the fixed client id `talos-scanner` so its own connection is
+recognisable in the list it reads.
 
 Client ids are matched against the names in the scan, and anything left over is reported as
 unmatched, which is not the same as hostile. When no client id arrives at all, by either route, the

@@ -29,6 +29,7 @@ from .const import (
     TEXT_OPTIONS,
 )
 from .coordinator import TalosCoordinator
+from .mqtt_source import NO_CLIENT_IDS, read_sys_blocking
 from .core import subnets, suggestions
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
@@ -44,6 +45,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_scan)
     websocket_api.async_register_command(hass, ws_derived)
     websocket_api.async_register_command(hass, ws_suggest)
+    websocket_api.async_register_command(hass, ws_set_mqtt)
     websocket_api.async_register_command(hass, ws_refresh)
     websocket_api.async_register_command(hass, ws_set_options)
 
@@ -219,6 +221,99 @@ def ws_derived(
 
 
 @websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/mqtt/set",
+        vol.Optional(CONF_MQTT_HOST, default=""): str,
+        vol.Optional(CONF_MQTT_PORT, default=DEFAULT_MQTT_PORT): vol.Coerce(int),
+        vol.Optional(CONF_MQTT_USERNAME, default=""): str,
+        # Empty means "leave the stored one alone". Without that rule, saving
+        # any other field on this form would silently wipe the password.
+        vol.Optional(CONF_MQTT_PASSWORD, default=""): str,
+        vol.Optional(CONF_MQTT_TLS, default=False): bool,
+        vol.Optional("clear", default=False): bool,
+    }
+)
+@websocket_api.async_response
+async def ws_set_mqtt(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Write the read-only broker account from the panel.
+
+    Admin only, over the same authenticated socket the config flow itself
+    uses. The password goes one way: it is written here and never sent back,
+    and the panel is told only whether one is stored.
+    """
+    coordinator = _coordinator(hass)
+    if coordinator is None:
+        _not_ready(connection, msg["id"])
+        return
+
+    entry = coordinator.entry
+    if msg["clear"]:
+        hass.config_entries.async_update_entry(
+            entry,
+            data={
+                **entry.data,
+                CONF_MQTT_HOST: "",
+                CONF_MQTT_USERNAME: "",
+                CONF_MQTT_PASSWORD: "",
+                CONF_MQTT_TLS: False,
+            },
+        )
+        connection.send_result(msg["id"], {"ok": True, "cleared": True})
+        return
+
+    password = msg[CONF_MQTT_PASSWORD] or entry.data.get(CONF_MQTT_PASSWORD, "")
+    updated = {
+        CONF_MQTT_HOST: msg[CONF_MQTT_HOST].strip(),
+        CONF_MQTT_PORT: int(msg[CONF_MQTT_PORT] or DEFAULT_MQTT_PORT),
+        CONF_MQTT_USERNAME: msg[CONF_MQTT_USERNAME].strip(),
+        CONF_MQTT_PASSWORD: password,
+        CONF_MQTT_TLS: bool(msg[CONF_MQTT_TLS]),
+    }
+
+    # Try it before storing it. A broker that answers but keeps $SYS to itself
+    # is a working account with a limit, not a rejected form, so only a
+    # connection failure stops the save.
+    host = updated[CONF_MQTT_HOST] or _entry_broker(coordinator)
+    if host:
+        found, error = await hass.async_add_executor_job(
+            read_sys_blocking,
+            host,
+            updated[CONF_MQTT_PORT],
+            updated[CONF_MQTT_USERNAME],
+            password,
+            updated[CONF_MQTT_TLS],
+            1.5,
+        )
+        if error and error != NO_CLIENT_IDS:
+            connection.send_result(msg["id"], {"ok": False, "error": error})
+            return
+        reached = {"ok": True, "clients": len(found), "sys_readable": bool(found)}
+    else:
+        reached = {"ok": True, "clients": 0, "sys_readable": False}
+
+    hass.config_entries.async_update_entry(entry, data={**entry.data, **updated})
+    connection.send_result(msg["id"], reached)
+
+
+def _entry_broker(coordinator: TalosCoordinator) -> str:
+    """The broker the MQTT config entry names, when the form gives no address."""
+    data = coordinator.data
+    if data is None:
+        return ""
+    for conduit in data.scan.conduits:
+        integration = data.scan.integration(conduit.source.id)
+        if conduit.evidence != "declared" or integration is None or integration.domain != "mqtt":
+            continue
+        destination = data.scan.destination(conduit.destination_id)
+        if destination is not None:
+            return destination.fqdn
+    return ""
+
+
+@websocket_api.require_admin
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/suggest"})
 @callback
 def ws_suggest(
@@ -261,9 +356,8 @@ async def ws_set_options(
 ) -> None:
     """Update the editable options from the panel.
 
-    Only the options are writable here. The AdGuard endpoint and its
-    credentials stay in the config entry and are changed through the
-    reconfigure flow, so no password ever travels over this socket.
+    Options only. Credentials live in the config entry and have their own
+    command, so a mistake here can never touch them.
     """
     coordinator = _coordinator(hass)
     if coordinator is None:

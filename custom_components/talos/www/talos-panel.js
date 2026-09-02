@@ -445,15 +445,33 @@ const I18N = {
     "settings.section.mqtt": "Account MQTT di sola lettura",
     "settings.mqtt.none":
       "Nessun account configurato. Talos usa la sessione che l'integrazione MQTT ha già aperta, che funziona finché il broker non riserva $SYS a un utente specifico. Quasi tutti lo fanno, ed è il motivo per cui il controllo sui client sconosciuti di solito si dichiara non eseguibile.",
-    "settings.mqtt.hint":
-      "Indirizzo e credenziali non sono modificabili da qui. Si cambiano da Impostazioni, Dispositivi e servizi, Talos, menu a tre puntini, Riconfigura: la password non transita mai da questa pagina. Serve un utente in sola lettura con il permesso di sottoscrivere $SYS; Talos non pubblica nulla e non si sottoscrive ad altro.",
-    "settings.mqtt.host": "Broker",
-    "settings.mqtt.user": "Utente",
-    "settings.mqtt.password": "Password",
-    "settings.mqtt.tls": "TLS",
     "settings.mqtt.state": "Ultima lettura",
     "settings.mqtt.ok": "{clients} client letti, {unmatched} senza corrispondenza",
-    "settings.mqtt.fromEntry": "dalla config entry MQTT",
+
+    "mqtt.host": "Broker",
+    "mqtt.host.hint":
+      "Lascia vuoto per usare il broker che la config entry MQTT già dichiara. Compilalo solo se vuoi puntare altrove.",
+    "mqtt.port": "Porta",
+    "mqtt.user": "Utente",
+    "mqtt.password": "Password",
+    "mqtt.password.set": "impostata, lascia vuoto per non cambiarla",
+    "mqtt.password.unset": "nessuna password memorizzata",
+    "mqtt.tls": "Il broker usa TLS",
+    "mqtt.save": "Salva e prova la connessione",
+    "mqtt.saving": "Connessione in corso…",
+    "mqtt.clear": "Rimuovi l'account",
+    "mqtt.testing": "Provo la connessione al broker",
+    "mqtt.testing.sub": "Mi collego, mi sottoscrivo a $SYS e mi disconnetto. Non pubblico nulla.",
+    "mqtt.ok": "Account salvato",
+    "mqtt.ok.sub": "Broker raggiunto, {n} client letti da $SYS.",
+    "mqtt.okNoSys": "Account salvato, ma $SYS non risponde",
+    "mqtt.okNoSys.sub":
+      "La connessione funziona e le credenziali sono valide, ma questo utente non riesce a leggere $SYS. Serve il permesso di sottoscrivere $SYS/# sul broker. Il controllo sui client resta non eseguibile finché non ce l'ha.",
+    "mqtt.failed": "Connessione al broker fallita",
+    "mqtt.cleared": "Account rimosso",
+    "mqtt.cleared.sub": "Torno a usare la sessione dell'integrazione MQTT.",
+    "mqtt.acl":
+      "Serve un utente in sola lettura con il permesso di sottoscrivere $SYS/#. Su EMQX: Access Control, Authentication per l'utente e una regola di sola sottoscrizione. Su Mosquitto: una riga topic read $SYS/# nell'acl_file. Talos non pubblica nulla, non si sottoscrive ad altro, e si collega con client id talos-scanner così la sua connessione è riconoscibile nella lista che legge.",
 
     "severity.high": "alta",
     "severity.medium": "media",
@@ -830,15 +848,33 @@ const I18N = {
     "settings.section.mqtt": "Read-only MQTT account",
     "settings.mqtt.none":
       "No account configured. Talos uses the session the MQTT integration already holds, which works until the broker reserves $SYS for a specific user. Most of them do, and that is why the unknown-client check usually declares itself unable to run.",
-    "settings.mqtt.hint":
-      "The address and credentials cannot be changed here. Use Settings, Devices and services, Talos, the three dot menu, Reconfigure: the password never travels through this page. It needs a read-only user allowed to subscribe to $SYS; Talos publishes nothing and subscribes to nothing else.",
-    "settings.mqtt.host": "Broker",
-    "settings.mqtt.user": "User",
-    "settings.mqtt.password": "Password",
-    "settings.mqtt.tls": "TLS",
     "settings.mqtt.state": "Last read",
     "settings.mqtt.ok": "{clients} clients read, {unmatched} unmatched",
-    "settings.mqtt.fromEntry": "from the MQTT config entry",
+
+    "mqtt.host": "Broker",
+    "mqtt.host.hint":
+      "Leave empty to use the broker the MQTT config entry already names. Fill it in only to point somewhere else.",
+    "mqtt.port": "Port",
+    "mqtt.user": "User",
+    "mqtt.password": "Password",
+    "mqtt.password.set": "stored, leave empty to keep it",
+    "mqtt.password.unset": "no password stored",
+    "mqtt.tls": "Broker uses TLS",
+    "mqtt.save": "Save and test the connection",
+    "mqtt.saving": "Connecting…",
+    "mqtt.clear": "Remove the account",
+    "mqtt.testing": "Testing the broker connection",
+    "mqtt.testing.sub": "Connecting, subscribing to $SYS, disconnecting. Nothing is published.",
+    "mqtt.ok": "Account saved",
+    "mqtt.ok.sub": "Broker reached, {n} clients read from $SYS.",
+    "mqtt.okNoSys": "Account saved, but $SYS does not answer",
+    "mqtt.okNoSys.sub":
+      "The connection works and the credentials are valid, but this user cannot read $SYS. It needs permission to subscribe to $SYS/# on the broker. The client check stays unable to run until it has it.",
+    "mqtt.failed": "Could not connect to the broker",
+    "mqtt.cleared": "Account removed",
+    "mqtt.cleared.sub": "Back to using the MQTT integration's session.",
+    "mqtt.acl":
+      "It needs a read-only user allowed to subscribe to $SYS/#. On EMQX: Access Control, Authentication for the user and a subscribe-only rule. On Mosquitto: a topic read $SYS/# line in the acl_file. Talos publishes nothing, subscribes to nothing else, and connects with the client id talos-scanner so its own connection is recognisable in the list it reads.",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -1566,6 +1602,11 @@ class TalosPanel extends HTMLElement {
       if (this._scanning) refresh.dataset.busy = "1";
       refresh.addEventListener("click", () => this.refresh());
     }
+
+    const mqttSave = host.querySelector("[data-action='mqtt-save']");
+    if (mqttSave) mqttSave.addEventListener("click", () => this.saveMqtt(false));
+    const mqttClear = host.querySelector("[data-action='mqtt-clear']");
+    if (mqttClear) mqttClear.addEventListener("click", () => this.saveMqtt(true));
 
     this.wireInventory(host);
 
@@ -3345,19 +3386,60 @@ class TalosPanel extends HTMLElement {
         <div class="panel-card">
           ${
             mqtt.mqtt_username || mqtt.mqtt_host
-              ? `<dl class="kv">
-                   <dt>${esc(this.t("settings.mqtt.host"))}</dt>
-                   <dd class="mono">${esc(
-                     mqtt.mqtt_host
-                       ? `${mqtt.mqtt_host}:${mqtt.mqtt_port}`
-                       : this.t("settings.mqtt.fromEntry")
-                   )}</dd>
-                   <dt>${esc(this.t("settings.mqtt.user"))}</dt>
-                   <dd class="mono">${esc(mqtt.mqtt_username || this.t("settings.value.empty"))}</dd>
-                   <dt>${esc(this.t("settings.mqtt.password"))}</dt>
-                   <dd>${esc(this.t(mqtt.has_password ? "settings.value.set" : "settings.value.unset"))}</dd>
-                   <dt>${esc(this.t("settings.mqtt.tls"))}</dt>
-                   <dd>${esc(this.t(mqtt.mqtt_tls ? "settings.value.yes" : "settings.value.no"))}</dd>
+              ? ""
+              : `<p class="status" style="margin:0 0 14px">${esc(this.t("settings.mqtt.none"))}</p>`
+          }
+          <div class="form">
+            <div class="field">
+              <label for="mqtt-host">${esc(this.t("mqtt.host"))}</label>
+              <input id="mqtt-host" type="text" spellcheck="false"
+                     value="${esc(mqtt.mqtt_host || "")}" autocomplete="off">
+              <span class="hint">${esc(this.t("mqtt.host.hint"))}</span>
+            </div>
+            <div class="field">
+              <label for="mqtt-port">${esc(this.t("mqtt.port"))}</label>
+              <input id="mqtt-port" type="number" min="1" max="65535"
+                     value="${esc(mqtt.mqtt_port || 1883)}">
+            </div>
+            <div class="field">
+              <label for="mqtt-user">${esc(this.t("mqtt.user"))}</label>
+              <input id="mqtt-user" type="text" spellcheck="false"
+                     value="${esc(mqtt.mqtt_username || "")}" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="mqtt-password">${esc(this.t("mqtt.password"))}</label>
+              <input id="mqtt-password" type="password" value="" autocomplete="new-password">
+              <span class="hint">${esc(
+                this.t(mqtt.has_password ? "mqtt.password.set" : "mqtt.password.unset")
+              )}</span>
+            </div>
+            <div class="field">
+              <label for="mqtt-tls">${esc(this.t("mqtt.tls"))}</label>
+              <select id="mqtt-tls">
+                <option value="0" ${mqtt.mqtt_tls ? "" : "selected"}>${esc(
+                  this.t("settings.value.no")
+                )}</option>
+                <option value="1" ${mqtt.mqtt_tls ? "selected" : ""}>${esc(
+                  this.t("settings.value.yes")
+                )}</option>
+              </select>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" data-action="mqtt-save" ${this._mqttSaving ? "disabled" : ""}>${esc(
+              this._mqttSaving ? this.t("mqtt.saving") : this.t("mqtt.save")
+            )}</button>
+            ${
+              mqtt.mqtt_username || mqtt.mqtt_host
+                ? `<button class="btn btn--ghost" data-action="mqtt-clear" ${
+                    this._mqttSaving ? "disabled" : ""
+                  }>${esc(this.t("mqtt.clear"))}</button>`
+                : ""
+            }
+          </div>
+          ${
+            mqtt.mqtt_username || mqtt.mqtt_host
+              ? `<dl class="kv" style="margin-top:14px">
                    <dt>${esc(this.t("settings.mqtt.state"))}</dt>
                    <dd>${esc(
                      mqtt.available
@@ -3368,9 +3450,9 @@ class TalosPanel extends HTMLElement {
                        : mqtt.error || "-"
                    )}</dd>
                  </dl>`
-              : `<p class="status">${esc(this.t("settings.mqtt.none"))}</p>`
+              : ""
           }
-          <p class="hint" style="margin:12px 0 0">${esc(this.t("settings.mqtt.hint"))}</p>
+          <p class="hint" style="margin:12px 0 0">${esc(this.t("mqtt.acl"))}</p>
         </div>
       </div>
 
@@ -3491,6 +3573,53 @@ class TalosPanel extends HTMLElement {
     } else {
       this._saveStatus = { tone: "error", text: this.t("settings.error", { reason: "timeout" }) };
       this.setBusy("error", this.t("busy.saveError"), this.t("busy.reloading.sub"));
+    }
+  }
+
+  /** Write the broker account, testing it on the way in.
+   *
+   *  An empty password field means "keep the stored one": without that rule,
+   *  saving the port would wipe the password every time. */
+  async saveMqtt(clear = false) {
+    if (this._mqttSaving) return;
+    const host = this.shadowRoot;
+    const value = (id) => (host.querySelector(id) || {}).value || "";
+    // Read the form before anything redraws it. setBusy renders, and a render
+    // rebuilds these inputs from the stored status, so reading afterwards
+    // would send back what was already saved and drop what was just typed.
+    const payload = clear
+      ? { type: "talos/mqtt/set", clear: true }
+      : {
+          type: "talos/mqtt/set",
+          mqtt_host: value("#mqtt-host").trim(),
+          mqtt_port: Number(value("#mqtt-port")) || 1883,
+          mqtt_username: value("#mqtt-user").trim(),
+          mqtt_password: value("#mqtt-password"),
+          mqtt_tls: value("#mqtt-tls") === "1",
+        };
+    this._mqttSaving = true;
+    this.setBusy("busy", this.t("mqtt.testing"), this.t("mqtt.testing.sub"));
+
+    let result = null;
+    try {
+      result = await this._hass.callWS(payload);
+    } catch (err) {
+      result = { ok: false, error: err && err.message ? err.message : String(err) };
+    }
+
+    this._mqttSaving = false;
+    if (!result || !result.ok) {
+      this.setBusy("error", this.t("mqtt.failed"), (result && result.error) || "");
+      return;
+    }
+    // Writing the entry reloads the integration, same as saving the options.
+    await this.waitForReload();
+    if (result.cleared) {
+      this.setBusy("ok", this.t("mqtt.cleared"), this.t("mqtt.cleared.sub"));
+    } else if (result.sys_readable) {
+      this.setBusy("ok", this.t("mqtt.ok"), this.t("mqtt.ok.sub", { n: this.num(result.clients) }));
+    } else {
+      this.setBusy("ok", this.t("mqtt.okNoSys"), this.t("mqtt.okNoSys.sub"));
     }
   }
 
