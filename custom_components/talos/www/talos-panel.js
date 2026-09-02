@@ -110,6 +110,7 @@ const I18N = {
     "legend.local": "locale",
     "legend.infra": "infrastruttura",
     "legend.vendor": "cloud produttore",
+    "legend.solid": "Linea continua: collegamento dichiarato, dentro casa. Tratteggiata: osservata nel query log.",
     "legend.key": "locale con egress",
 
     "table.origin": "Origine",
@@ -636,6 +637,7 @@ const I18N = {
     "legend.local": "local",
     "legend.infra": "infrastructure",
     "legend.vendor": "vendor cloud",
+    "legend.solid": "Solid line: a declared link, inside the house. Dashed: observed in the query log.",
     "legend.key": "local with egress",
 
     "table.origin": "Origin",
@@ -2345,6 +2347,7 @@ class TalosPanel extends HTMLElement {
               <span><span class="dot" style="background:var(--k-infra)"></span>${esc(this.t("legend.infra"))}</span>
               <span><span class="dot" style="background:var(--k-vendor)"></span>${esc(this.t("legend.vendor"))}</span>
               <span><span class="dot" style="background:var(--alert)"></span>${esc(this.t("legend.key"))}</span>
+              <span class="hint">${esc(this.t("legend.solid"))}</span>
             </div>
           </div>
           <div class="scroll-x"><svg class="graph" viewBox="0 0 980 560" role="img"
@@ -4095,22 +4098,36 @@ class TalosPanel extends HTMLElement {
     // its own, with Home Assistant nowhere on the path.
     d.conduits.forEach((conduit) => {
       const destination = this.destination(conduit.destination_id);
-      if (!PHONE_HOME.has(destination.kind)) return;
+      const outward = PHONE_HOME.has(destination.kind);
+      // A link to a hub or a broker is drawn too, solid and in the local
+      // colour: it is declared, it is inside the house, and without it the
+      // radio branches reached the transport column and stopped there.
+      if (!outward && !INTERNAL_KINDS.has(destination.kind)) return;
       const to = positions[`destination:${conduit.destination_id}`];
       if (!to) return;
 
       if (conduit.source.kind === "device") {
         const originId = model.originOf(conduit.source.id);
-        const isKey = conduit.evidence === "observed" && d.matrix.local_egress.includes(conduit.source.id);
+        const isKey =
+          outward &&
+          conduit.evidence === "observed" &&
+          d.matrix.local_egress.includes(conduit.source.id);
         line(
           positions[`origin:${originId}`],
           to,
-          isKey ? "var(--alert)" : "var(--k-vendor)",
-          conduit.evidence === "inherited" ? "1.5 4" : "6 4",
+          isKey ? "var(--alert)" : outward ? "var(--k-vendor)" : "var(--k-local)",
+          outward ? (conduit.evidence === "inherited" ? "1.5 4" : "6 4") : null,
           isKey ? 2 : 1.4
         );
-      } else if (conduit.source.kind === "integration" && !model.grouped) {
-        line(positions[`integration:${conduit.source.id}`], to, "var(--ink-mute)", null, 1.2);
+      } else if (conduit.source.kind === "integration") {
+        // Grouped, the integration is the origin node itself; ungrouped it has
+        // a column of its own. Either way the edge has somewhere to start.
+        const from =
+          positions[`integration:${conduit.source.id}`] ||
+          positions[`origin:${conduit.source.id}`];
+        if (from) {
+          line(from, to, outward ? "var(--ink-mute)" : "var(--k-local)", null, 1.2);
+        }
       }
     });
 
