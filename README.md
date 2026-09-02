@@ -141,6 +141,18 @@ first kind belongs to the tally of declared checks and neither is an outcome.
 The pipeline is a pure function of the collected data. The same input always produces the same
 report.
 
+### The colour code
+
+Colour answers "what is at the other end", never "how bad is it". Outward, a link takes its
+destination's kind: slate for infrastructure, time and updates and CDN; purple for the vendor, its
+telemetry and its push service; rust for a tunnel or a STUN server; grey for a domain nobody has
+named. Inward, a link takes its transport's own colour, the same one the map uses, so Zigbee is the
+same green in both views. A solid line is declared, a dashed one was observed in the query log.
+
+Red is spent on exactly one thing in the whole panel, and nothing else may take it: a device Home
+Assistant drives locally that was observed reaching its vendor anyway. If a red line appears, it
+means that and only that.
+
 ### The matrix
 
 | | No egress observed | Egress observed |

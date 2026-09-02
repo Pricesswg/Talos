@@ -107,14 +107,17 @@ const I18N = {
     "graph.empty": "Nessun flusso da disegnare: questa scansione non contiene osservazioni, quindi non ci sono destinazioni note.",
     "graph.devices": "{n} dispositivi",
 
-    "legend.local": "locale",
     "legend.infra": "infrastruttura",
     "legend.vendor": "cloud produttore",
     "legend.solid": "Linea continua: collegamento dichiarato, dentro casa. Tratteggiata: osservata nel query log.",
+    "legend.tunnel": "tunnel e NAT traversal",
+    "legend.unknown": "non classificato",
+    "legend.inside": "dentro casa:",
     "legend.key": "locale con egress",
 
     "table.origin": "Origine",
     "table.destination": "Destinazione",
+    "table.protocol": "Protocollo",
     "table.kind": "Tipo",
     "table.evidence": "Prova",
     "table.queries": "Query",
@@ -634,14 +637,17 @@ const I18N = {
     "graph.empty": "Nothing to draw: this scan holds no observations, so there are no known destinations.",
     "graph.devices": "{n} devices",
 
-    "legend.local": "local",
     "legend.infra": "infrastructure",
     "legend.vendor": "vendor cloud",
     "legend.solid": "Solid line: a declared link, inside the house. Dashed: observed in the query log.",
+    "legend.tunnel": "tunnel and NAT traversal",
+    "legend.unknown": "unclassified",
+    "legend.inside": "inside the house:",
     "legend.key": "local with egress",
 
     "table.origin": "Origin",
     "table.destination": "Destination",
+    "table.protocol": "Protocol",
     "table.kind": "Kind",
     "table.evidence": "Evidence",
     "table.queries": "Queries",
@@ -1023,6 +1029,7 @@ const STYLES = `
   --k-local: #2f7d6a;
   --k-infra: #64768c;
   --k-vendor: #8a4a86;
+  --k-tunnel: #a35a2a;
   --k-unknown: #868d8e;
 
   --t-zigbee: #2f7d6a;
@@ -1054,7 +1061,7 @@ const STYLES = `
 @media (prefers-color-scheme: dark) {
   :host {
     --accent: #52b2c8; --accent-ink: #9ad6e5;
-    --k-local: #52b195; --k-infra: #93a5bd; --k-vendor: #c07dbb; --k-unknown: #8d9799;
+    --k-local: #52b195; --k-infra: #93a5bd; --k-vendor: #c07dbb; --k-tunnel: #d98d5a; --k-unknown: #8d9799;
     --alert: #ff6f60; --attention: #d5a343;
     --t-zigbee: #52b195; --t-zwave: #93a5bd; --t-wifi: #52b2c8;
     --t-ethernet: #a396d6; --t-thread: #7fbb70; --t-matter: #63c3d1;
@@ -1272,9 +1279,8 @@ table.data tr.is-key td { background: var(--alert-soft); }
   border-radius: var(--r-pill); font-size: 11.5px; border: 1px solid var(--border);
   color: var(--ink-soft); white-space: nowrap;
 }
-.chip--vendor_cloud, .chip--telemetry, .chip--push_service { color: var(--k-vendor); }
-.chip--ntp, .chip--ota_update, .chip--cdn { color: var(--k-infra); }
-.chip--local_broker, .chip--local_hub, .chip--ha_core { color: var(--k-local); }
+/* Kind colours are set inline from KIND_COLOUR, so the code lives in one
+   place and a new kind cannot be added to the model without one. */
 .chip--unknown { color: var(--k-unknown); border-style: dashed; }
 
 .check {
@@ -1432,6 +1438,37 @@ const PHONE_HOME = new Set([
 // Inside the house. Drawn so a local branch ends somewhere real, and coloured
 // as local so it never reads as egress.
 const INTERNAL_KINDS = new Set(["ha_core", "local_broker", "local_hub"]);
+
+/* The colour code, in one place because three views draw the same links.
+ * Colour answers "what is at the other end", and never "how bad is it": red
+ * is spent on exactly one thing in this file, a device Home Assistant drives
+ * locally that was observed reaching its vendor anyway, and nothing else may
+ * take it. A local link is drawn in its transport's own colour instead, the
+ * same one the map uses, so Zigbee is the same green in both views. */
+// The first legend row is what is outside the house, by who is at the other
+// end. Inside is the second row, named by transport, so there is no generic
+// "local" swatch here: it would sit next to Zigbee's, in the same green,
+// saying two different things with one colour.
+const LEGEND_KINDS = [
+  ["infra", "--k-infra"],
+  ["vendor", "--k-vendor"],
+  ["tunnel", "--k-tunnel"],
+  ["unknown", "--k-unknown"],
+];
+
+const KIND_COLOUR = {
+  ha_core: "--k-local",
+  local_broker: "--k-local",
+  local_hub: "--k-local",
+  ntp: "--k-infra",
+  ota_update: "--k-infra",
+  cdn: "--k-infra",
+  vendor_cloud: "--k-vendor",
+  telemetry: "--k-vendor",
+  push_service: "--k-vendor",
+  nat_traversal: "--k-tunnel",
+  unknown: "--k-unknown",
+};
 const SEVERITY_TONE = { high: "alert", medium: "attention", low: "info" };
 // Worst first, so the list opens on the thing that matters most.
 const SEVERITY_ORDER = ["high", "medium", "low"];
@@ -2037,6 +2074,38 @@ class TalosPanel extends HTMLElement {
     return item[field] || "";
   }
 
+  /** The transports the local links in this scan actually use, so the second
+   *  legend row names the colours on screen and no others. */
+  transportsInUse() {
+    const found = new Set();
+    (this._data ? this._data.conduits : []).forEach((conduit) => {
+      const destination = this.destination(conduit.destination_id);
+      if (INTERNAL_KINDS.has(destination.kind) && conduit.protocol) {
+        found.add(conduit.protocol);
+      }
+    });
+    return [...found].sort();
+  }
+
+  /** The colour of a destination, by what it is. */
+  kindColour(kind) {
+    return `var(${KIND_COLOUR[kind] || "--k-unknown"})`;
+  }
+
+  /** The colour of a link. Inside the house it takes its transport's colour,
+   *  outward it takes its destination's, and red is reserved for the one
+   *  finding this whole tool exists to show. */
+  linkColour(conduit, destination, isKey) {
+    if (isKey) return "var(--alert)";
+    if (INTERNAL_KINDS.has(destination.kind)) {
+      const transport = String(conduit.protocol || "").replace(/[^a-z]/g, "");
+      return transport
+        ? `var(--t-${transport}, var(--k-local))`
+        : "var(--k-local)";
+    }
+    return this.kindColour(destination.kind);
+  }
+
   severityTone(severity) {
     return severity === "high" ? "alert" : severity === "medium" ? "attention" : "info";
   }
@@ -2343,10 +2412,27 @@ class TalosPanel extends HTMLElement {
         <div class="card">
           <div class="card__head">
             <div class="legend">
-              <span><span class="dot" style="background:var(--k-local)"></span>${esc(this.t("legend.local"))}</span>
-              <span><span class="dot" style="background:var(--k-infra)"></span>${esc(this.t("legend.infra"))}</span>
-              <span><span class="dot" style="background:var(--k-vendor)"></span>${esc(this.t("legend.vendor"))}</span>
-              <span><span class="dot" style="background:var(--alert)"></span>${esc(this.t("legend.key"))}</span>
+              ${LEGEND_KINDS.map(
+                ([key, variable]) =>
+                  `<span><span class="dot" style="background:var(${variable})"></span>${esc(
+                    this.t(`legend.${key}`)
+                  )}</span>`
+              ).join("")}
+              <span><span class="dot" style="background:var(--alert)"></span>${esc(
+                this.t("legend.key")
+              )}</span>
+            </div>
+            <div class="legend">
+              <span class="hint">${esc(this.t("legend.inside"))}</span>
+              ${this.transportsInUse()
+                .map(
+                  (transport) =>
+                    `<span><span class="dot" style="background:var(--t-${transport.replace(
+                      /[^a-z]/g,
+                      ""
+                    )}, var(--k-local))"></span>${esc(this.t(`transport.${transport}`))}</span>`
+                )
+                .join("")}
               <span class="hint">${esc(this.t("legend.solid"))}</span>
             </div>
           </div>
@@ -2572,9 +2658,17 @@ class TalosPanel extends HTMLElement {
         return `<tr${isKey ? ' class="is-key"' : ""}>
           <td>${origin}</td>
           <td class="mono">${esc(destination.fqdn)}</td>
-          <td><span class="chip chip--${esc(destination.kind)}"><span class="dot" style="background:currentColor"></span>${esc(
-            this.t(`kind.${destination.kind}`)
-          )}</span></td>
+          <td><span class="chip" style="color:${this.kindColour(destination.kind)}">
+            <span class="dot" style="background:currentColor"></span>${esc(
+              this.t(`kind.${destination.kind}`)
+            )}</span></td>
+          <td class="mono">${
+            conduit.protocol
+              ? `<span style="color:${this.linkColour(conduit, destination, false)}">${esc(
+                  conduit.protocol
+                )}</span>`
+              : "-"
+          }</td>
           <td><span class="ev ev--${esc(conduit.evidence)}">${esc(this.t(`evidence.${conduit.evidence}`))}</span></td>
           <td class="num">${conduit.query_count == null ? "-" : this.num(conduit.query_count)}</td>
           <td>${conduit.filter_status ? esc(conduit.filter_status) : "-"}</td>
@@ -2584,9 +2678,10 @@ class TalosPanel extends HTMLElement {
 
     return `<table class="data">
       <thead><tr><th>${esc(this.t("table.origin"))}</th><th>${esc(this.t("table.destination"))}</th>
-      <th>${esc(this.t("table.kind"))}</th><th>${esc(this.t("table.evidence"))}</th>
+      <th>${esc(this.t("table.kind"))}</th><th>${esc(this.t("table.protocol"))}</th>
+      <th>${esc(this.t("table.evidence"))}</th>
       <th class="num">${esc(this.t("table.queries"))}</th><th>${esc(this.t("table.filter"))}</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="6">${esc(this.t("adv.conduits.none"))}</td></tr>`}</tbody>
+      <tbody>${rows || `<tr><td colspan="7">${esc(this.t("adv.conduits.none"))}</td></tr>`}</tbody>
     </table>`;
   }
 
@@ -4115,7 +4210,7 @@ class TalosPanel extends HTMLElement {
         line(
           positions[`origin:${originId}`],
           to,
-          isKey ? "var(--alert)" : outward ? "var(--k-vendor)" : "var(--k-local)",
+          this.linkColour(conduit, destination, isKey),
           outward ? (conduit.evidence === "inherited" ? "1.5 4" : "6 4") : null,
           isKey ? 2 : 1.4
         );
@@ -4126,7 +4221,7 @@ class TalosPanel extends HTMLElement {
           positions[`integration:${conduit.source.id}`] ||
           positions[`origin:${conduit.source.id}`];
         if (from) {
-          line(from, to, outward ? "var(--ink-mute)" : "var(--k-local)", null, 1.2);
+          line(from, to, this.linkColour(conduit, destination, false), null, 1.2);
         }
       }
     });
@@ -4184,7 +4279,9 @@ class TalosPanel extends HTMLElement {
           sub = destination.undisclosed
             ? destination.fqdn
             : this.t(`kind.${destination.kind}`);
-          colour = destination.kind === "unknown" ? "var(--k-unknown)" : "var(--k-vendor)";
+          colour = destination.undisclosed
+            ? "var(--k-vendor)"
+            : this.kindColour(destination.kind);
         }
 
         const group = el("g", {});

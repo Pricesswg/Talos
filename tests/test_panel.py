@@ -147,8 +147,32 @@ class TestTranslations(unittest.TestCase):
                 "sugg.detail",
                 "mqtt.route",
                 "mesh",
+                "legend",
             },
         )
+
+    def test_every_legend_kind_has_a_label_and_a_colour(self) -> None:
+        """The legend is driven by a constant, so a kind added there without a
+        string renders a key, and one without a variable renders nothing."""
+        entries = re.search(r"const LEGEND_KINDS = \[(.*?)\];", SOURCE, re.S)
+        assert entries
+        styles = re.search(r"const STYLES = `(.*?)`;", SOURCE, re.S)
+        assert styles
+        for key, variable in re.findall(r'\["(\w+)", "(--[\w-]+)"\]', entries.group(1)):
+            with self.subTest(kind=key):
+                self.assertIn(f"legend.{key}", self.it)
+                self.assertIn(f"legend.{key}", self.en)
+                self.assertIn(f"{variable}:", styles.group(1))
+
+    def test_every_destination_kind_has_a_colour(self) -> None:
+        """A kind missing from the table falls back to grey, which would say
+        unclassified about something that was classified."""
+        from talos_core.const import DESTINATION_KINDS
+
+        table = re.search(r"const KIND_COLOUR = \{(.*?)\};", SOURCE, re.S)
+        assert table
+        mapped = set(re.findall(r"(\w+): \"--[\w-]+\"", table.group(1)))
+        self.assertEqual(set(DESTINATION_KINDS) - mapped, set())
 
     def test_every_mesh_role_has_a_label(self) -> None:
         from talos_core.const import MESH_ROLES
