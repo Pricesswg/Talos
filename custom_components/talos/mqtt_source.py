@@ -32,10 +32,22 @@ SYS_TOPICS: tuple[str, ...] = (
 )
 
 # The client id sits in the topic, not the payload, and only on the levels
-# that name one. `connected` and `total` are counters and carry no id.
+# that name one. Everything below is a counter published at the same depth:
+# EMQX writes $SYS/brokers/<node>/clients/count, and reading that as a client
+# called "count" would invent a finding out of a gauge.
 CLIENT_TOPIC = re.compile(r"\$SYS/broker(?:s/[^/]+)?/clients/(?P<client>[^/]+)(?:/.*)?$")
 COUNTER_LEVELS = frozenset(
-    {"connected", "total", "maximum", "disconnected", "expired", "active", "inactive"}
+    {
+        "connected",
+        "disconnected",
+        "total",
+        "count",
+        "max",
+        "maximum",
+        "expired",
+        "active",
+        "inactive",
+    }
 )
 
 # How long to stay subscribed. Retained $SYS messages arrive at once, so this

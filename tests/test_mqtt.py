@@ -77,10 +77,14 @@ class TestTopicParsing(unittest.TestCase):
         )
 
     def test_a_counter_is_not_a_client(self) -> None:
+        """EMQX publishes its gauges at the same depth as a client id would
+        sit, so reading one as a client invents a finding out of a number."""
         for topic in (
             "$SYS/broker/clients/connected",
             "$SYS/broker/clients/total",
             "$SYS/broker/clients/maximum",
+            "$SYS/brokers/emqx@127.0.0.1/clients/count",
+            "$SYS/brokers/emqx@127.0.0.1/clients/max",
         ):
             with self.subTest(topic=topic):
                 self.assertIsNone(self.source.client_id_from_topic(topic))
