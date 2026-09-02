@@ -1,14 +1,16 @@
-"""Reading the broker's own client list, through Home Assistant's connection.
+"""Reading the broker's own client list.
 
-No second MQTT client and no credentials of our own: if the MQTT integration
-is loaded then Home Assistant already holds an authorised session, and this
-subscribes to `$SYS` on it. Read-only, and it publishes nothing.
+Two ways in, and the difference matters. Home Assistant already holds an
+authorised session, so by default this subscribes on that one: no second
+connection, no credentials of ours. The catch is that most brokers restrict
+the `$SYS` tree, and the account the MQTT integration uses has no reason to
+hold that right, so on a locked-down broker the default path returns nothing.
 
-Not every broker answers. Mosquitto exposes counters under `$SYS/broker` and
-names no client at all unless it was built with the option; EMQX names them
-per node. Either way the rule is the same: if no client id arrives, the facts
-come back unavailable with the reason, and the check that depends on them is
-declared unverified rather than passed on an empty list.
+Giving Talos its own read-only account is the way around that. It is used only
+when one is configured, it publishes nothing, and it subscribes to `$SYS` and
+to nothing else. Either way the rule is the same: if no client id arrives, the
+facts come back unavailable with the reason, and the check that depends on
+them is declared unverified rather than passed on an empty list.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import ssl
 from typing import Any
 
 from .core import MqttFacts, Scan, match_clients
@@ -36,8 +39,19 @@ COUNTER_LEVELS = frozenset(
 )
 
 # How long to stay subscribed. Retained $SYS messages arrive at once, so this
-# is a ceiling for a slow broker and not a fixed cost per scan.
+# is a ceiling for a slow broker, not a fixed cost per scan.
 LISTEN_SECONDS = 4.0
+
+# The client id Talos connects under. Fixed and recognisable on purpose: it
+# has to be obvious in the broker's own client list which connection is ours.
+CLIENT_ID = "talos-scanner"
+
+NO_CLIENT_IDS = (
+    "the broker published no client id under $SYS. Mosquitto only exposes"
+    " counters there unless it was built otherwise, and most brokers restrict"
+    " the tree to an account that holds the right to read it, so this is a"
+    " normal answer rather than a fault"
+)
 
 
 def client_id_from_topic(topic: str) -> str | None:
@@ -49,12 +63,108 @@ def client_id_from_topic(topic: str) -> str | None:
     return None if client in COUNTER_LEVELS else client
 
 
-async def collect_mqtt(hass: Any, scan: Scan, seconds: float = LISTEN_SECONDS) -> MqttFacts:
-    """Subscribe to $SYS long enough to hear who is connected.
+def read_sys_blocking(
+    host: str,
+    port: int,
+    username: str = "",
+    password: str = "",
+    tls: bool = False,
+    seconds: float = LISTEN_SECONDS,
+) -> tuple[set[str], str | None]:
+    """Connect, listen to $SYS, disconnect. Blocking, so it runs off the loop.
 
-    Every failure mode ends the same way: facts that say what went wrong,
-    never an empty list presented as an answer.
+    Returns the client ids heard and the reason there were none, never an
+    exception: a broker that refuses $SYS is an ordinary outcome here.
     """
+    try:
+        import paho.mqtt.client as paho
+    except ImportError as err:  # pragma: no cover - only without the requirement
+        return set(), f"the MQTT client library is unavailable: {err}"
+
+    found: set[str] = set()
+    failure: list[str] = []
+
+    def on_connect(client: Any, _userdata: Any, _flags: Any, reason: Any, *_rest: Any) -> None:
+        # paho 1.x hands an int, 2.x a ReasonCode. Both compare to 0 wrong, so
+        # the string is the only thing both agree on.
+        code = getattr(reason, "value", reason)
+        if code not in (0, "Success"):
+            failure.append(f"the broker refused the connection: {reason}")
+            return
+        for topic in SYS_TOPICS:
+            client.subscribe(topic, qos=0)
+
+    def on_message(_client: Any, _userdata: Any, message: Any) -> None:
+        client_id = client_id_from_topic(message.topic)
+        if client_id:
+            found.add(client_id)
+
+    try:
+        version = getattr(paho, "CallbackAPIVersion", None)
+        client = (
+            paho.Client(version.VERSION1, client_id=CLIENT_ID)
+            if version is not None
+            else paho.Client(client_id=CLIENT_ID)
+        )
+        if username:
+            client.username_pw_set(username, password or None)
+        if tls:
+            client.tls_set(cert_reqs=ssl.CERT_REQUIRED)
+        client.on_connect = on_connect
+        client.on_message = on_message
+        client.connect(host, port, keepalive=max(10, int(seconds) + 5))
+        client.loop_start()
+        deadline = seconds
+        step = 0.25
+        while deadline > 0 and not failure:
+            _sleep(step)
+            deadline -= step
+    except Exception as err:  # noqa: BLE001 - every failure is a reported reason
+        return set(), f"connecting to {host}:{port} failed: {err}"
+    finally:
+        try:
+            client.loop_stop()
+            client.disconnect()
+        except Exception:  # noqa: BLE001
+            _LOGGER.debug("Talos: disconnecting from the broker failed", exc_info=True)
+
+    if failure:
+        return set(), failure[0]
+    return found, None if found else NO_CLIENT_IDS
+
+
+def _sleep(seconds: float) -> None:
+    """Blocking sleep, isolated so the executor path stays obvious."""
+    import time
+
+    time.sleep(seconds)
+
+
+async def collect_via_credentials(
+    hass: Any, scan: Scan, credentials: dict[str, Any], seconds: float = LISTEN_SECONDS
+) -> MqttFacts:
+    """Talos's own read-only session, used only when one is configured."""
+    host = str(credentials.get("host") or "").strip()
+    if not host:
+        return MqttFacts(available=False, error="no broker address configured")
+    found, error = await hass.async_add_executor_job(
+        read_sys_blocking,
+        host,
+        int(credentials.get("port") or 1883),
+        str(credentials.get("username") or ""),
+        str(credentials.get("password") or ""),
+        bool(credentials.get("tls")),
+        seconds,
+    )
+    if error:
+        return MqttFacts(available=False, error=error)
+    return MqttFacts(available=True, clients=match_clients(found, scan))
+
+
+async def collect_via_home_assistant(
+    hass: Any, scan: Scan, seconds: float = LISTEN_SECONDS
+) -> MqttFacts:
+    """The session the MQTT integration already holds. No new connection."""
     if "mqtt" not in hass.config.components:
         return MqttFacts(
             available=False,
@@ -89,15 +199,22 @@ async def collect_mqtt(hass: Any, scan: Scan, seconds: float = LISTEN_SECONDS) -
                 _LOGGER.debug("Talos: unsubscribing from $SYS failed", exc_info=True)
 
     if not found:
-        return MqttFacts(
-            available=False,
-            error=(
-                "the broker published no client id under $SYS. Mosquitto only"
-                " exposes counters there unless it was built otherwise, so this"
-                " is the normal answer on a default install rather than a fault"
-            ),
-        )
+        return MqttFacts(available=False, error=NO_CLIENT_IDS)
     return MqttFacts(available=True, clients=match_clients(found, scan))
+
+
+async def collect_mqtt(
+    hass: Any,
+    scan: Scan,
+    credentials: dict[str, Any] | None = None,
+    seconds: float = LISTEN_SECONDS,
+) -> MqttFacts:
+    """Talos's own account when there is one, Home Assistant's session when
+    there is not. Configuring an account is the way past a broker that keeps
+    $SYS to itself, which is most of them."""
+    if credentials and credentials.get("host"):
+        return await collect_via_credentials(hass, scan, credentials, seconds)
+    return await collect_via_home_assistant(hass, scan, seconds)
 
 
 def callback_safe(func: Any) -> Any:

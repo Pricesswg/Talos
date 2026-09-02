@@ -34,11 +34,17 @@ from .const import (
     CONF_DOMAIN_RULES,
     CONF_MAX_OBSERVATIONS,
     CONF_MAX_PAGES,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_TLS,
+    CONF_MQTT_USERNAME,
     CONF_OBSERVATION_DAYS,
     CONF_PAGE_SIZE,
     CONF_SCAN_HISTORY,
     CONF_SCAN_INTERVAL,
     CONF_VERIFY_SSL,
+    DEFAULT_MQTT_PORT,
     CONF_ZONE_GUEST,
     CONF_ZONE_IOT,
     CONF_ZONE_TRUSTED,
@@ -58,6 +64,7 @@ from .discovery import (
     fallback_candidates,
 )
 from .http_transport import HassHttpTransport
+from .mqtt_source import NO_CLIENT_IDS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +88,20 @@ def _connection_schema(current: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_VERIFY_SSL, default=current.get(CONF_VERIFY_SSL, True)
             ): bool,
+            # A read-only account on the broker. Optional throughout: without
+            # it Talos falls back to the session Home Assistant already holds,
+            # which works until the broker restricts $SYS, and most do.
+            vol.Optional(CONF_MQTT_HOST, default=current.get(CONF_MQTT_HOST, "")): str,
+            vol.Optional(
+                CONF_MQTT_PORT, default=current.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT)
+            ): NumberSelector(
+                NumberSelectorConfig(min=1, max=65535, step=1, mode=NumberSelectorMode.BOX)
+            ),
+            vol.Optional(CONF_MQTT_USERNAME, default=current.get(CONF_MQTT_USERNAME, "")): str,
+            vol.Optional(
+                CONF_MQTT_PASSWORD, default=current.get(CONF_MQTT_PASSWORD, "")
+            ): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+            vol.Optional(CONF_MQTT_TLS, default=current.get(CONF_MQTT_TLS, False)): bool,
         }
     )
 
@@ -146,22 +167,69 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self._async_submit("discovered", user_input)
 
     async def _async_submit(self, step_id: str, user_input: dict[str, Any]) -> ConfigFlowResult:
-        url = (user_input.get(CONF_ADGUARD_URL) or "").strip()
-        if url:
-            error = await self._test_adguard(user_input, url)
-            if error:
-                found = getattr(self, "_discovered", None)
-                return self.async_show_form(
-                    step_id=step_id,
-                    data_schema=_connection_schema(user_input),
-                    errors={"base": error},
-                    description_placeholders={"url": found.url if found else ""},
-                )
+        data, error = await self._validated(user_input)
+        if error:
+            found = getattr(self, "_discovered", None)
+            return self.async_show_form(
+                step_id=step_id,
+                data_schema=_connection_schema(user_input),
+                errors={"base": error},
+                description_placeholders={"url": found.url if found else ""},
+            )
         return self.async_create_entry(
             title="Talos",
-            data={**user_input, CONF_ADGUARD_URL: url},
+            data=data,
             options={CONF_SCAN_INTERVAL: DEFAULT_SCAN_INTERVAL},
         )
+
+    async def _validated(self, user_input: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+        """Clean the form and try both endpoints. Neither is required, and a
+        broker that will not answer is reported here rather than every fifteen
+        minutes in the log."""
+        data = {**user_input}
+        data[CONF_ADGUARD_URL] = (user_input.get(CONF_ADGUARD_URL) or "").strip()
+        data[CONF_MQTT_HOST] = (user_input.get(CONF_MQTT_HOST) or "").strip()
+        # A NumberSelector hands back a float, and a port is not a float.
+        data[CONF_MQTT_PORT] = int(user_input.get(CONF_MQTT_PORT) or DEFAULT_MQTT_PORT)
+
+        if data[CONF_ADGUARD_URL]:
+            error = await self._test_adguard(user_input, data[CONF_ADGUARD_URL])
+            if error:
+                return data, error
+        if data[CONF_MQTT_HOST]:
+            error = await self._test_mqtt(data)
+            if error:
+                return data, error
+        return data, None
+
+    async def _test_mqtt(self, data: dict[str, Any]) -> str | None:
+        """Connect once with the account given, and say so if it will not.
+
+        Reaching the broker is what is checked. Whether $SYS answers is a
+        separate question the scan reports on its own, because an account that
+        connects but cannot read the tree is a working configuration with a
+        limit, not a rejected form.
+        """
+        from .mqtt_source import read_sys_blocking
+
+        _found, error = await self.hass.async_add_executor_job(
+            read_sys_blocking,
+            data[CONF_MQTT_HOST],
+            data[CONF_MQTT_PORT],
+            data.get(CONF_MQTT_USERNAME) or "",
+            data.get(CONF_MQTT_PASSWORD) or "",
+            bool(data.get(CONF_MQTT_TLS)),
+            1.5,
+        )
+        if not error:
+            return None
+        if "refused" in error or "not authorised" in error.lower():
+            return "mqtt_invalid_auth"
+        # No client id is not a connection failure: the account works, the
+        # broker simply keeps $SYS to itself. Saving that is correct.
+        if error == NO_CLIENT_IDS:
+            return None
+        return "mqtt_cannot_connect"
 
     async def _async_discover(self) -> Candidate | None:
         """Ask the places that already know: the AdGuard integration first,
@@ -223,15 +291,11 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
 
         errors: dict[str, str] = {}
         if user_input is not None:
-            url = (user_input.get(CONF_ADGUARD_URL) or "").strip()
-            if url:
-                error = await self._test_adguard(user_input, url)
-                if error:
-                    errors["base"] = error
-            if not errors:
-                return self.async_update_reload_and_abort(
-                    entry, data_updates={**user_input, CONF_ADGUARD_URL: url}
-                )
+            data, error = await self._validated(user_input)
+            if error:
+                errors["base"] = error
+            else:
+                return self.async_update_reload_and_abort(entry, data_updates=data)
 
         return self.async_show_form(
             step_id="reconfigure",

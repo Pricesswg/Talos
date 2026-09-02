@@ -8,7 +8,12 @@
           "adguard_url": "Indirizzo di AdGuard Home",
           "adguard_username": "Utente",
           "adguard_password": "Password",
-          "verify_ssl": "Verifica il certificato SSL"
+          "verify_ssl": "Verifica il certificato SSL",
+          "mqtt_host": "Indirizzo del broker (facoltativo)",
+          "mqtt_port": "Porta del broker",
+          "mqtt_username": "Utente del broker",
+          "mqtt_password": "Password del broker",
+          "mqtt_tls": "Il broker usa TLS"
         },
         "data_description": {
           "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser: l'indirizzo seguito da /control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati.",
@@ -22,7 +27,12 @@
           "adguard_url": "Indirizzo di AdGuard Home",
           "adguard_username": "Utente",
           "adguard_password": "Password",
-          "verify_ssl": "Verifica il certificato SSL"
+          "verify_ssl": "Verifica il certificato SSL",
+          "mqtt_host": "Indirizzo del broker (facoltativo)",
+          "mqtt_port": "Porta del broker",
+          "mqtt_username": "Utente del broker",
+          "mqtt_password": "Password del broker",
+          "mqtt_tls": "Il broker usa TLS"
         },
         "data_description": {
           "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser: l'indirizzo seguito da /control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati."
@@ -35,7 +45,12 @@
           "adguard_url": "Indirizzo di AdGuard Home",
           "adguard_username": "Utente",
           "adguard_password": "Password",
-          "verify_ssl": "Verifica il certificato SSL"
+          "verify_ssl": "Verifica il certificato SSL",
+          "mqtt_host": "Indirizzo del broker (facoltativo)",
+          "mqtt_port": "Porta del broker",
+          "mqtt_username": "Utente del broker",
+          "mqtt_password": "Password del broker",
+          "mqtt_tls": "Il broker usa TLS"
         },
         "data_description": {
           "adguard_url": "Dove risponde AdGuard, per esempio http://192.168.1.10:3000. Se usi l'add-on AdGuard Home conviene l'hostname interno, http://a0d7b954-adguard:3000, che non cambia se cambia l'IP. Non usare 127.0.0.1 a meno che Home Assistant non giri in rete host: dentro un container quell'indirizzo e' il container stesso. Verificalo prima dal browser: l'indirizzo seguito da /control/status deve restituire JSON. Lascia vuoto per funzionare senza dati osservati.",
@@ -46,7 +61,9 @@
     "error": {
       "cannot_connect": "AdGuard Home non ha risposto a quell'indirizzo.",
       "invalid_auth": "AdGuard Home ha rifiutato le credenziali.",
-      "unknown": "Errore inatteso. Controlla i log."
+      "unknown": "Errore inatteso. Controlla i log.",
+      "mqtt_invalid_auth": "Il broker ha rifiutato queste credenziali.",
+      "mqtt_cannot_connect": "Non riesco a raggiungere il broker a questo indirizzo."
     },
     "abort": {
       "already_configured": "Talos è già configurato. Una sola istanza mappa tutta la casa.",

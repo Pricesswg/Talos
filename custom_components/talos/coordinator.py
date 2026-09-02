@@ -25,6 +25,12 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_TLS,
+    CONF_MQTT_USERNAME,
+    DEFAULT_MQTT_PORT,
     CONF_CHECK_RULES,
     CONF_DOMAIN_RULES,
     CONF_MAX_OBSERVATIONS,
@@ -164,6 +170,40 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
 
     # ── the run ───────────────────────────────────────────────────────────
 
+    def _mqtt_credentials(self, scan: Scan | None = None) -> dict[str, Any] | None:
+        """The read-only account, if one is configured.
+
+        The address is optional: when only a user and a password are given,
+        the broker is the one the MQTT config entry already names, so the
+        common case is two fields instead of four.
+        """
+        data = self.entry.data
+        if not (data.get(CONF_MQTT_USERNAME) or data.get(CONF_MQTT_HOST)):
+            return None
+        host = str(data.get(CONF_MQTT_HOST) or "").strip()
+        port = int(data.get(CONF_MQTT_PORT) or DEFAULT_MQTT_PORT)
+        if not host and scan is not None:
+            for conduit in scan.conduits:
+                integration = scan.integration(conduit.source.id)
+                if conduit.evidence != "declared" or integration is None:
+                    continue
+                if integration.domain != "mqtt":
+                    continue
+                destination = scan.destination(conduit.destination_id)
+                if destination is not None:
+                    host = destination.fqdn
+                    port = conduit.port or port
+                    break
+        if not host:
+            return None
+        return {
+            "host": host,
+            "port": port,
+            "username": data.get(CONF_MQTT_USERNAME) or "",
+            "password": data.get(CONF_MQTT_PASSWORD) or "",
+            "tls": bool(data.get(CONF_MQTT_TLS)),
+        }
+
     async def _async_update_data(self) -> TalosData:
         if self._store is None or self._classifier is None:
             await self.async_prepare()
@@ -210,8 +250,9 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
 
         # Only when the MQTT integration is loaded, because the whole point is
         # to reuse the session it already holds rather than open one.
-        if "mqtt" in self.hass.config.components:
-            scan.mqtt = await collect_mqtt(self.hass, scan)
+        credentials = self._mqtt_credentials(scan)
+        if credentials or "mqtt" in self.hass.config.components:
+            scan.mqtt = await collect_mqtt(self.hass, scan, credentials)
             if scan.mqtt.error:
                 _LOGGER.debug("Talos: MQTT facts unavailable: %s", scan.mqtt.error)
 

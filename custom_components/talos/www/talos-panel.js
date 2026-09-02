@@ -442,6 +442,19 @@ const I18N = {
     "settings.guide.p.6":
       "Firmware di router, hub, telecamere e qualunque cosa raggiungibile da fuori. Una lampadina Zigbee dietro un bridge non è una priorità. Se qualcosa è esposto su internet, quello viene prima di tutto il resto in questo elenco.",
 
+    "settings.section.mqtt": "Account MQTT di sola lettura",
+    "settings.mqtt.none":
+      "Nessun account configurato. Talos usa la sessione che l'integrazione MQTT ha già aperta, che funziona finché il broker non riserva $SYS a un utente specifico. Quasi tutti lo fanno, ed è il motivo per cui il controllo sui client sconosciuti di solito si dichiara non eseguibile.",
+    "settings.mqtt.hint":
+      "Indirizzo e credenziali non sono modificabili da qui. Si cambiano da Impostazioni, Dispositivi e servizi, Talos, menu a tre puntini, Riconfigura: la password non transita mai da questa pagina. Serve un utente in sola lettura con il permesso di sottoscrivere $SYS; Talos non pubblica nulla e non si sottoscrive ad altro.",
+    "settings.mqtt.host": "Broker",
+    "settings.mqtt.user": "Utente",
+    "settings.mqtt.password": "Password",
+    "settings.mqtt.tls": "TLS",
+    "settings.mqtt.state": "Ultima lettura",
+    "settings.mqtt.ok": "{clients} client letti, {unmatched} senza corrispondenza",
+    "settings.mqtt.fromEntry": "dalla config entry MQTT",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -813,6 +826,19 @@ const I18N = {
     "settings.guide.h.6": "6. Update what is exposed, ignore the rest",
     "settings.guide.p.6":
       "Firmware on routers, hubs, cameras and anything reachable from outside. A Zigbee bulb behind a bridge is not a priority. If something is exposed to the internet, it comes before everything else on this list.",
+
+    "settings.section.mqtt": "Read-only MQTT account",
+    "settings.mqtt.none":
+      "No account configured. Talos uses the session the MQTT integration already holds, which works until the broker reserves $SYS for a specific user. Most of them do, and that is why the unknown-client check usually declares itself unable to run.",
+    "settings.mqtt.hint":
+      "The address and credentials cannot be changed here. Use Settings, Devices and services, Talos, the three dot menu, Reconfigure: the password never travels through this page. It needs a read-only user allowed to subscribe to $SYS; Talos publishes nothing and subscribes to nothing else.",
+    "settings.mqtt.host": "Broker",
+    "settings.mqtt.user": "User",
+    "settings.mqtt.password": "Password",
+    "settings.mqtt.tls": "TLS",
+    "settings.mqtt.state": "Last read",
+    "settings.mqtt.ok": "{clients} clients read, {unmatched} unmatched",
+    "settings.mqtt.fromEntry": "from the MQTT config entry",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -3255,6 +3281,7 @@ class TalosPanel extends HTMLElement {
   viewSettings() {
     const status = this._status || {};
     const connection = status.connection || {};
+    const mqtt = status.mqtt || {};
     const store = status.store || {};
     const prune = (status.retention || {}).last_prune || {};
     const configured = Boolean(connection.adguard_url);
@@ -3310,6 +3337,40 @@ class TalosPanel extends HTMLElement {
               : `<p class="status">${esc(this.t("settings.connection.none"))}</p>`
           }
           <p class="hint" style="margin:12px 0 0">${esc(this.t("settings.connection.hint"))}</p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("settings.section.mqtt"))}</h2>
+        <div class="panel-card">
+          ${
+            mqtt.mqtt_username || mqtt.mqtt_host
+              ? `<dl class="kv">
+                   <dt>${esc(this.t("settings.mqtt.host"))}</dt>
+                   <dd class="mono">${esc(
+                     mqtt.mqtt_host
+                       ? `${mqtt.mqtt_host}:${mqtt.mqtt_port}`
+                       : this.t("settings.mqtt.fromEntry")
+                   )}</dd>
+                   <dt>${esc(this.t("settings.mqtt.user"))}</dt>
+                   <dd class="mono">${esc(mqtt.mqtt_username || this.t("settings.value.empty"))}</dd>
+                   <dt>${esc(this.t("settings.mqtt.password"))}</dt>
+                   <dd>${esc(this.t(mqtt.has_password ? "settings.value.set" : "settings.value.unset"))}</dd>
+                   <dt>${esc(this.t("settings.mqtt.tls"))}</dt>
+                   <dd>${esc(this.t(mqtt.mqtt_tls ? "settings.value.yes" : "settings.value.no"))}</dd>
+                   <dt>${esc(this.t("settings.mqtt.state"))}</dt>
+                   <dd>${esc(
+                     mqtt.available
+                       ? this.t("settings.mqtt.ok", {
+                           clients: this.num(mqtt.clients || 0),
+                           unmatched: this.num(mqtt.unmatched || 0),
+                         })
+                       : mqtt.error || "-"
+                   )}</dd>
+                 </dl>`
+              : `<p class="status">${esc(this.t("settings.mqtt.none"))}</p>`
+          }
+          <p class="hint" style="margin:12px 0 0">${esc(this.t("settings.mqtt.hint"))}</p>
         </div>
       </div>
 

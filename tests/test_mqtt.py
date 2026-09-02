@@ -148,5 +148,66 @@ class TestClientCheck(unittest.TestCase):
         self.assertIn("chk.mqtt_unknown_client", {r.id for r in report.unverified})
 
 
+
+class TestCredentialledCollection(unittest.TestCase):
+    """The read-only account path. No broker here: what is testable is the
+    decision of which way in to take, and that a failure is a reason rather
+    than an exception."""
+
+    def setUp(self) -> None:
+        self.source = _load_mqtt_source()
+
+    def run_collect(self, hass: Any, credentials: dict[str, Any] | None) -> MqttFacts:
+        import asyncio
+
+        return asyncio.run(self.source.collect_mqtt(hass, house(), credentials, 0.01))
+
+    def test_an_account_is_used_in_preference_to_the_shared_session(self) -> None:
+        calls: list[tuple[Any, ...]] = []
+
+        class Hass:
+            config = types.SimpleNamespace(components={"mqtt"})
+
+            async def async_add_executor_job(self, func, *args):
+                calls.append(args)
+                return {"zigbee2mqtt", "mosq-Xy99Zq"}, None
+
+        facts = self.run_collect(
+            Hass(), {"host": "10.0.0.4", "port": 8883, "username": "talos", "password": "x", "tls": True}
+        )
+        self.assertTrue(facts.available)
+        self.assertEqual([c.client_id for c in facts.clients], ["mosq-Xy99Zq", "zigbee2mqtt"])
+        self.assertEqual(facts.unmatched[0].client_id, "mosq-Xy99Zq")
+        # Host, port, user, password and TLS all reach the client, in order.
+        self.assertEqual(calls[0][:3], ("10.0.0.4", 8883, "talos"))
+        self.assertIs(calls[0][4], True)
+
+    def test_a_refused_connection_comes_back_as_a_reason(self) -> None:
+        class Hass:
+            config = types.SimpleNamespace(components=set())
+
+            async def async_add_executor_job(self, func, *args):
+                return set(), "the broker refused the connection: Not authorised"
+
+        facts = self.run_collect(Hass(), {"host": "10.0.0.4", "username": "talos"})
+        self.assertFalse(facts.available)
+        self.assertIn("refused", facts.error)
+        self.assertEqual(facts.clients, ())
+
+    def test_no_account_and_no_mqtt_integration_says_which(self) -> None:
+        class Hass:
+            config = types.SimpleNamespace(components=set())
+
+        facts = self.run_collect(Hass(), None)
+        self.assertFalse(facts.available)
+        self.assertIn("not loaded", facts.error)
+
+    def test_an_account_with_no_address_is_not_an_account(self) -> None:
+        class Hass:
+            config = types.SimpleNamespace(components=set())
+
+        facts = self.run_collect(Hass(), {"username": "talos"})
+        self.assertFalse(facts.available)
+
 if __name__ == "__main__":
     unittest.main()

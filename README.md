@@ -174,11 +174,22 @@ The two MQTT checks are implemented, and neither of them probes the broker. **An
 read off the config entry: if Home Assistant reaches the broker carrying no credential at all, then
 the broker accepts anonymous connections, and that is the broker's own answer already on record.
 Whether a credential exists is the only thing read, never its value. **Unknown clients** come from a
-read-only subscription to `$SYS` on the session the MQTT integration already holds, so there is no
-second client and no credentials of Talos's own. Client ids are matched against the names in the
-scan, and anything left over is reported as unmatched, which is not the same as hostile. Mosquitto
-publishes only counters under `$SYS` unless it was built otherwise, and on that answer the check
-declares itself unable to run rather than passing on an empty list.
+read-only subscription to `$SYS`. By default that runs on the session the MQTT integration already
+holds, so there is no second connection and no credentials of Talos's own. The catch is that most
+brokers reserve the `$SYS` tree for an account that holds the right to read it, and the MQTT
+integration's user has no reason to be one, so on a locked-down broker that path returns nothing.
+
+For those, Talos takes its own read-only account: broker, port, user, password and a TLS flag, set in
+the config flow under Settings, Devices and services, Talos, Reconfigure, alongside the AdGuard
+fields and stored the same way. The password never reaches the panel, which shows the address, the
+user, whether a password is set, and what the last read actually got. Leave the address empty and it
+uses the broker the MQTT config entry already names, so the usual case is two fields. The connection
+is tested when you save. Talos publishes nothing and subscribes to `$SYS` and nothing else, under the
+fixed client id `talos-scanner` so its own connection is recognisable in the list it reads.
+
+Client ids are matched against the names in the scan, and anything left over is reported as
+unmatched, which is not the same as hostile. When no client id arrives at all, by either route, the
+check declares itself unable to run rather than passing on an empty list.
 
 ### Unverified is its own category
 

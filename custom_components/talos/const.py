@@ -12,6 +12,16 @@ CONF_ADGUARD_USERNAME: Final = "adguard_username"
 CONF_ADGUARD_PASSWORD: Final = "adguard_password"
 CONF_VERIFY_SSL: Final = "verify_ssl"
 
+# A read-only account on the broker, for the one thing Home Assistant's own
+# session usually cannot do: read $SYS. Most brokers restrict that tree, and
+# the MQTT integration's user has no business holding the right to it.
+CONF_MQTT_HOST: Final = "mqtt_host"
+CONF_MQTT_PORT: Final = "mqtt_port"
+CONF_MQTT_USERNAME: Final = "mqtt_username"
+CONF_MQTT_PASSWORD: Final = "mqtt_password"
+CONF_MQTT_TLS: Final = "mqtt_tls"
+DEFAULT_MQTT_PORT: Final = 1883
+
 # Options
 CONF_SCAN_INTERVAL: Final = "scan_interval_minutes"
 CONF_OBSERVATION_DAYS: Final = "observation_days"

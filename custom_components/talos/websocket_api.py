@@ -17,7 +17,13 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_MQTT_HOST,
+    CONF_MQTT_PASSWORD,
+    CONF_MQTT_PORT,
+    CONF_MQTT_TLS,
+    CONF_MQTT_USERNAME,
     CONF_VERIFY_SSL,
+    DEFAULT_MQTT_PORT,
     DOMAIN,
     OPTION_BOUNDS,
     TEXT_OPTIONS,
@@ -98,6 +104,21 @@ def ws_status(
                 CONF_ADGUARD_USERNAME: coordinator.entry.data.get(CONF_ADGUARD_USERNAME, ""),
                 CONF_VERIFY_SSL: bool(coordinator.entry.data.get(CONF_VERIFY_SSL, True)),
                 "has_password": bool(coordinator.entry.data.get(CONF_ADGUARD_PASSWORD)),
+            },
+            # The broker account, same rule: what it is, never the password.
+            "mqtt": {
+                CONF_MQTT_HOST: coordinator.entry.data.get(CONF_MQTT_HOST, ""),
+                CONF_MQTT_PORT: coordinator.entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT),
+                CONF_MQTT_USERNAME: coordinator.entry.data.get(CONF_MQTT_USERNAME, ""),
+                CONF_MQTT_TLS: bool(coordinator.entry.data.get(CONF_MQTT_TLS)),
+                "has_password": bool(coordinator.entry.data.get(CONF_MQTT_PASSWORD)),
+                # What the last scan actually got out of the broker.
+                "available": bool(data.scan.mqtt.available) if data and data.scan.mqtt else False,
+                "error": data.scan.mqtt.error if data and data.scan.mqtt else None,
+                "clients": len(data.scan.mqtt.clients) if data and data.scan.mqtt else 0,
+                "unmatched": (
+                    len(data.scan.mqtt.unmatched) if data and data.scan.mqtt else 0
+                ),
             },
         },
     )
