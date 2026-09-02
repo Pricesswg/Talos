@@ -381,3 +381,61 @@ class TestServiceEntries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestEntryStreams(unittest.TestCase):
+    """A camera's stream URL is the one config entry field that reliably
+    carries a password. The scheme is the finding; the URL never comes out."""
+
+    @staticmethod
+    def streams(data: dict[str, Any], options: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+        return native.entry_streams(
+            types.SimpleNamespace(data=data, options=options or {})
+        )
+
+    def test_rtsp_is_read_as_cleartext_with_its_default_port(self) -> None:
+        found = self.streams({"stream_source": "rtsp://192.168.50.42/h264Preview_01_main"})
+        self.assertEqual(
+            found, [{"protocol": "rtsp", "host": "192.168.50.42", "port": 554, "encrypted": False}]
+        )
+
+    def test_rtsps_is_read_as_encrypted(self) -> None:
+        found = self.streams({"stream_source": "rtsps://cam.example/stream"})
+        self.assertIs(found[0]["encrypted"], True)
+        self.assertEqual(found[0]["protocol"], "rtsps")
+
+    def test_credentials_and_path_never_come_out(self) -> None:
+        found = self.streams(
+            {"stream_source": "rtsp://admin:hunter2@192.168.50.42:8554/h264Preview_01_main"}
+        )
+        self.assertEqual(
+            found, [{"protocol": "rtsp", "host": "192.168.50.42", "port": 8554, "encrypted": False}]
+        )
+        for secret in ("admin", "hunter2", "h264Preview", "@"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, str(found))
+
+    def test_the_options_are_read_too(self) -> None:
+        """The generic camera integration keeps its stream in options."""
+        found = self.streams({}, {"stream_source": "rtsp://10.0.0.9/live"})
+        self.assertEqual(found[0]["host"], "10.0.0.9")
+
+    def test_the_same_stream_named_twice_is_one_row(self) -> None:
+        found = self.streams(
+            {
+                "stream_source": "rtsp://10.0.0.9:554/live",
+                "rtsp_url": "rtsp://10.0.0.9:554/other",
+            }
+        )
+        self.assertEqual(len(found), 1)
+
+    def test_a_scheme_that_is_not_a_stream_is_ignored(self) -> None:
+        self.assertEqual(self.streams({"stream_source": "file:///tmp/x.mp4"}), [])
+        self.assertEqual(self.streams({"stream_source": "not a url"}), [])
+        self.assertEqual(self.streams({"stream_source": ""}), [])
+
+    def test_a_malformed_authority_yields_nothing_rather_than_raising(self) -> None:
+        self.assertEqual(self.streams({"stream_source": "rtsp://host:notaport/live"}), [])
+
+    def test_an_entry_with_no_stream_yields_nothing(self) -> None:
+        self.assertEqual(self.streams({"host": "10.0.0.9", "password": "x"}), [])

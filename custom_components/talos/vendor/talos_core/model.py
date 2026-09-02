@@ -211,6 +211,9 @@ class Conduit:
     source: SourceRef
     destination_id: str
     evidence: str
+    # What speaks over it, when something named a scheme. `rtsp` and `rtsps`
+    # are the same stream with and without transport security, and telling
+    # them apart is the whole of the cleartext stream question.
     protocol: str | None = None
     port: int | None = None
     encrypted: bool | str = "unknown"

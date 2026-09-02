@@ -165,6 +165,7 @@ It checks:
 - An MQTT broker reached with no credentials, and clients on it that match nothing Talos knows
 - Devices resolving a STUN, TURN or tunnel broker, which is a path back into the house from outside
 - A Zigbee network left open to joining
+- Camera entries that declare a cleartext RTSP stream
 - Config entries that are not loaded, whose entities are unavailable right now rather than
   merely cloud-dependent
 - Which entities stop working when the internet drops, and which vendor accounts for most of them
@@ -186,9 +187,20 @@ open to joining. The parent of a node is deliberately not claimed: the topic tha
 probe. A role is joined onto the registry by IEEE address, and a node the coordinator did not name
 keeps `unknown`.
 
-Three checks in the rule file are declared but not implemented yet: Z-Wave nodes without S2,
-cleartext RTSP, and ARP against the registry. They appear in the unverified list with the reason and
-the source that would be needed, rather than being silently absent.
+**Cleartext streams** are read the same way, from the config entry rather than from the wire. A camera
+entry that names an `rtsp://` stream is declaring that its video and its credentials cross the network
+in the clear; `rtsps://` says the opposite. Only the scheme, the host and the port are taken: a stream
+URL is the one field in a config entry that reliably carries a password, so the URL itself, the path
+and anything before the `@` never reach the document. An integration that negotiates its stream URL at
+connection time, ONVIF among them, declares nothing to read, and there the check says it could not run
+rather than that everything is fine.
+
+Two checks that used to sit in the rule file are gone. Z-Wave S2 needed the security class, which
+lives only inside another integration's driver object, so the check would have broken on somebody
+else's refactor rather than on a change to this repository. ARP was already answered better by the
+DHCP leases and the query log, which name the hosts on the network that Home Assistant does not know
+about without reading a cache that, inside a container, holds only the peers Home Assistant spoke to
+recently.
 
 The two MQTT checks are implemented, and neither of them probes the broker. **Anonymous access** is
 read off the config entry: if Home Assistant reaches the broker carrying no credential at all, then

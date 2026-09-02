@@ -22,7 +22,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from .const import PHONE_HOME_DESTINATION_KINDS
+from .const import PHONE_HOME_DESTINATION_KINDS, STREAM_PROTOCOLS
 from .model import Scan, UnverifiedCheck
 
 DEFAULT_CHECKS_PATH = Path(__file__).resolve().parent / "data" / "checks.json"
@@ -47,6 +47,11 @@ PRECONDITION_REASONS: dict[str, str] = {
     "manifests": (
         "integration manifests unreadable: iot_class and is_built_in are not"
         " trustworthy in this scan"
+    ),
+    "entry_streams": (
+        "no config entry named a media stream: an integration that negotiates"
+        " the stream URL at connection time, ONVIF among them, declares nothing"
+        " to read, so whether it is in the clear is unknown rather than fine"
     ),
     "zigbee_bridge": (
         "no Zigbee coordinator reported its state: without it, whether the"
@@ -260,6 +265,12 @@ class _Context:
             return any(device.zone != "unknown" for device in self.scan.devices)
         if name == "dhcp_leases":
             return "unv.dhcp_leases_unavailable" not in self.unverified_ids
+        if name == "entry_streams":
+            return any(
+                conduit.evidence == "declared"
+                and str(conduit.protocol or "").lower() in STREAM_PROTOCOLS
+                for conduit in self.scan.conduits
+            )
         if name == "zigbee_bridge":
             return bool(self.scan.zigbee and self.scan.zigbee.available)
         if name == "mqtt_clients":
@@ -322,6 +333,20 @@ def _select(
             and (reached is None or device.id in reached)
         ]
         return "device", tuple(sorted(matched))
+
+    if kind == "conduit_where":
+        # Reported by the integration that declares it: a camera entry is what
+        # the user can act on, and the stream host is often the same box.
+        protocols = {str(value).lower() for value in (selector.get("protocol_in") or ())}
+        encrypted = selector.get("encrypted")
+        matched = {
+            conduit.source.id
+            for conduit in scan.conduits
+            if conduit.source.kind == "integration"
+            and (not protocols or str(conduit.protocol or "").lower() in protocols)
+            and (encrypted is None or conduit.encrypted is bool(encrypted))
+        }
+        return "integration", tuple(sorted(matched))
 
     if kind == "zigbee_where":
         facts = scan.zigbee

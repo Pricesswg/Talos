@@ -352,35 +352,58 @@ def _endpoints(
     destinations: dict[str, Destination] = {}
     conduits: list[Conduit] = []
 
-    for entry in config_entries:
-        entry_id = entry.get("entry_id")
-        endpoint = entry.get("endpoint")
-        if entry_id not in known_entries or not isinstance(endpoint, dict):
-            continue
-        host = str(endpoint.get("host") or "").strip()
-        if not host:
-            continue
-
-        port = endpoint.get("port")
-        local = _is_local_host(host)
+    def place(host: str, port: Any) -> str:
         destination_id = f"dst.{host}" + (f":{port}" if port else "")
         if destination_id not in destinations:
             destinations[destination_id] = Destination(
                 id=destination_id,
                 fqdn=host,
-                kind="local_broker" if local else "vendor_cloud",
+                kind="local_broker" if _is_local_host(host) else "vendor_cloud",
                 vendor=None,
             )
-        conduits.append(
-            Conduit(
-                id=f"cnd.{entry_id}.endpoint",
-                source=SourceRef("integration", entry_id),
-                destination_id=destination_id,
-                evidence="declared",
-                port=int(port) if isinstance(port, int) else None,
-                encrypted="unknown",
+        return destination_id
+
+    for entry in config_entries:
+        entry_id = entry.get("entry_id")
+        if entry_id not in known_entries:
+            continue
+
+        endpoint = entry.get("endpoint")
+        if isinstance(endpoint, dict) and str(endpoint.get("host") or "").strip():
+            host = str(endpoint["host"]).strip()
+            port = endpoint.get("port")
+            conduits.append(
+                Conduit(
+                    id=f"cnd.{entry_id}.endpoint",
+                    source=SourceRef("integration", entry_id),
+                    destination_id=place(host, port),
+                    evidence="declared",
+                    port=int(port) if isinstance(port, int) else None,
+                    encrypted="unknown",
+                )
             )
-        )
+
+        # A media stream the entry names. Its scheme is the whole finding: the
+        # address was read from the configuration, nothing was connected to.
+        for index, stream in enumerate(entry.get("streams") or ()):
+            if not isinstance(stream, dict):
+                continue
+            host = str(stream.get("host") or "").strip()
+            protocol = str(stream.get("protocol") or "").strip().lower()
+            if not host or not protocol:
+                continue
+            port = stream.get("port")
+            conduits.append(
+                Conduit(
+                    id=f"cnd.{entry_id}.stream.{index}",
+                    source=SourceRef("integration", entry_id),
+                    destination_id=place(host, port),
+                    evidence="declared",
+                    protocol=protocol,
+                    port=int(port) if isinstance(port, int) else None,
+                    encrypted=bool(stream.get("encrypted")),
+                )
+            )
 
     return sorted(destinations.values(), key=lambda d: d.id), conduits
 

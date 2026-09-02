@@ -670,3 +670,63 @@ class TestEntityCountInvariant(unittest.TestCase):
         self.assertEqual(counts["e_mqtt"], 2)
         self.assertEqual(counts["e_helper"], 1)
         self.assertEqual(validate(scan.to_dict()), [])
+
+
+class TestDeclaredStreams(unittest.TestCase):
+    """A camera entry names its stream, and the scheme is the finding. The
+    URL itself is the one field in a config entry that reliably carries a
+    password, so it must never reach the document."""
+
+    @staticmethod
+    def scan_for(*streams: dict[str, Any]) -> Scan:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_cam", "domain": "generic", "title": "Ingresso",
+                 "state": "loaded", "endpoint": None, "streams": list(streams)}
+            ],
+            devices=[],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "generic", "iot_class": "local_polling", "is_built_in": True}],
+        )
+        return build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+
+    def test_a_cleartext_stream_becomes_a_declared_conduit(self) -> None:
+        scan = self.scan_for(
+            {"protocol": "rtsp", "host": "192.168.50.42", "port": 554, "encrypted": False}
+        )
+        conduit = next(c for c in scan.conduits if c.protocol == "rtsp")
+        self.assertEqual(conduit.evidence, "declared")
+        self.assertIs(conduit.encrypted, False)
+        self.assertEqual(conduit.port, 554)
+        self.assertEqual(scan.destination(conduit.destination_id).fqdn, "192.168.50.42")
+        self.assertEqual(validate(scan.to_dict()), [])
+
+    def test_an_encrypted_stream_is_recorded_and_not_reported(self) -> None:
+        scan = self.scan_for(
+            {"protocol": "rtsps", "host": "192.168.50.42", "port": 322, "encrypted": True}
+        )
+        conduit = next(c for c in scan.conduits if c.protocol == "rtsps")
+        self.assertIs(conduit.encrypted, True)
+        self.assertNotIn("chk.rtsp_cleartext", {r.id for r in derive(scan).checks.failed})
+
+    def test_the_cleartext_one_is_reported(self) -> None:
+        scan = self.scan_for(
+            {"protocol": "rtsp", "host": "192.168.50.42", "port": 554, "encrypted": False}
+        )
+        result = next(r for r in derive(scan).checks.failed if r.id == "chk.rtsp_cleartext")
+        self.assertEqual(result.severity, "medium")
+        self.assertEqual(result.subjects, ("e_cam",))
+
+    def test_an_entry_naming_no_stream_produces_none(self) -> None:
+        scan = self.scan_for()
+        self.assertEqual([c for c in scan.conduits if c.protocol], [])
+
+    def test_the_document_never_carries_the_stream_url(self) -> None:
+        scan = self.scan_for(
+            {"protocol": "rtsp", "host": "192.168.50.42", "port": 554, "encrypted": False}
+        )
+        document = json.dumps(scan.to_dict())
+        for secret in ("admin", "password", "h264Preview", "@"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, document)

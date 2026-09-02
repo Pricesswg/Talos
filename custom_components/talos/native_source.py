@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import ipaddress
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 from typing import Any, Iterable
 
 from .core import RegistryPayload, Scan, build_scan
@@ -77,6 +78,76 @@ ENDPOINT_PORT_KEYS = ("port",)
 CREDENTIAL_KEYS = ("username", "password", "token", "access_token", "api_key", "client_secret")
 
 
+# Keys under which a camera integration writes the address of its stream.
+# Their values are URLs that routinely carry `user:password@` in front of the
+# host, so the value is never stored: only the scheme, the host and the port
+# come out, which is everything the question needs and nothing more.
+STREAM_KEYS = (
+    "stream_source",
+    "rtsp_url",
+    "stream_url",
+    "input",
+    "still_image_url",
+    "rtmp_url",
+)
+
+# Schemes that carry the stream and the credentials in the clear.
+CLEARTEXT_SCHEMES = frozenset({"rtsp", "rtmp", "http"})
+ENCRYPTED_SCHEMES = frozenset({"rtsps", "rtmps", "https", "srtp"})
+
+
+def entry_streams(entry: Any) -> list[dict[str, Any]]:
+    """The media streams a config entry names, by shape and never by value.
+
+    A camera's stream URL is the one field in a config entry that reliably
+    contains a password, so this returns the scheme, the host and the port and
+    drops everything else, including the path and anything before the `@`.
+    """
+    data = dict(getattr(entry, "data", {}) or {})
+    options = dict(getattr(entry, "options", {}) or {})
+    found: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, int | None]] = set()
+
+    for key in STREAM_KEYS:
+        raw = data.get(key) or options.get(key)
+        if not raw or not isinstance(raw, str):
+            continue
+        parsed = _stream_shape(raw)
+        if parsed is None:
+            continue
+        signature = (parsed["protocol"], parsed["host"], parsed["port"])
+        if signature in seen:
+            continue
+        seen.add(signature)
+        found.append(parsed)
+    return found
+
+
+def _stream_shape(url: str) -> dict[str, Any] | None:
+    """Scheme, host and port from a stream URL. Credentials never come out."""
+    parsed = urlparse(url.strip())
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in CLEARTEXT_SCHEMES | ENCRYPTED_SCHEMES:
+        return None
+    try:
+        # `hostname` is the part after any `user:password@`, and `port` raises
+        # rather than guessing when the authority is malformed.
+        host, port = parsed.hostname, parsed.port
+    except ValueError:
+        return None
+    if not host:
+        return None
+    return {
+        "protocol": scheme,
+        "host": host,
+        "port": port or DEFAULT_STREAM_PORTS.get(scheme),
+        "encrypted": scheme in ENCRYPTED_SCHEMES,
+    }
+
+
+DEFAULT_STREAM_PORTS = {"rtsp": 554, "rtsps": 322, "rtmp": 1935, "http": 80, "https": 443}
+
+
 def entry_endpoint(entry: Any) -> dict[str, Any] | None:
     """The address a config entry connects to, if it names one.
 
@@ -105,6 +176,7 @@ def config_entry_to_dict(entry: Any) -> dict[str, Any]:
         "source": getattr(entry, "source", None),
         "disabled_by": _enum_value(getattr(entry, "disabled_by", None)),
         "endpoint": entry_endpoint(entry),
+        "streams": entry_streams(entry),
     }
 
 

@@ -343,15 +343,11 @@ const I18N = {
       "Il broker riporta questi client connessi e nessuno corrisponde a una config entry, a un dispositivo o a un add-on che Talos conosca. Un broker ha solo il client id per identificarli, quindi uno senza corrispondenza non è la prova di un intruso, ma è qualcosa che pubblica nei tuoi topic e di cui nulla in Home Assistant rende conto.",
     "chk.mqtt_unknown_client.remediation":
       "Confronta ogni id con quello che fai girare tu: Zigbee2MQTT, un Tasmota, un ESP, uno script su un'altra macchina. Quello che avanza vale la pena inseguirlo. Dare a ogni tuo client un client id esplicito e riconoscibile rende questo controllo utile invece che rumoroso.",
-    "chk.zwave_s2.title": "Nodo Z-Wave senza S2",
-    "chk.zwave_s2.detail":
-      "Richiede la security_class dal WebSocket di Z-Wave JS. Sorgente non ancora implementata.",
     "chk.rtsp_cleartext.title": "Flusso RTSP in chiaro",
     "chk.rtsp_cleartext.detail":
-      "Richiede di sapere su quali porte parlano i dispositivi. Il DNS non lo dice e la scansione delle porte è esclusa per scelta. Verificabile solo leggendo la configurazione di ogni integrazione video.",
-    "chk.arp_unknown.title": "Dispositivo in ARP assente dal registry di Home Assistant",
-    "chk.arp_unknown.detail":
-      "Dentro il container di Home Assistant la cache ARP contiene solo i peer con cui HA ha parlato di recente, non l'intera LAN. I lease DHCP restano la sorgente migliore e coprono già il caso: vedi il controllo dello zero.",
+      "Queste config entry di telecamere dichiarano uno stream RTSP, e RTSP porta in chiaro sia le credenziali sia il video. Chiunque riesca a vedere il traffico sul segmento dove sta la telecamera li legge entrambi. È quello che dichiara la entry, non una cattura: l'indirizzo l'ho letto dalla configurazione, non mi sono collegato a niente e non ho guardato niente.",
+    "chk.rtsp_cleartext.remediation":
+      "Sposta la telecamera sulla VLAN IoT, così il traffico non attraversa mai la rete dove stanno i tuoi computer. Dove la telecamera offre RTSPS o uno stream HTTPS, usa quelli. Dove non li offre, e le telecamere economiche non li offrono, la segmentazione è tutta la risposta.",
 
     "unv.manifests_unavailable.title": "iot_class di alcune integrazioni",
     "unv.entities_outside_registry.title": "Entità che non appartengono ad alcuna config entry",

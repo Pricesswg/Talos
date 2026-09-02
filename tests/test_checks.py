@@ -74,12 +74,9 @@ class TestEngineOnTheReferenceHouse(unittest.TestCase):
 
     def test_unimplemented_checks_are_declared_not_omitted(self) -> None:
         declared = {check.id for check in self.report.unverified}
-        for check_id in (
-            "chk.mqtt_unknown_client",
-            "chk.zwave_s2",
-            "chk.rtsp_cleartext",
-            "chk.arp_unknown",
-        ):
+        # Both are implemented; on this fixture neither has what it needs, and
+        # a check that cannot run must say so rather than pass.
+        for check_id in ("chk.mqtt_unknown_client", "chk.rtsp_cleartext"):
             with self.subTest(check=check_id):
                 self.assertIn(check_id, declared)
 

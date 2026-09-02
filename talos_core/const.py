@@ -75,6 +75,14 @@ NON_IP_TRANSPORTS: Final = frozenset({"zigbee", "zwave", "ble", "thread"})
 # coordinator will state without being asked to interrogate anybody.
 MESH_ROLES: Final = frozenset({"coordinator", "router", "end_device", "unknown"})
 
+# Schemes that carry a media stream. Named explicitly because `protocol` on a
+# conduit can also hold a transport, `tcp` or `udp`, and a transport is not a
+# stream: a precondition that accepted either would run the cleartext check on
+# a document that declared no stream at all.
+STREAM_PROTOCOLS: Final = frozenset(
+    {"rtsp", "rtsps", "rtmp", "rtmps", "srtp", "http", "https"}
+)
+
 # What an integration does, beyond how it talks. A bus that carries other
 # systems and a service that carries a continuous media stream are both worth
 # seeing on their own, and neither is a transport: Zigbee2MQTT rides on MQTT
