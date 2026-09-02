@@ -193,6 +193,23 @@ Refused is not saved, and the broker's own words are shown. Talos publishes noth
 `$SYS` and nothing else, under the fixed client id `talos-scanner` so its own connection is
 recognisable in the list it reads.
 
+**On EMQX 5 the subscription cannot work at all**, whatever the ACL says: EMQX 5 removed the
+per-client `$SYS` topics that EMQX 4 published and left only gauges there, so the tree answers with
+numbers and never a name. For that broker Talos reads `/api/v5/clients` over HTTP instead, with an
+API key created under System, API Key in its dashboard. Read-only permissions are enough, there is no
+subscription and no session on the broker, and the answer carries the address each client connected
+from. That address is worth more than the subscription ever was: a client id is a name the client
+chose for itself, an address joins against the devices in the scan, so a client that matches nothing
+by name can still be attributed to the device it connected from.
+
+The three routes are tried in that order, best first: the EMQX API when a key is configured, then
+Talos's own account, then Home Assistant's session. The panel names which one the last scan took,
+what it got, and the reason when it got nothing.
+
+None of these credentials cause a reload. They are read again on every scan, so saving them updates
+the entry and runs one scan, rather than tearing down the store, the coordinator and every entity the
+way a change to the interval or the retention policy has to.
+
 Client ids are matched against the names in the scan, and anything left over is reported as
 unmatched, which is not the same as hostile. When no client id arrives at all, by either route, the
 check declares itself unable to run rather than passing on an empty list.

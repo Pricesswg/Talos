@@ -145,8 +145,17 @@ class TestTranslations(unittest.TestCase):
                 "settings.guide.h",
                 "settings.guide.p",
                 "sugg.detail",
+                "mqtt.route",
             },
         )
+
+    def test_every_collection_route_has_a_label(self) -> None:
+        """The card names the route it took, so a route with no label would
+        render a key where the answer should be."""
+        for route in ("api", "account", "session"):
+            with self.subTest(route=route):
+                self.assertIn(f"mqtt.route.{route}", self.it)
+                self.assertIn(f"mqtt.route.{route}", self.en)
 
     def test_every_suggestible_option_explains_itself(self) -> None:
         """A suggestion with no rationale is a value appearing from nowhere."""

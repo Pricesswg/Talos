@@ -16,6 +16,14 @@ from .mapping import (
     run_zero_check,
 )
 from .merge import merge_observed
+from .emqx import (
+    EMQX_CLIENTS_PATH,
+    EMQX_MAX_PAGES,
+    EMQX_PAGE_SIZE,
+    emqx_has_more,
+    emqx_to_clients,
+    parse_emqx_clients,
+)
 from .mqtt import known_tokens, match_clients
 
 __all__ = [
@@ -33,7 +41,13 @@ __all__ = [
     "ObservedSource",
     "ZeroCheck",
     "aggregate",
+    "EMQX_CLIENTS_PATH",
+    "EMQX_MAX_PAGES",
+    "EMQX_PAGE_SIZE",
+    "emqx_has_more",
+    "emqx_to_clients",
     "match_clients",
+    "parse_emqx_clients",
     "merge_observed",
     "parse_clients",
     "parse_leases",

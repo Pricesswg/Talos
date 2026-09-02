@@ -20,6 +20,13 @@ CONF_MQTT_PORT: Final = "mqtt_port"
 CONF_MQTT_USERNAME: Final = "mqtt_username"
 CONF_MQTT_PASSWORD: Final = "mqtt_password"
 CONF_MQTT_TLS: Final = "mqtt_tls"
+# EMQX 5 removed the per-client $SYS topics and left only gauges there, so on
+# that broker the subscription can never answer. Its own API can, and it
+# reports the address each client connected from, which a subscription never
+# did.
+CONF_MQTT_API_URL: Final = "mqtt_api_url"
+CONF_MQTT_API_KEY: Final = "mqtt_api_key"
+CONF_MQTT_API_SECRET: Final = "mqtt_api_secret"
 DEFAULT_MQTT_PORT: Final = 1883
 
 # Options

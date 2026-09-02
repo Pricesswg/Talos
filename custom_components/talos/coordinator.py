@@ -25,6 +25,9 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_MQTT_API_KEY,
+    CONF_MQTT_API_SECRET,
+    CONF_MQTT_API_URL,
     CONF_MQTT_HOST,
     CONF_MQTT_PASSWORD,
     CONF_MQTT_PORT,
@@ -94,6 +97,8 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         self._engine: CheckEngine | None = None
         self._zones = ZoneMap()
 
+        self._setup_state: tuple[Any, ...] | None = None
+
         minutes = int(entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
         super().__init__(
             hass,
@@ -101,6 +106,7 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
             name=DOMAIN,
             update_interval=timedelta(minutes=minutes),
         )
+        self.remember_setup(entry)
 
     # ── setup ─────────────────────────────────────────────────────────────
 
@@ -169,6 +175,46 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
             await self.hass.async_add_executor_job(store.close)
 
     # ── the run ───────────────────────────────────────────────────────────
+
+    # What is read once at setup and therefore only changes on a reload. The
+    # broker account is deliberately absent: it is read on every scan.
+    RELOAD_KEYS: tuple[str, ...] = (
+        CONF_ADGUARD_URL,
+        CONF_ADGUARD_USERNAME,
+        CONF_ADGUARD_PASSWORD,
+        CONF_VERIFY_SSL,
+    )
+
+    def remember_setup(self, entry: ConfigEntry | None = None) -> None:
+        """Snapshot the values a reload would be needed to pick up."""
+        entry = entry or self.entry
+        self.entry = entry
+        self._setup_state = self._setup_snapshot(entry)
+
+    def _setup_snapshot(self, entry: ConfigEntry) -> tuple[Any, ...]:
+        return (
+            tuple(sorted(entry.options.items())),
+            tuple(entry.data.get(key) for key in self.RELOAD_KEYS),
+        )
+
+    def needs_reload(self, entry: ConfigEntry) -> bool:
+        """Whether the change that just landed is one a reload is for."""
+        if self._setup_state is None:
+            return True
+        return self._setup_snapshot(entry) != self._setup_state
+
+    def _mqtt_api(self) -> dict[str, Any] | None:
+        """The EMQX API, if one is configured. Preferred where it exists."""
+        data = self.entry.data
+        url = str(data.get(CONF_MQTT_API_URL) or "").strip()
+        if not url:
+            return None
+        return {
+            "url": url,
+            "key": data.get(CONF_MQTT_API_KEY) or "",
+            "secret": data.get(CONF_MQTT_API_SECRET) or "",
+            "verify_ssl": bool(data.get(CONF_VERIFY_SSL, True)),
+        }
 
     def _mqtt_credentials(self, scan: Scan | None = None) -> dict[str, Any] | None:
         """The read-only account, if one is configured.
@@ -251,8 +297,9 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         # Only when the MQTT integration is loaded, because the whole point is
         # to reuse the session it already holds rather than open one.
         credentials = self._mqtt_credentials(scan)
-        if credentials or "mqtt" in self.hass.config.components:
-            scan.mqtt = await collect_mqtt(self.hass, scan, credentials)
+        api = self._mqtt_api()
+        if api or credentials or "mqtt" in self.hass.config.components:
+            scan.mqtt = await collect_mqtt(self.hass, scan, credentials, api=api)
             if scan.mqtt.error:
                 _LOGGER.debug("Talos: MQTT facts unavailable: %s", scan.mqtt.error)
 

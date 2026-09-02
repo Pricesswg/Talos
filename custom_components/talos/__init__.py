@@ -61,8 +61,28 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Interval and retention changed: reopen with the new policy."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    """Reload only for the changes that actually need one.
+
+    A reload tears down the store, the coordinator and every entity, and on a
+    large install that is seconds of everything going unavailable. The scan
+    interval, the retention policy and the zone ranges are read at setup, so
+    they need it. The broker account is read fresh on every scan, so it does
+    not, and reloading for it would throw away the state of the panel the user
+    is looking at while they configure it.
+    """
+    coordinator: TalosCoordinator | None = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if coordinator is None:
+        await hass.config_entries.async_reload(entry.entry_id)
+        return
+
+    if coordinator.needs_reload(entry):
+        await hass.config_entries.async_reload(entry.entry_id)
+        return
+
+    # Nothing structural moved. Pick up the new value on the next scan, and
+    # run one now so the change is visible immediately.
+    coordinator.remember_setup(entry)
+    await coordinator.async_refresh()
 
 
 async def _async_register_panel(hass: HomeAssistant) -> None:

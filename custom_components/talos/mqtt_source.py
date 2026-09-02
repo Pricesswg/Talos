@@ -215,15 +215,86 @@ async def collect_via_home_assistant(
     return MqttFacts(available=True, clients=match_clients(found, scan))
 
 
+async def collect_via_api(
+    hass: Any, scan: Scan, api: dict[str, Any]
+) -> MqttFacts:
+    """EMQX 5's own client list, over HTTP with an API key.
+
+    Read-only and stateless: one GET per page, no subscription, no session on
+    the broker at all. It is also the only route that returns addresses, so a
+    client whose id matches nothing can still be attributed to the device it
+    connected from.
+    """
+    from .core import (
+        EMQX_CLIENTS_PATH,
+        EMQX_MAX_PAGES,
+        EMQX_PAGE_SIZE,
+        emqx_has_more,
+        emqx_to_clients,
+        parse_emqx_clients,
+    )
+    from .core import ObservedAuthError, ObservedError
+    from .http_transport import HassHttpTransport
+
+    url = str(api.get("url") or "").strip().rstrip("/")
+    if not url:
+        return MqttFacts(available=False, error="no EMQX API address configured")
+
+    transport = HassHttpTransport(
+        hass,
+        url,
+        str(api.get("key") or ""),
+        str(api.get("secret") or ""),
+        bool(api.get("verify_ssl", True)),
+        timeout=15,
+    )
+
+    rows: list[dict[str, Any]] = []
+    try:
+        for page in range(1, EMQX_MAX_PAGES + 1):
+            payload = await transport.get_json(
+                EMQX_CLIENTS_PATH, {"page": page, "limit": EMQX_PAGE_SIZE}
+            )
+            found = parse_emqx_clients(payload)
+            rows.extend(found)
+            if not found or not emqx_has_more(payload, len(rows)):
+                break
+    except ObservedAuthError as err:
+        return MqttFacts(available=False, error=f"the EMQX API rejected the key: {err}")
+    except ObservedError as err:
+        return MqttFacts(available=False, error=f"the EMQX API is unreachable: {err}")
+    except Exception as err:  # noqa: BLE001
+        return MqttFacts(available=False, error=f"reading the EMQX client list failed: {err}")
+
+    if not rows:
+        return MqttFacts(
+            available=False,
+            error=(
+                "the EMQX API answered with no client at all, which a broker"
+                " running Home Assistant cannot be: check that the key belongs"
+                " to the same node the devices connect to"
+            ),
+        )
+    return MqttFacts(available=True, clients=emqx_to_clients(rows, scan))
+
+
 async def collect_mqtt(
     hass: Any,
     scan: Scan,
     credentials: dict[str, Any] | None = None,
     seconds: float = LISTEN_SECONDS,
+    api: dict[str, Any] | None = None,
 ) -> MqttFacts:
-    """Talos's own account when there is one, Home Assistant's session when
-    there is not. Configuring an account is the way past a broker that keeps
-    $SYS to itself, which is most of them."""
+    """Best route first.
+
+    The EMQX API when one is configured, because it is the only one that
+    answers on EMQX 5 and the only one that returns addresses. Then Talos's
+    own account, which gets past a broker that reserves $SYS. Then the session
+    Home Assistant already holds, which needs nothing and works on a broker
+    that publishes client topics and lets anyone read them.
+    """
+    if api and api.get("url"):
+        return await collect_via_api(hass, scan, api)
     if credentials and credentials.get("host"):
         return await collect_via_credentials(hass, scan, credentials, seconds)
     return await collect_via_home_assistant(hass, scan, seconds)

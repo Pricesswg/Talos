@@ -17,6 +17,9 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_MQTT_API_KEY,
+    CONF_MQTT_API_SECRET,
+    CONF_MQTT_API_URL,
     CONF_MQTT_HOST,
     CONF_MQTT_PASSWORD,
     CONF_MQTT_PORT,
@@ -29,7 +32,7 @@ from .const import (
     TEXT_OPTIONS,
 )
 from .coordinator import TalosCoordinator
-from .mqtt_source import NO_CLIENT_IDS, read_sys_blocking
+from .mqtt_source import NO_CLIENT_IDS, collect_via_api, read_sys_blocking
 from .core import subnets, suggestions
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
@@ -109,6 +112,18 @@ def ws_status(
             },
             # The broker account, same rule: what it is, never the password.
             "mqtt": {
+                CONF_MQTT_API_URL: coordinator.entry.data.get(CONF_MQTT_API_URL, ""),
+                CONF_MQTT_API_KEY: coordinator.entry.data.get(CONF_MQTT_API_KEY, ""),
+                "has_api_secret": bool(coordinator.entry.data.get(CONF_MQTT_API_SECRET)),
+                # Which of the three routes the last scan actually took.
+                "route": (
+                    "api"
+                    if coordinator.entry.data.get(CONF_MQTT_API_URL)
+                    else "account"
+                    if coordinator.entry.data.get(CONF_MQTT_USERNAME)
+                    or coordinator.entry.data.get(CONF_MQTT_HOST)
+                    else "session"
+                ),
                 CONF_MQTT_HOST: coordinator.entry.data.get(CONF_MQTT_HOST, ""),
                 CONF_MQTT_PORT: coordinator.entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT),
                 CONF_MQTT_USERNAME: coordinator.entry.data.get(CONF_MQTT_USERNAME, ""),
@@ -231,6 +246,9 @@ def ws_derived(
         # any other field on this form would silently wipe the password.
         vol.Optional(CONF_MQTT_PASSWORD, default=""): str,
         vol.Optional(CONF_MQTT_TLS, default=False): bool,
+        vol.Optional(CONF_MQTT_API_URL, default=""): str,
+        vol.Optional(CONF_MQTT_API_KEY, default=""): str,
+        vol.Optional(CONF_MQTT_API_SECRET, default=""): str,
         vol.Optional("clear", default=False): bool,
     }
 )
@@ -259,40 +277,77 @@ async def ws_set_mqtt(
                 CONF_MQTT_USERNAME: "",
                 CONF_MQTT_PASSWORD: "",
                 CONF_MQTT_TLS: False,
+                CONF_MQTT_API_URL: "",
+                CONF_MQTT_API_KEY: "",
+                CONF_MQTT_API_SECRET: "",
             },
         )
         connection.send_result(msg["id"], {"ok": True, "cleared": True})
         return
 
     password = msg[CONF_MQTT_PASSWORD] or entry.data.get(CONF_MQTT_PASSWORD, "")
+    secret = msg[CONF_MQTT_API_SECRET] or entry.data.get(CONF_MQTT_API_SECRET, "")
+    api_url = msg[CONF_MQTT_API_URL].strip()
     updated = {
         CONF_MQTT_HOST: msg[CONF_MQTT_HOST].strip(),
         CONF_MQTT_PORT: int(msg[CONF_MQTT_PORT] or DEFAULT_MQTT_PORT),
         CONF_MQTT_USERNAME: msg[CONF_MQTT_USERNAME].strip(),
         CONF_MQTT_PASSWORD: password,
         CONF_MQTT_TLS: bool(msg[CONF_MQTT_TLS]),
+        CONF_MQTT_API_URL: api_url,
+        CONF_MQTT_API_KEY: msg[CONF_MQTT_API_KEY].strip(),
+        CONF_MQTT_API_SECRET: secret,
     }
 
-    # Try it before storing it. A broker that answers but keeps $SYS to itself
-    # is a working account with a limit, not a rejected form, so only a
-    # connection failure stops the save.
-    host = updated[CONF_MQTT_HOST] or _entry_broker(coordinator)
-    if host:
-        found, error = await hass.async_add_executor_job(
-            read_sys_blocking,
-            host,
-            updated[CONF_MQTT_PORT],
-            updated[CONF_MQTT_USERNAME],
-            password,
-            updated[CONF_MQTT_TLS],
-            1.5,
+    # Try it before storing it, by whichever route it would actually use.
+    if api_url:
+        facts = await collect_via_api(
+            hass,
+            coordinator.data.scan,
+            {
+                "url": api_url,
+                "key": updated[CONF_MQTT_API_KEY],
+                "secret": secret,
+                "verify_ssl": bool(entry.data.get(CONF_VERIFY_SSL, True)),
+            },
         )
-        if error and error != NO_CLIENT_IDS:
-            connection.send_result(msg["id"], {"ok": False, "error": error})
+        if not facts.available:
+            connection.send_result(msg["id"], {"ok": False, "error": facts.error})
             return
-        reached = {"ok": True, "clients": len(found), "sys_readable": bool(found)}
+        reached = {
+            "ok": True,
+            "route": "api",
+            "clients": len(facts.clients),
+            "unmatched": len(facts.unmatched),
+            "sys_readable": True,
+        }
     else:
-        reached = {"ok": True, "clients": 0, "sys_readable": False}
+        # A broker that answers but keeps $SYS to itself is a working account
+        # with a limit, not a rejected form, so only a connection failure
+        # stops the save.
+        host = updated[CONF_MQTT_HOST] or _entry_broker(coordinator)
+        if host:
+            found, error = await hass.async_add_executor_job(
+                read_sys_blocking,
+                host,
+                updated[CONF_MQTT_PORT],
+                updated[CONF_MQTT_USERNAME],
+                password,
+                updated[CONF_MQTT_TLS],
+                1.5,
+            )
+            if error and error != NO_CLIENT_IDS:
+                connection.send_result(msg["id"], {"ok": False, "error": error})
+                return
+            reached = {
+                "ok": True,
+                "route": "account",
+                "clients": len(found),
+                "unmatched": 0,
+                "sys_readable": bool(found),
+            }
+        else:
+            reached = {"ok": True, "route": "session", "clients": 0, "sys_readable": False}
 
     hass.config_entries.async_update_entry(entry, data={**entry.data, **updated})
     connection.send_result(msg["id"], reached)

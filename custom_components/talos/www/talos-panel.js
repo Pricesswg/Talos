@@ -473,6 +473,30 @@ const I18N = {
     "mqtt.acl":
       "Serve un utente in sola lettura con il permesso di sottoscrivere $SYS/#. Su EMQX: Access Control, Authentication per l'utente e una regola di sola sottoscrizione. Su Mosquitto: una riga topic read $SYS/# nell'acl_file. Talos non pubblica nulla, non si sottoscrive ad altro, e si collega con client id talos-scanner così la sua connessione è riconoscibile nella lista che legge.",
 
+    "mqtt.route": "Sorgente in uso",
+    "mqtt.route.api": "API di EMQX",
+    "mqtt.route.account": "Account dedicato su $SYS",
+    "mqtt.route.session": "Sessione dell'integrazione MQTT",
+    "mqtt.state.ok": "{clients} client letti, {unmatched} senza corrispondenza",
+    "mqtt.state.blocked": "Nessun client letto",
+    "mqtt.lastRun": "Ultima scansione",
+    "mqtt.listener": "Stato del listener",
+    "mqtt.api": "API EMQX 5",
+    "mqtt.api.url": "Indirizzo API",
+    "mqtt.api.url.hint":
+      "EMQX 5 ha tolto i topic per client da $SYS, quindi la sottoscrizione lì non può rispondere: restano solo contatori. La sua API invece elenca i client connessi adesso, con l'indirizzo da cui si sono collegati, che permette di associarli ai dispositivi e non solo al nome. Metti lo stesso indirizzo che usi nel browser per aprire la dashboard, schema compreso, di norma sulla porta 18083.",
+    "mqtt.api.key": "API key",
+    "mqtt.api.secret": "API secret",
+    "mqtt.api.secret.set": "impostato, lascia vuoto per non cambiarlo",
+    "mqtt.api.secret.unset": "nessun secret memorizzato",
+    "mqtt.api.hint":
+      "Si crea dalla dashboard EMQX, System → API Key → Create. Bastano i permessi di sola lettura. Se compili questo, Talos usa l'API e ignora i campi del broker qui sopra.",
+    "mqtt.sub": "Sottoscrizione $SYS",
+    "mqtt.okApi": "Account salvato",
+    "mqtt.okApi.sub": "API raggiunta, {n} client letti.",
+    "mqtt.noReload":
+      "Le credenziali del broker vengono rilette a ogni scansione, quindi salvarle non ricarica l'integrazione e non interrompe nulla.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -875,6 +899,30 @@ const I18N = {
     "mqtt.cleared.sub": "Back to using the MQTT integration's session.",
     "mqtt.acl":
       "It needs a read-only user allowed to subscribe to $SYS/#. On EMQX: Access Control, Authentication for the user and a subscribe-only rule. On Mosquitto: a topic read $SYS/# line in the acl_file. Talos publishes nothing, subscribes to nothing else, and connects with the client id talos-scanner so its own connection is recognisable in the list it reads.",
+
+    "mqtt.route": "Route in use",
+    "mqtt.route.api": "EMQX API",
+    "mqtt.route.account": "Dedicated account on $SYS",
+    "mqtt.route.session": "MQTT integration's session",
+    "mqtt.state.ok": "{clients} clients read, {unmatched} unmatched",
+    "mqtt.state.blocked": "No client read",
+    "mqtt.lastRun": "Last scan",
+    "mqtt.listener": "Listener state",
+    "mqtt.api": "EMQX 5 API",
+    "mqtt.api.url": "API address",
+    "mqtt.api.url.hint":
+      "EMQX 5 removed the per-client topics from $SYS, so a subscription there cannot answer: only counters are left. Its API does list the clients connected right now, with the address each connected from, which ties them to devices and not just to a name. Use the same address you open the dashboard with in a browser, scheme included, usually on port 18083.",
+    "mqtt.api.key": "API key",
+    "mqtt.api.secret": "API secret",
+    "mqtt.api.secret.set": "stored, leave empty to keep it",
+    "mqtt.api.secret.unset": "no secret stored",
+    "mqtt.api.hint":
+      "Create it in the EMQX dashboard, System, API Key, Create. Read-only permissions are enough. Filling this in makes Talos use the API and ignore the broker fields above.",
+    "mqtt.sub": "$SYS subscription",
+    "mqtt.okApi": "Account saved",
+    "mqtt.okApi.sub": "API reached, {n} clients read.",
+    "mqtt.noReload":
+      "Broker credentials are read again on every scan, so saving them does not reload the integration and interrupts nothing.",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -1436,6 +1484,10 @@ class TalosPanel extends HTMLElement {
         this._hass.callWS({ type: "talos/suggest" }).catch(() => ({ suggestions: [] })),
       ]);
       this._data = derived;
+      // A finished scan supersedes the last save's test result.
+      if (this._status && status.generated_at !== this._status.generated_at) {
+        this._mqttResult = null;
+      }
       this._status = status;
       this._suggestions = (suggested || {}).suggestions || [];
       this._error = null;
@@ -3425,6 +3477,28 @@ class TalosPanel extends HTMLElement {
               </select>
             </div>
           </div>
+          <div class="form" style="margin-top:4px">
+            <div class="field" style="grid-column:1/-1">
+              <label for="mqtt-api-url">${esc(this.t("mqtt.api.url"))}</label>
+              <input id="mqtt-api-url" type="text" spellcheck="false"
+                     value="${esc(mqtt.mqtt_api_url || "")}" autocomplete="off">
+              <span class="hint">${esc(this.t("mqtt.api.url.hint"))}</span>
+            </div>
+            <div class="field">
+              <label for="mqtt-api-key">${esc(this.t("mqtt.api.key"))}</label>
+              <input id="mqtt-api-key" type="text" spellcheck="false"
+                     value="${esc(mqtt.mqtt_api_key || "")}" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="mqtt-api-secret">${esc(this.t("mqtt.api.secret"))}</label>
+              <input id="mqtt-api-secret" type="password" value="" autocomplete="new-password">
+              <span class="hint">${esc(
+                this.t(mqtt.has_api_secret ? "mqtt.api.secret.set" : "mqtt.api.secret.unset")
+              )}</span>
+            </div>
+          </div>
+          <p class="hint" style="margin:0 0 12px">${esc(this.t("mqtt.api.hint"))}</p>
+
           <div class="actions">
             <button class="btn" data-action="mqtt-save" ${this._mqttSaving ? "disabled" : ""}>${esc(
               this._mqttSaving ? this.t("mqtt.saving") : this.t("mqtt.save")
@@ -3437,22 +3511,9 @@ class TalosPanel extends HTMLElement {
                 : ""
             }
           </div>
-          ${
-            mqtt.mqtt_username || mqtt.mqtt_host
-              ? `<dl class="kv" style="margin-top:14px">
-                   <dt>${esc(this.t("settings.mqtt.state"))}</dt>
-                   <dd>${esc(
-                     mqtt.available
-                       ? this.t("settings.mqtt.ok", {
-                           clients: this.num(mqtt.clients || 0),
-                           unmatched: this.num(mqtt.unmatched || 0),
-                         })
-                       : mqtt.error || "-"
-                   )}</dd>
-                 </dl>`
-              : ""
-          }
+          ${this.mqttListener(mqtt)}
           <p class="hint" style="margin:12px 0 0">${esc(this.t("mqtt.acl"))}</p>
+          <p class="hint" style="margin:8px 0 0">${esc(this.t("mqtt.noReload"))}</p>
         </div>
       </div>
 
@@ -3576,6 +3637,40 @@ class TalosPanel extends HTMLElement {
     }
   }
 
+  /** The state of the listener, in the card rather than at the top of the
+   *  page: which route it is taking, what the last scan got out of it, and
+   *  the reason when it got nothing. The toast at the top of the view is not
+   *  visible from down here, which is how this card came to look frozen. */
+  mqttListener(mqtt) {
+    const running = this._mqttSaving;
+    // A save is answered before the next scan runs, so for a while the stored
+    // status still describes the old route. The test result is newer than it
+    // is, and showing the old one here would read as the save not working.
+    const fresh = this._mqttResult;
+    const source = fresh || mqtt;
+    const available = fresh ? Boolean(fresh.ok) : Boolean(mqtt.available);
+    const tone = running ? "busy" : available ? "ok" : "error";
+    const state = running
+      ? this.t("mqtt.saving")
+      : available
+        ? this.t("mqtt.state.ok", {
+            clients: this.num(source.clients || 0),
+            unmatched: this.num(source.unmatched || 0),
+          })
+        : (fresh ? fresh.error : mqtt.error) || this.t("mqtt.state.blocked");
+    return `<div class="toast" data-tone="${tone}" style="margin:14px 0 0" role="status">
+        <span class="toast__dot"></span>
+        <span><strong>${esc(this.t("mqtt.listener"))}</strong>
+          <span class="toast__sub">${esc(state)}</span></span>
+      </div>
+      <dl class="kv" style="margin-top:10px">
+        <dt>${esc(this.t("mqtt.route"))}</dt>
+        <dd>${esc(this.t(`mqtt.route.${source.route || mqtt.route || "session"}`))}</dd>
+        <dt>${esc(this.t("mqtt.lastRun"))}</dt>
+        <dd class="mono">${esc(this.when((this._status || {}).generated_at))}</dd>
+      </dl>`;
+  }
+
   /** Write the broker account, testing it on the way in.
    *
    *  An empty password field means "keep the stored one": without that rule,
@@ -3596,8 +3691,12 @@ class TalosPanel extends HTMLElement {
           mqtt_username: value("#mqtt-user").trim(),
           mqtt_password: value("#mqtt-password"),
           mqtt_tls: value("#mqtt-tls") === "1",
+          mqtt_api_url: value("#mqtt-api-url").trim(),
+          mqtt_api_key: value("#mqtt-api-key").trim(),
+          mqtt_api_secret: value("#mqtt-api-secret"),
         };
     this._mqttSaving = true;
+    // Renders the card too, so the listener box switches to busy in place.
     this.setBusy("busy", this.t("mqtt.testing"), this.t("mqtt.testing.sub"));
 
     let result = null;
@@ -3608,6 +3707,8 @@ class TalosPanel extends HTMLElement {
     }
 
     this._mqttSaving = false;
+    // Newer than the stored status until the next scan replaces both.
+    this._mqttResult = result && (result.ok || result.error) ? result : null;
     if (!result || !result.ok) {
       this.setBusy("error", this.t("mqtt.failed"), (result && result.error) || "");
       return;
@@ -3616,6 +3717,12 @@ class TalosPanel extends HTMLElement {
     await this.waitForReload();
     if (result.cleared) {
       this.setBusy("ok", this.t("mqtt.cleared"), this.t("mqtt.cleared.sub"));
+    } else if (result.route === "api") {
+      this.setBusy(
+        "ok",
+        this.t("mqtt.okApi"),
+        this.t("mqtt.okApi.sub", { n: this.num(result.clients) })
+      );
     } else if (result.sys_readable) {
       this.setBusy("ok", this.t("mqtt.ok"), this.t("mqtt.ok.sub", { n: this.num(result.clients) }));
     } else {
