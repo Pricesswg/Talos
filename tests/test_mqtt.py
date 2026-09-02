@@ -298,3 +298,68 @@ class TestRouteCascade(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestZigbeeBridge(unittest.TestCase):
+    """The coordinator's own account of its network, from retained topics.
+    Nothing is asked of the mesh, so nothing about the mesh is invented."""
+
+    def test_the_three_parts_are_read_from_the_device_list(self) -> None:
+        from talos_core.observed.zigbee2mqtt import parse_devices, roles_by_ieee
+
+        nodes = parse_devices(
+            '[{"ieee_address":"0x00124B0001A2B3C4","type":"Coordinator"},'
+            ' {"ieee_address":"0x00158D0002A2B3C4","type":"Router","power_source":"Mains (single phase)"},'
+            ' {"ieee_address":"0x00158D0003A2B3C4","type":"EndDevice","power_source":"Battery"}]'
+        )
+        self.assertEqual(
+            roles_by_ieee(nodes),
+            {
+                "0x00124b0001a2b3c4": "coordinator",
+                "0x00158d0002a2b3c4": "router",
+                "0x00158d0003a2b3c4": "end_device",
+            },
+        )
+        self.assertIs(nodes[2].battery_powered, True)
+
+    def test_a_type_we_do_not_know_stays_unknown(self) -> None:
+        from talos_core.observed.zigbee2mqtt import parse_devices
+
+        nodes = parse_devices('[{"ieee_address":"0x1","type":"GreenPower"}]')
+        self.assertEqual(nodes[0].role, "unknown")
+
+    def test_a_payload_of_another_shape_names_no_node(self) -> None:
+        from talos_core.observed.zigbee2mqtt import parse_devices, parse_info
+
+        for payload in ("not json", "", b"{}", '{"a":1}', None):
+            with self.subTest(payload=payload):
+                self.assertEqual(parse_devices(payload), [])
+        self.assertIsNone(parse_info("not json").permit_join)
+
+    def test_permit_join_is_read_but_never_assumed(self) -> None:
+        from talos_core.observed.zigbee2mqtt import parse_info
+
+        self.assertIs(parse_info('{"permit_join":true,"version":"2.5.1"}').permit_join, True)
+        self.assertIs(parse_info('{"permit_join":false,"version":"2.5.1"}').permit_join, False)
+        # Absent is not closed, and the check has a precondition for exactly this.
+        self.assertIsNone(parse_info('{"version":"2.5.1"}').permit_join)
+
+    def test_the_role_joins_onto_the_registry_by_ieee(self) -> None:
+        from talos_core.sources.mapping import apply_mesh_roles
+
+        scan = house()
+        roles = {"0x00158d0002a2b3c4": "router", "0x00158d0003a2b3c4": "end_device"}
+        identifiers = {
+            device.id: ["zigbee2mqtt_0x00158d0002a2b3c4"] for device in scan.devices
+        }
+        applied = apply_mesh_roles(scan.devices, roles, identifiers)
+        self.assertEqual(applied, 1)
+        self.assertEqual(scan.devices[0].mesh_role, "router")
+
+    def test_a_node_the_coordinator_did_not_name_stays_unknown(self) -> None:
+        from talos_core.sources.mapping import apply_mesh_roles
+
+        scan = house()
+        identifiers = {device.id: ["zigbee2mqtt_0x00158d00ffa2b3c4"] for device in scan.devices}
+        self.assertEqual(apply_mesh_roles(scan.devices, {"0x00158d0002a2b3c4": "router"}, identifiers), 0)
+        self.assertEqual(scan.devices[0].mesh_role, "unknown")

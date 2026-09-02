@@ -146,8 +146,17 @@ class TestTranslations(unittest.TestCase):
                 "settings.guide.p",
                 "sugg.detail",
                 "mqtt.route",
+                "mesh",
             },
         )
+
+    def test_every_mesh_role_has_a_label(self) -> None:
+        from talos_core.const import MESH_ROLES
+
+        for role in MESH_ROLES:
+            with self.subTest(role=role):
+                self.assertIn(f"mesh.{role}", self.it)
+                self.assertIn(f"mesh.{role}", self.en)
 
     def test_every_collection_route_has_a_label(self) -> None:
         """The card names the route it took, so a route with no label would

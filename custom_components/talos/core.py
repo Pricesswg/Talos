@@ -15,6 +15,7 @@ try:  # repository checkout, or an installed talos-core
         Derived,
         MqttClient,
         MqttFacts,
+        ZigbeeFacts,
         RetentionPolicy,
         Scan,
         TalosStore,
@@ -37,10 +38,17 @@ try:  # repository checkout, or an installed talos-core
         emqx_to_clients,
         match_clients,
         merge_observed,
+        parse_devices,
         parse_emqx_clients,
+        parse_info,
+        roles_by_ieee,
     )
     from talos_core.export_html import render_html, render_json  # noqa: F401
-    from talos_core.sources.mapping import RegistryPayload, build_scan  # noqa: F401
+    from talos_core.sources.mapping import (  # noqa: F401
+        RegistryPayload,
+        apply_mesh_roles,
+        build_scan,
+    )
     from talos_core.suggest import subnets, suggestions  # noqa: F401
 except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     from .vendor.talos_core import (  # type: ignore[no-redef]  # noqa: F401
@@ -49,6 +57,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
         Derived,
         MqttClient,
         MqttFacts,
+        ZigbeeFacts,
         RetentionPolicy,
         Scan,
         TalosStore,
@@ -71,7 +80,10 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
         emqx_to_clients,
         match_clients,
         merge_observed,
+        parse_devices,
         parse_emqx_clients,
+        parse_info,
+        roles_by_ieee,
     )
     from .vendor.talos_core.export_html import (  # type: ignore[no-redef]  # noqa: F401
         render_html,
@@ -79,6 +91,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     )
     from .vendor.talos_core.sources.mapping import (  # type: ignore[no-redef]  # noqa: F401
         RegistryPayload,
+        apply_mesh_roles,
         build_scan,
     )
     from .vendor.talos_core.suggest import subnets, suggestions  # type: ignore[no-redef]  # noqa: F401
@@ -96,6 +109,7 @@ __all__ = [
     "RetentionPolicy",
     "MqttClient",
     "MqttFacts",
+    "ZigbeeFacts",
     "Scan",
     "TalosStore",
     "subnets",
@@ -103,6 +117,7 @@ __all__ = [
     "UnverifiedCheck",
     "ZoneMap",
     "aggregate",
+    "apply_mesh_roles",
     "build_scan",
     "derive",
     "EMQX_CLIENTS_PATH",
@@ -112,7 +127,10 @@ __all__ = [
     "emqx_to_clients",
     "match_clients",
     "merge_observed",
+    "parse_devices",
     "parse_emqx_clients",
+    "parse_info",
+    "roles_by_ieee",
     "render_html",
     "render_json",
     "validate",

@@ -22,7 +22,7 @@ import ssl
 from dataclasses import replace
 from typing import Any
 
-from .core import MqttFacts, Scan, match_clients
+from .core import MqttFacts, Scan, ZigbeeFacts, match_clients
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +50,15 @@ COUNTER_LEVELS = frozenset(
         "inactive",
     }
 )
+
+# Zigbee2MQTT publishes these retained, so they arrive the moment we
+# subscribe. The base topic is configurable, hence the wildcard: whoever
+# answers on `<anything>/bridge/devices` is a Zigbee2MQTT bridge.
+#
+# `bridge/request/networkmap` would give the actual parent of every node, and
+# is deliberately not used: requesting one interrogates every device on the
+# mesh, which is a probe.
+ZIGBEE_TOPICS: tuple[str, ...] = ("+/bridge/devices", "+/bridge/info")
 
 # How long to stay subscribed. Retained $SYS messages arrive at once, so this
 # is a ceiling for a slow broker, not a fixed cost per scan.
@@ -172,6 +181,80 @@ async def collect_via_credentials(
     if error:
         return MqttFacts(available=False, route="account", error=error)
     return MqttFacts(available=True, route="account", clients=match_clients(found, scan))
+
+
+async def collect_zigbee(hass: Any, seconds: float = 2.0) -> tuple[ZigbeeFacts, dict[str, str]]:
+    """The coordinator's own view, from Zigbee2MQTT's retained topics.
+
+    Returns the network facts and the mesh role of every node it named, keyed
+    by IEEE address so the caller can join it onto the device registry.
+    """
+    from .core import ZigbeeFacts, parse_devices, parse_info, roles_by_ieee
+
+    if "mqtt" not in hass.config.components:
+        return ZigbeeFacts(available=False, error="the MQTT integration is not loaded"), {}
+    try:
+        from homeassistant.components import mqtt
+    except ImportError as err:  # pragma: no cover - only on a build without MQTT
+        return ZigbeeFacts(available=False, error=f"the MQTT component is unavailable: {err}"), {}
+
+    nodes: list[Any] = []
+    info: Any = None
+
+    @callback_safe
+    def _on_message(message: Any) -> None:
+        nonlocal nodes, info
+        topic = getattr(message, "topic", "") or ""
+        payload = getattr(message, "payload", None)
+        if topic.endswith("/bridge/devices"):
+            found = parse_devices(payload)
+            if found:
+                nodes = found
+        elif topic.endswith("/bridge/info"):
+            parsed = parse_info(payload)
+            if parsed.version or parsed.permit_join is not None:
+                info = parsed
+
+    unsubscribe = []
+    try:
+        for topic in ZIGBEE_TOPICS:
+            unsubscribe.append(await mqtt.async_subscribe(hass, topic, _on_message, qos=0))
+        await asyncio.sleep(seconds)
+    except Exception as err:  # noqa: BLE001
+        return ZigbeeFacts(available=False, error=f"subscribing to the bridge failed: {err}"), {}
+    finally:
+        for stop in unsubscribe:
+            try:
+                stop()
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Talos: unsubscribing from the bridge failed", exc_info=True)
+
+    if not nodes and info is None:
+        return (
+            ZigbeeFacts(
+                available=False,
+                error=(
+                    "no Zigbee2MQTT bridge answered on <base>/bridge/devices."
+                    " A coordinator behind ZHA or another add-on does not publish"
+                    " these topics, so this is a normal answer rather than a fault"
+                ),
+            ),
+            {},
+        )
+
+    roles = roles_by_ieee(nodes)
+    return (
+        ZigbeeFacts(
+            available=True,
+            permit_join=info.permit_join if info else None,
+            channel=info.channel if info else None,
+            version=info.version if info else None,
+            nodes=len(nodes),
+            routers=sum(1 for node in nodes if node.role == "router"),
+            end_devices=sum(1 for node in nodes if node.role == "end_device"),
+        ),
+        roles,
+    )
 
 
 async def collect_via_home_assistant(

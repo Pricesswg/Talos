@@ -25,6 +25,13 @@ from .emqx import (
     parse_emqx_clients,
 )
 from .mqtt import known_tokens, match_clients
+from .zigbee2mqtt import (
+    BridgeInfo,
+    ZigbeeNode,
+    parse_devices,
+    parse_info,
+    roles_by_ieee,
+)
 
 __all__ = [
     "AdGuardCollector",
@@ -46,7 +53,12 @@ __all__ = [
     "EMQX_PAGE_SIZE",
     "emqx_has_more",
     "emqx_to_clients",
+    "BridgeInfo",
+    "ZigbeeNode",
     "match_clients",
+    "parse_devices",
+    "parse_info",
+    "roles_by_ieee",
     "parse_emqx_clients",
     "merge_observed",
     "parse_clients",

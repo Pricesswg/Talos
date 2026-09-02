@@ -48,6 +48,10 @@ PRECONDITION_REASONS: dict[str, str] = {
         "integration manifests unreadable: iot_class and is_built_in are not"
         " trustworthy in this scan"
     ),
+    "zigbee_bridge": (
+        "no Zigbee coordinator reported its state: without it, whether the"
+        " network is open to joining is unknown rather than closed"
+    ),
     "mqtt_clients": (
         "the broker reported no client list: without $SYS there is nothing to"
         " compare against the registry, and an empty list is not an answer"
@@ -233,6 +237,22 @@ class _Context:
             if conduit.source.kind == "device" and conduit.source.id:
                 self.phone_home_devices.add(conduit.source.id)
 
+    def devices_reaching(self, kinds: set[str]) -> set[str]:
+        """Devices observed resolving a destination of one of these kinds.
+
+        Separate from `phone_home_devices`, which answers the broad question.
+        This one answers a narrow one, and a check that asks about STUN must
+        not match a device that only ever spoke to a CDN.
+        """
+        found: set[str] = set()
+        for conduit in self.scan.conduits:
+            if conduit.evidence != "observed" or conduit.source.kind != "device":
+                continue
+            destination = self.scan.destination(conduit.destination_id)
+            if destination is not None and destination.kind in kinds:
+                found.add(conduit.source.id)
+        return found
+
     def precondition(self, name: str) -> bool:
         if name == "observed_evidence":
             return self.has_observation
@@ -240,6 +260,8 @@ class _Context:
             return any(device.zone != "unknown" for device in self.scan.devices)
         if name == "dhcp_leases":
             return "unv.dhcp_leases_unavailable" not in self.unverified_ids
+        if name == "zigbee_bridge":
+            return bool(self.scan.zigbee and self.scan.zigbee.available)
         if name == "mqtt_clients":
             return bool(self.scan.mqtt and self.scan.mqtt.available)
         if name == "entry_endpoints":
@@ -290,13 +312,28 @@ def _select(
     if kind == "device_where":
         zones = set(selector.get("zone_in") or ())
         needs_egress = bool(selector.get("has_phone_home_egress"))
+        wanted_kinds = set(selector.get("destination_kind_in") or ())
+        reached = context.devices_reaching(wanted_kinds) if wanted_kinds else None
         matched = [
             device.id
             for device in scan.devices
             if (not zones or device.zone in zones)
             and (not needs_egress or device.id in context.phone_home_devices)
+            and (reached is None or device.id in reached)
         ]
         return "device", tuple(sorted(matched))
+
+    if kind == "zigbee_where":
+        facts = scan.zigbee
+        if facts is None:
+            return "unknown", ()
+        wanted = selector.get("permit_join")
+        # A network whose state was never reported is not a closed one, which
+        # is why the check declares a precondition rather than reading None
+        # as False here.
+        if wanted is not None and facts.permit_join is bool(wanted):
+            return "unknown", ("zigbee",)
+        return "unknown", ()
 
     if kind == "mqtt_client_where":
         # A client the broker knows and the registry does not. Reported by

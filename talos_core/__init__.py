@@ -34,6 +34,7 @@ from .model import (
     MqttClient,
     MqttFacts,
     Scan,
+    ZigbeeFacts,
     SourceRef,
     UnverifiedCheck,
 )
@@ -57,6 +58,7 @@ __all__ = [
     "Matrix",
     "MqttClient",
     "MqttFacts",
+    "ZigbeeFacts",
     "PruneReport",
     "RetentionPolicy",
     "SCHEMA_VERSION",
@@ -79,4 +81,4 @@ __all__ = [
     "validate",
 ]
 
-__version__ = "1.11.1"
+__version__ = "1.12.0"

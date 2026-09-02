@@ -298,6 +298,11 @@ const I18N = {
       "Home Assistant li comanda localmente, ma il query log li ha visti risolvere domini del produttore per conto proprio. Questo dice con chi hanno parlato, non che cosa si sono detti.",
     "chk.local_with_egress.remediation":
       "Cerca nell'app del produttore il servizio cloud che gira in parallelo, spesso chiamato P2P, UID o accesso remoto. Disattivarlo non compromette il controllo locale da Home Assistant.",
+    "chk.nat_traversal.title": "Dispositivo che si apre una via di rientro dall'esterno",
+    "chk.nat_traversal.detail":
+      "Questi dispositivi hanno risolto un server STUN o TURN, oppure un tunnel broker. Su quelli non ci naviga nessuno: sono quello che un dispositivo chiede quando vuole una via di rientro in casa che non passa dalle regole del tuo router. È così che l'app del produttore raggiunge una telecamera dall'altra parte del mondo, e funziona che tu abbia aperto una porta o no.",
+    "chk.nat_traversal.remediation":
+      "Se è un tunnel che hai messo su tu, Cloudflare, Tailscale, ZeroTier, è roba tua e non c'è niente da sistemare. Se è una telecamera o un elettrodomestico, cerca accesso remoto, P2P o UID nella sua app e disattivalo: il controllo locale da Home Assistant non ne dipende. Bloccare il dominio sul resolver ferma la risoluzione, non un indirizzo scritto nel firmware.",
     "chk.resolver_bypass.title": "Dispositivo che aggira il resolver",
     "chk.resolver_bypass.detail":
       "Ha un lease DHCP ma non ha mai interrogato AdGuard: usa un server DNS scritto nel firmware. Su questo host ogni controllo basato sul DNS è cieco.",
@@ -308,6 +313,11 @@ const I18N = {
       "La config entry non è caricata, quindi le sue entità sono non disponibili adesso. Non è una questione di autonomia offline: non funzionano né con connettività né senza. Un broker fermo, un servizio che ha cambiato indirizzo o una migrazione fallita si presentano tutti così.",
     "chk.integration_not_loaded.remediation":
       "Apri Impostazioni, Dispositivi e servizi e leggi l'errore della entry. Se cita un broker o un server, verifica che il servizio sia effettivamente avviato e che l'indirizzo corrisponda ancora: un add-on fermato o rinominato è il caso più comune.",
+    "chk.zigbee_permit_join.title": "Rete Zigbee aperta all'accoppiamento",
+    "chk.zigbee_permit_join.detail":
+      "Il coordinator sta accettando nuovi dispositivi adesso. È lo stato giusto per il minuto che serve ad accoppiare qualcosa e quello sbagliato per tutto il resto del tempo: finché è aperta, qualunque cosa a portata radio che chieda di entrare viene fatta entrare.",
+    "chk.zigbee_permit_join.remediation":
+      "Disattiva l'accoppiamento da Zigbee2MQTT, dalla dashboard oppure pubblicando false su <base>/bridge/request/permit_join. Se è acceso perché stai accoppiando qualcosa, questo rilievo sparisce da solo quando hai finito.",
     "chk.custom_integration_cloud.title": "Integrazione di terze parti con accesso cloud",
     "chk.custom_integration_cloud.detail":
       "Integrazioni installate a mano o tramite HACS che dialogano con un servizio esterno. Non sono riviste da Home Assistant, e le credenziali che custodiscono passano per codice di terzi.",
@@ -502,6 +512,23 @@ const I18N = {
     "mqtt.api.replaces":
       "Con una API key configurata Talos non si sottoscrive più a $SYS, e non è una perdita: su EMQX 5 quell'albero contiene solo contatori, mentre l'API elenca i client con il loro indirizzo. Se però l'API non risponde, Talos torna da sola alla sottoscrizione e te lo dice qui sotto invece di restare senza dati.",
 
+    "mesh.coordinator": "Coordinator",
+    "mesh.router": "Router",
+    "mesh.end_device": "Terminale",
+    "mesh.unknown": "",
+    "mesh.title": "Rete Zigbee",
+    "mesh.lead":
+      "Come il coordinator descrive la propria rete, letto dai topic ritenuti di Zigbee2MQTT. I router ripetono per i nodi vicini e stanno a corrente, i terminali dormono e dipendono da un router a portata. Il genitore di ciascun nodo non è dichiarato: saperlo richiede una scansione della mesh, e quella è una sonda.",
+    "mesh.nodes": "Nodi",
+    "mesh.routers": "Router",
+    "mesh.endDevices": "Terminali",
+    "mesh.channel": "Canale",
+    "mesh.permitJoin": "Accoppiamento",
+    "mesh.permitJoin.on": "aperto",
+    "mesh.permitJoin.off": "chiuso",
+    "mesh.version": "Versione Zigbee2MQTT",
+    "map.mesh": "Ruolo nella mesh",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -516,6 +543,7 @@ const I18N = {
     "kind.push_service": "servizio push",
     "kind.ota_update": "aggiornamenti",
     "kind.ntp": "orologio",
+    "kind.nat_traversal": "attraversamento NAT",
     "kind.cdn": "CDN",
     "kind.local_broker": "broker locale",
     "kind.ha_core": "Home Assistant",
@@ -934,6 +962,23 @@ const I18N = {
     "mqtt.api.replaces":
       "With an API key configured Talos stops subscribing to $SYS, and nothing is lost by that: on EMQX 5 the tree holds only counters, while the API lists the clients with their address. If the API does not answer, Talos falls back to the subscription on its own and says so below rather than ending up with nothing.",
 
+    "mesh.coordinator": "Coordinator",
+    "mesh.router": "Router",
+    "mesh.end_device": "End device",
+    "mesh.unknown": "",
+    "mesh.title": "Zigbee network",
+    "mesh.lead":
+      "How the coordinator describes its own network, read from Zigbee2MQTT's retained topics. Routers relay for the nodes around them and are mains powered, end devices sleep and depend on a router being in range. The parent of a node is not stated: knowing it takes a scan of the mesh, and that is a probe.",
+    "mesh.nodes": "Nodes",
+    "mesh.routers": "Routers",
+    "mesh.endDevices": "End devices",
+    "mesh.channel": "Channel",
+    "mesh.permitJoin": "Joining",
+    "mesh.permitJoin.on": "open",
+    "mesh.permitJoin.off": "closed",
+    "mesh.version": "Zigbee2MQTT version",
+    "map.mesh": "Mesh role",
+
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -948,6 +993,7 @@ const I18N = {
     "kind.push_service": "push service",
     "kind.ota_update": "updates",
     "kind.ntp": "clock",
+    "kind.nat_traversal": "NAT traversal",
     "kind.cdn": "CDN",
     "kind.local_broker": "local broker",
     "kind.ha_core": "Home Assistant",
@@ -2676,6 +2722,7 @@ class TalosPanel extends HTMLElement {
         </div>
       </div>
 
+      ${this.meshSection()}
       ${this.hubSection()}
 
       <div>
@@ -2716,6 +2763,43 @@ class TalosPanel extends HTMLElement {
     const label = this.t(`map.scope.${scope.kind}`, { name });
     return `<span class="scopebadge">${esc(label)}
       <button data-scope="all">${esc(this.t("map.clearScope"))}</button></span>`;
+  }
+
+  /** The Zigbee network as its coordinator reports it. Absent entirely when
+   *  no coordinator answered, because an empty panel would read as a network
+   *  with nothing in it. */
+  meshSection() {
+    const zigbee = (this._data || {}).zigbee;
+    if (!zigbee || !zigbee.available) return "";
+    return `<div>
+      <h2 class="sec">${esc(this.t("mesh.title"))}</h2>
+      <p class="page-sub" style="margin-bottom:12px">${esc(this.t("mesh.lead"))}</p>
+      <div class="panel-card"><dl class="kv">
+        <dt>${esc(this.t("mesh.nodes"))}</dt><dd class="mono">${this.num(zigbee.nodes)}</dd>
+        <dt>${esc(this.t("mesh.routers"))}</dt><dd class="mono">${this.num(zigbee.routers)}</dd>
+        <dt>${esc(this.t("mesh.endDevices"))}</dt><dd class="mono">${this.num(zigbee.end_devices)}</dd>
+        ${
+          zigbee.channel
+            ? `<dt>${esc(this.t("mesh.channel"))}</dt><dd class="mono">${this.num(zigbee.channel)}</dd>`
+            : ""
+        }
+        ${
+          zigbee.permit_join != null
+            ? `<dt>${esc(this.t("mesh.permitJoin"))}</dt>
+               <dd>${
+                 zigbee.permit_join
+                   ? `<span class="chip chip--alert">${esc(this.t("mesh.permitJoin.on"))}</span>`
+                   : esc(this.t("mesh.permitJoin.off"))
+               }</dd>`
+            : ""
+        }
+        ${
+          zigbee.version
+            ? `<dt>${esc(this.t("mesh.version"))}</dt><dd class="mono">${esc(zigbee.version)}</dd>`
+            : ""
+        }
+      </dl></div>
+    </div>`;
   }
 
   hubSection() {
@@ -3321,9 +3405,14 @@ class TalosPanel extends HTMLElement {
                 .map(
                   (device) => `<div class="dev">${esc(device.name || device.id)}
                     <span>${esc(
-                      [device.area, device.ip || device.model, device.entity_count
-                        ? this.t("map.entities", { n: device.entity_count })
-                        : ""]
+                      [
+                        this.t(`mesh.${device.mesh_role || "unknown"}`),
+                        device.area,
+                        device.ip || device.model,
+                        device.entity_count
+                          ? this.t("map.entities", { n: device.entity_count })
+                          : "",
+                      ]
                         .filter(Boolean)
                         .join(" · ")
                     )}</span></div>`

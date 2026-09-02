@@ -22,9 +22,27 @@ DEFAULT_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "domains.
 
 @dataclass(frozen=True, slots=True)
 class DomainRule:
-    suffix: str
-    kind: str
+    """A rule keyed on the suffix, on the leftmost label, or on both.
+
+    A suffix names an operator: `tuyaeu.com` is Tuya, whoever runs the host.
+    A label names a function: anything called `stun.something` or
+    `stun-something` is a STUN server no matter who runs it, and enumerating
+    every one of them is not possible. Both forms exist because both questions
+    get asked, and a rule that carries a suffix keeps behaving as it did.
+    """
+
+    suffix: str = ""
+    label: str = ""
+    kind: str = "unknown"
     vendor: str | None = None
+
+    def matches(self, name: str) -> bool:
+        if self.suffix:
+            return name == self.suffix or name.endswith(f".{self.suffix}")
+        if self.label:
+            head = name.split(".", 1)[0]
+            return head == self.label or head.startswith(f"{self.label}-")
+        return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,7 +64,12 @@ class DomainClassifier:
         rules: Iterable[DomainRule] = (),
         ignore: Iterable[str] = (),
     ) -> None:
-        self._rules = sorted(rules, key=lambda r: len(r.suffix), reverse=True)
+        # Suffix rules first and longest first, so `tuyaeu.com` beats `com`
+        # and an explicit host always beats a rule about what it is called.
+        ordered = list(rules)
+        self._rules = sorted(
+            (rule for rule in ordered if rule.suffix), key=lambda r: len(r.suffix), reverse=True
+        ) + [rule for rule in ordered if not rule.suffix and rule.label]
         self._ignore = tuple(s.lower().lstrip(".") for s in ignore)
         self.unknown: set[str] = set()
 
@@ -75,12 +98,13 @@ class DomainClassifier:
     def from_dict(cls, data: dict[str, Any]) -> DomainClassifier:
         rules = [
             DomainRule(
-                suffix=str(entry["suffix"]).lower().lstrip("."),
+                suffix=str(entry.get("suffix") or "").lower().lstrip("."),
+                label=str(entry.get("label") or "").lower().strip("."),
                 kind=str(entry.get("kind") or "unknown"),
                 vendor=entry.get("vendor"),
             )
             for entry in (data.get("rules") or ())
-            if entry.get("suffix")
+            if entry.get("suffix") or entry.get("label")
         ]
         return cls(rules, data.get("ignore") or ())
 
@@ -107,8 +131,8 @@ class DomainClassifier:
     def classify(self, fqdn: str) -> Classification:
         name = fqdn.lower().rstrip(".")
         for rule in self._rules:
-            if name == rule.suffix or name.endswith(f".{rule.suffix}"):
-                return Classification(rule.kind, rule.vendor, rule.suffix)
+            if rule.matches(name):
+                return Classification(rule.kind, rule.vendor, rule.suffix or f"*{rule.label}")
         # Remembered so the scan can say how much of the traffic it could not
         # name, instead of presenting a partial map as a complete one.
         self.unknown.add(name)

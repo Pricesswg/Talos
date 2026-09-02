@@ -17,6 +17,22 @@
       "remediation": "Check the vendor's own app for a cloud service running in parallel, often called P2P, UID or remote access. Turning it off does not affect local control from Home Assistant."
     },
     {
+      "id": "chk.nat_traversal",
+      "title": "Device opening a way back in from outside",
+      "severity": "high",
+      "requires": [
+        "observed_evidence"
+      ],
+      "selector": {
+        "type": "device_where",
+        "destination_kind_in": [
+          "nat_traversal"
+        ]
+      },
+      "detail": "These devices resolved a STUN or TURN server, or a tunnel broker. Nobody browses to one of those: they are what a device asks for when it wants a path back into the house that does not go through your router's rules. That is how a vendor app reaches a camera from the other side of the world, and it works whether or not you opened a port.",
+      "remediation": "If it is a tunnel you set up yourself, Cloudflare, Tailscale, ZeroTier, this is your own doing and nothing needs fixing. If it is a camera or an appliance, look for remote access, P2P or UID in its own app and turn it off: local control from Home Assistant does not depend on it. Blocking the domain at the resolver stops the lookup, not a hardcoded address."
+    },
+    {
       "id": "chk.resolver_bypass",
       "title": "Device bypassing the resolver",
       "severity": "high",
@@ -43,6 +59,20 @@
       },
       "detail": "The config entry is not loaded, so its entities are unavailable right now. This is not an offline-resilience question: they are not working with or without an uplink. A stopped broker, a service that moved, or a failed migration all look like this.",
       "remediation": "Open Settings, Devices and services and read the entry's error. If it points at a broker or a server, check that the service is actually running and that the address still matches: an add-on that was stopped or renamed is the common case."
+    },
+    {
+      "id": "chk.zigbee_permit_join",
+      "title": "Zigbee network open to joining",
+      "severity": "high",
+      "requires": [
+        "zigbee_bridge"
+      ],
+      "selector": {
+        "type": "zigbee_where",
+        "permit_join": true
+      },
+      "detail": "The coordinator is accepting new devices right now. That is the correct state for the minute it takes to pair something and the wrong one for the rest of the time: while it is open, anything within radio range that asks to join is let onto the network.",
+      "remediation": "Turn joining off in Zigbee2MQTT, from the dashboard or by publishing false to <base>/bridge/request/permit_join. If it is on because you are pairing something, this finding disappears by itself when you finish."
     },
     {
       "id": "chk.custom_integration_cloud",

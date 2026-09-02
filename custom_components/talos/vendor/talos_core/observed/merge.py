@@ -262,7 +262,11 @@ def _notes(
                 detail=(
                     f"{len(classifier.unknown)} domains with no rule: {sample}{more}."
                     " They stay counted and visible rather than falling into a"
-                    " catch-all. Extend the domain list to name them."
+                    " catch-all. Most of a home resolver's log is phones and"
+                    " computers browsing, and naming every site anybody visits is"
+                    " not what this list is for: what matters is a domain reached"
+                    " by a device in the registry. Extend the domain list to name"
+                    " the ones that are."
                 ),
             )
         )

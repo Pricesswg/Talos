@@ -631,6 +631,35 @@ def _origin(raw: dict[str, Any], domain: str | None) -> str | None:
     return None
 
 
+def apply_mesh_roles(
+    devices: list[Device], roles: dict[str, str], identifiers: dict[str, list[str]]
+) -> int:
+    """Give each device the part its coordinator says it plays.
+
+    The join is on the IEEE address, which is in the device identifier one way
+    or another: bare on a Zigbee2MQTT device, or behind a prefix. Anything the
+    coordinator did not name keeps `unknown`, which is the honest answer for a
+    node on a mesh nobody asked about.
+    """
+    applied = 0
+    for device in devices:
+        for value in identifiers.get(device.id) or ():
+            lowered = str(value).lower()
+            ieee = lowered if lowered.startswith("0x") else _trailing_ieee(lowered)
+            role = roles.get(ieee or "")
+            if role:
+                device.mesh_role = role
+                applied += 1
+                break
+    return applied
+
+
+def _trailing_ieee(value: str) -> str | None:
+    """The IEEE address at the end of an identifier like `zigbee2mqtt_0x00...`."""
+    match = re.search(r"(0x[0-9a-f]{16})$", value)
+    return match.group(1) if match else None
+
+
 def _mac(raw: dict[str, Any]) -> str | None:
     for connection in raw.get("connections") or ():
         if (

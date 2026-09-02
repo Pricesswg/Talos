@@ -203,6 +203,9 @@ def ws_derived(
                         # The system that produced it, when that is not the
                         # integration that registered it.
                         "origin": device.origin,
+                        # Coordinator, router or end device, when the mesh
+                        # coordinator said so. Never a parent.
+                        "mesh_role": device.mesh_role,
                         # The map draws the hub hierarchy and the weight of
                         # each branch from these two.
                         "via_device_id": device.via_device_id,
@@ -235,6 +238,7 @@ def ws_derived(
                 },
             },
             "conduits": [conduit.to_dict() for conduit in data.scan.conduits],
+            "zigbee": data.scan.zigbee.to_dict() if data.scan.zigbee else None,
             "observed_available": data.observed_available,
             "observed_error": data.observed_error,
         },

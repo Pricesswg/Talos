@@ -69,6 +69,12 @@ TRANSPORTS: Final = frozenset(
 # these has no direct egress; whatever it reaches, it reaches through its hub.
 NON_IP_TRANSPORTS: Final = frozenset({"zigbee", "zwave", "ble", "thread"})
 
+# What part a node plays in a mesh. A router relays for the nodes around it
+# and is mains powered; an end device sleeps and depends on a router being in
+# range. It is the shape of the network, and it is the one thing a mesh
+# coordinator will state without being asked to interrogate anybody.
+MESH_ROLES: Final = frozenset({"coordinator", "router", "end_device", "unknown"})
+
 # What an integration does, beyond how it talks. A bus that carries other
 # systems and a service that carries a continuous media stream are both worth
 # seeing on their own, and neither is a transport: Zigbee2MQTT rides on MQTT
@@ -90,6 +96,10 @@ DESTINATION_KINDS: Final = frozenset(
         "push_service",
         "ntp",
         "cdn",
+        # A STUN or TURN server is not a destination anyone browses to: a
+        # device reaching one is opening a path back into the house from
+        # outside, which is the single most interesting thing DNS can show.
+        "nat_traversal",
         "unknown",
     }
 )
@@ -107,7 +117,7 @@ INFRA_DESTINATION_KINDS: Final = frozenset({"ntp", "ota_update"})
 # here because an unclassified destination must stay visible, not fall into
 # a benign catch-all.
 PHONE_HOME_DESTINATION_KINDS: Final = frozenset(
-    {"vendor_cloud", "telemetry", "push_service", "cdn", "unknown"}
+    {"vendor_cloud", "telemetry", "push_service", "cdn", "nat_traversal", "unknown"}
 )
 
 # Destinations whose outage is a functional dependency worth naming a vendor for.

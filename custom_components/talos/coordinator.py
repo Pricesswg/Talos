@@ -69,7 +69,8 @@ from .core import (
     merge_observed,
 )
 from .http_transport import HassHttpTransport
-from .mqtt_source import collect_mqtt
+from .core import apply_mesh_roles
+from .mqtt_source import collect_mqtt, collect_zigbee
 from .native_source import NativeSource
 
 _LOGGER = logging.getLogger(__name__)
@@ -203,6 +204,20 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
             return True
         return self._setup_snapshot(entry) != self._setup_state
 
+    def _device_identifiers(self) -> dict[str, list[str]]:
+        """Device id to the identifier values the registry holds for it.
+
+        The scan drops identifiers once it has read what it needed from them,
+        and the IEEE address is only ever in there, so the join needs the
+        registry a second time. It is an in-memory read.
+        """
+        from homeassistant.helpers import device_registry
+
+        return {
+            device.id: [str(pair[1]) for pair in device.identifiers if len(pair) >= 2]
+            for device in device_registry.async_get(self.hass).devices.values()
+        }
+
     def _mqtt_api(self) -> dict[str, Any] | None:
         """The EMQX API, if one is configured. Preferred where it exists."""
         data = self.entry.data
@@ -300,6 +315,13 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         api = self._mqtt_api()
         if api or credentials or "mqtt" in self.hass.config.components:
             scan.mqtt = await collect_mqtt(self.hass, scan, credentials, api=api)
+
+        # The Zigbee coordinator's own view, from retained topics. Nothing is
+        # asked of the mesh, so this costs a subscription and no radio time.
+        if "mqtt" in self.hass.config.components:
+            scan.zigbee, roles = await collect_zigbee(self.hass)
+            if roles:
+                apply_mesh_roles(scan.devices, roles, self._device_identifiers())
             if scan.mqtt.error:
                 _LOGGER.debug("Talos: MQTT facts unavailable: %s", scan.mqtt.error)
 

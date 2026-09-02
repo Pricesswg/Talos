@@ -9,11 +9,12 @@ from .base import (
     DeclarativeSource,
     SourceError,
 )
-from .mapping import RegistryPayload, build_scan
+from .mapping import RegistryPayload, apply_mesh_roles, build_scan
 from .websocket import AiohttpTransport, WebSocketSource
 
 __all__ = [
     "AiohttpTransport",
+    "apply_mesh_roles",
     "AuthError",
     "CommandError",
     "CommandTransport",

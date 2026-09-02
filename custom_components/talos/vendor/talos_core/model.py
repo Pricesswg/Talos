@@ -106,6 +106,10 @@ class Device:
     # registered it. An MQTT entry can be fed by Zigbee2MQTT and a SwitchBot
     # bridge at once; the integration is the bus, this is the source on it.
     origin: str | None = None
+    # What part it plays in its mesh, when the coordinator says so. Never a
+    # parent: naming the parent of a node needs a scan of the mesh itself,
+    # and that is a probe.
+    mesh_role: str = "unknown"
     via_device_id: str | None = None
     entity_count: int = 0
 
@@ -129,6 +133,7 @@ class Device:
             ip=raw.get("ip"),
             zone=raw.get("zone") or "unknown",
             origin=raw.get("origin"),
+            mesh_role=raw.get("mesh_role") or "unknown",
             via_device_id=raw.get("via_device_id"),
             entity_count=int(raw.get("entity_count") or 0),
         )
@@ -146,6 +151,7 @@ class Device:
             "ip": self.ip,
             "zone": self.zone,
             "origin": self.origin,
+            "mesh_role": self.mesh_role,
             "via_device_id": self.via_device_id,
             "entity_count": self.entity_count,
         }
@@ -280,6 +286,51 @@ class MqttClient:
 
 
 @dataclass(frozen=True, slots=True)
+class ZigbeeFacts:
+    """What the Zigbee coordinator says about its own network.
+
+    Read from Zigbee2MQTT's retained bridge topics, so nothing is asked of the
+    mesh to get it. `permit_join` is the one that matters: a network left open
+    accepts any device that asks, and it is meant to be open for the minute it
+    takes to pair something.
+    """
+
+    available: bool = False
+    error: str | None = None
+    permit_join: bool | None = None
+    channel: int | None = None
+    version: str | None = None
+    nodes: int = 0
+    routers: int = 0
+    end_devices: int = 0
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any], path: str) -> ZigbeeFacts:
+        return cls(
+            available=bool(raw.get("available")),
+            error=raw.get("error"),
+            permit_join=raw.get("permit_join"),
+            channel=raw.get("channel"),
+            version=raw.get("version"),
+            nodes=int(raw.get("nodes") or 0),
+            routers=int(raw.get("routers") or 0),
+            end_devices=int(raw.get("end_devices") or 0),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "available": self.available,
+            "error": self.error,
+            "permit_join": self.permit_join,
+            "channel": self.channel,
+            "version": self.version,
+            "nodes": self.nodes,
+            "routers": self.routers,
+            "end_devices": self.end_devices,
+        }
+
+
+@dataclass(frozen=True, slots=True)
 class MqttFacts:
     """What the broker reported about itself, read-only over $SYS.
 
@@ -406,6 +457,9 @@ class Scan:
     # Absent when no broker was read, which is different from a broker that
     # reported nothing.
     mqtt: MqttFacts | None = None
+    # Absent when no Zigbee coordinator was read, which is different from a
+    # coordinator that reported an empty network.
+    zigbee: ZigbeeFacts | None = None
     unverified: list[UnverifiedCheck] = field(default_factory=list)
 
     # ── lookups ───────────────────────────────────────────────────────────
@@ -466,6 +520,9 @@ class Scan:
             ],
             correlation=Correlation.from_dict(raw.get("correlation") or {}, "$.correlation"),
             mqtt=MqttFacts.from_dict(raw["mqtt"], "$.mqtt") if raw.get("mqtt") else None,
+            zigbee=(
+                ZigbeeFacts.from_dict(raw["zigbee"], "$.zigbee") if raw.get("zigbee") else None
+            ),
             unverified=[
                 UnverifiedCheck.from_dict(r, f"$.unverified[{i}]")
                 for i, r in enumerate(raw.get("unverified") or [])
@@ -484,5 +541,6 @@ class Scan:
             "conduits": [c.to_dict() for c in self.conduits],
             "correlation": self.correlation.to_dict(),
             **({"mqtt": self.mqtt.to_dict()} if self.mqtt else {}),
+            **({"zigbee": self.zigbee.to_dict()} if self.zigbee else {}),
             "unverified": [u.to_dict() for u in self.unverified],
         }

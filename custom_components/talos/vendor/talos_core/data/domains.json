@@ -1,13 +1,17 @@
 {
   "_comment": "Who sits behind a domain is something a person knows, not something an algorithm derives. Extensible without touching the code: see DomainClassifier.load.",
-  "version": 1,
+  "version": 2,
   "ignore": [
-    ".local",
-    ".lan",
+    ".arpa",
     ".home.arpa",
     ".internal",
-    ".arpa",
-    ".localdomain"
+    ".lan",
+    ".local",
+    ".localdomain",
+    "in-addr.arpa",
+    "ip6.arpa",
+    "localhost",
+    "root-servers.net"
   ],
   "rules": [
     {
@@ -229,6 +233,244 @@
       "suffix": "cloudflare.com",
       "kind": "cdn",
       "vendor": "Cloudflare"
+    },
+    {
+      "label": "stun",
+      "kind": "nat_traversal"
+    },
+    {
+      "label": "turn",
+      "kind": "nat_traversal"
+    },
+    {
+      "suffix": "stunprotocol.org",
+      "kind": "nat_traversal"
+    },
+    {
+      "suffix": "stunserver.org",
+      "kind": "nat_traversal"
+    },
+    {
+      "suffix": "hot-chilli.net",
+      "kind": "nat_traversal"
+    },
+    {
+      "suffix": "argotunnel.com",
+      "kind": "nat_traversal",
+      "vendor": "Cloudflare Tunnel"
+    },
+    {
+      "suffix": "easytier.cn",
+      "kind": "nat_traversal"
+    },
+    {
+      "suffix": "tailscale.com",
+      "kind": "nat_traversal",
+      "vendor": "Tailscale"
+    },
+    {
+      "suffix": "tailscale.io",
+      "kind": "nat_traversal",
+      "vendor": "Tailscale"
+    },
+    {
+      "suffix": "zerotier.com",
+      "kind": "nat_traversal",
+      "vendor": "ZeroTier"
+    },
+    {
+      "suffix": "ngrok.io",
+      "kind": "nat_traversal",
+      "vendor": "ngrok"
+    },
+    {
+      "suffix": "ngrok.com",
+      "kind": "nat_traversal",
+      "vendor": "ngrok"
+    },
+    {
+      "suffix": "anker.com",
+      "kind": "vendor_cloud",
+      "vendor": "Anker"
+    },
+    {
+      "suffix": "eufylife.com",
+      "kind": "vendor_cloud",
+      "vendor": "Anker"
+    },
+    {
+      "suffix": "switch-bot.com",
+      "kind": "vendor_cloud",
+      "vendor": "SwitchBot"
+    },
+    {
+      "suffix": "wyzecam.com",
+      "kind": "vendor_cloud",
+      "vendor": "Wyze"
+    },
+    {
+      "suffix": "dahuasecurity.com",
+      "kind": "vendor_cloud",
+      "vendor": "Dahua"
+    },
+    {
+      "suffix": "hikvision.com",
+      "kind": "vendor_cloud",
+      "vendor": "Hikvision"
+    },
+    {
+      "suffix": "ezvizlife.com",
+      "kind": "vendor_cloud",
+      "vendor": "Hikvision"
+    },
+    {
+      "suffix": "ecovacs.cn",
+      "kind": "vendor_cloud",
+      "vendor": "Ecovacs"
+    },
+    {
+      "suffix": "miot-spec.com",
+      "kind": "vendor_cloud",
+      "vendor": "Xiaomi"
+    },
+    {
+      "suffix": "mi.com",
+      "kind": "vendor_cloud",
+      "vendor": "Xiaomi"
+    },
+    {
+      "suffix": "miwifi.com",
+      "kind": "vendor_cloud",
+      "vendor": "Xiaomi"
+    },
+    {
+      "suffix": "withings.net",
+      "kind": "vendor_cloud",
+      "vendor": "Withings"
+    },
+    {
+      "suffix": "withings.com",
+      "kind": "vendor_cloud",
+      "vendor": "Withings"
+    },
+    {
+      "suffix": "meross.com",
+      "kind": "vendor_cloud",
+      "vendor": "Meross"
+    },
+    {
+      "suffix": "zimaspace.com",
+      "kind": "vendor_cloud",
+      "vendor": "Zima"
+    },
+    {
+      "suffix": "govee.com",
+      "kind": "vendor_cloud",
+      "vendor": "Govee"
+    },
+    {
+      "suffix": "nabu.casa",
+      "kind": "vendor_cloud",
+      "vendor": "Nabu Casa"
+    },
+    {
+      "suffix": "anthropic.com",
+      "kind": "vendor_cloud",
+      "vendor": "Anthropic"
+    },
+    {
+      "suffix": "openai.com",
+      "kind": "vendor_cloud",
+      "vendor": "OpenAI"
+    },
+    {
+      "suffix": "chatgpt.com",
+      "kind": "vendor_cloud",
+      "vendor": "OpenAI"
+    },
+    {
+      "suffix": "adobe.io",
+      "kind": "vendor_cloud",
+      "vendor": "Adobe"
+    },
+    {
+      "suffix": "tuyacn.com",
+      "kind": "vendor_cloud",
+      "vendor": "Tuya"
+    },
+    {
+      "suffix": "googleapis.com",
+      "kind": "push_service",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "mtalk.google.com",
+      "kind": "push_service",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "events.data.microsoft.com",
+      "kind": "telemetry",
+      "vendor": "Microsoft"
+    },
+    {
+      "suffix": "unagi.amazon.com",
+      "kind": "telemetry",
+      "vendor": "Amazon"
+    },
+    {
+      "suffix": "unagi-eu.amazon.com",
+      "kind": "telemetry",
+      "vendor": "Amazon"
+    },
+    {
+      "suffix": "jsdelivr.net",
+      "kind": "cdn"
+    },
+    {
+      "suffix": "gstatic.com",
+      "kind": "cdn",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "googleusercontent.com",
+      "kind": "cdn",
+      "vendor": "Google"
+    },
+    {
+      "suffix": "aaplimg.com",
+      "kind": "cdn",
+      "vendor": "Apple"
+    },
+    {
+      "suffix": "whatsapp.net",
+      "kind": "cdn",
+      "vendor": "Meta"
+    },
+    {
+      "suffix": "apple-dns.net",
+      "kind": "cdn",
+      "vendor": "Apple"
+    },
+    {
+      "suffix": "ubuntu.com",
+      "kind": "ota_update",
+      "vendor": "Canonical"
+    },
+    {
+      "suffix": "debian.org",
+      "kind": "ota_update",
+      "vendor": "Debian"
+    },
+    {
+      "suffix": "ghcr.io",
+      "kind": "ota_update",
+      "vendor": "GitHub"
+    },
+    {
+      "suffix": "docker.io",
+      "kind": "ota_update",
+      "vendor": "Docker"
     }
   ]
 }

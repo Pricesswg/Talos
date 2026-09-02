@@ -94,8 +94,18 @@ router does the DHCP has no leases to read, and used to correlate exactly nothin
 cannot attribute becomes an `unknown_host` conduit instead of being dropped.
 
 **4. Classify and attribute.** Domains are resolved against `talos_core/data/domains.json`: vendor
-cloud, telemetry, push service, CDN, NTP, updates, local broker. Unclassified domains stay counted
-and listed.
+cloud, telemetry, push service, CDN, NTP, updates, local broker, NAT traversal. A rule matches on the
+suffix, which names an operator, or on the leftmost label, which names a function: `tuyaeu.com` is
+Tuya whoever runs the host, and anything called `stun.something` is a STUN server whoever runs it,
+which is not a list that can be enumerated. Suffix rules win, so an explicit host always beats a rule
+about what it is called. Unclassified domains stay counted and listed, with the caveat that most of a
+home resolver's log is phones and computers browsing: what matters is a domain reached by a device in
+the registry.
+
+NAT traversal is its own kind because it answers the question this tool exists for. Nobody browses to
+a STUN server: it is what a device asks for when it wants a path back into the house that does not go
+through the router's rules, which is how a vendor app reaches a camera from anywhere, port forwarding
+or not.
 
 The transport of a device is read from the best evidence available, in order: a connection type
 stated by the integration, then an identifier prefix, then the radio its hub was found to speak,
@@ -153,6 +163,8 @@ It checks:
 - Devices reaching outside from the trusted LAN rather than from an IoT VLAN
 - Integrations declared cloud that were never seen contacting anything
 - An MQTT broker reached with no credentials, and clients on it that match nothing Talos knows
+- Devices resolving a STUN, TURN or tunnel broker, which is a path back into the house from outside
+- A Zigbee network left open to joining
 - Config entries that are not loaded, whose entities are unavailable right now rather than
   merely cloud-dependent
 - Which entities stop working when the internet drops, and which vendor accounts for most of them
@@ -165,6 +177,14 @@ It does not check, and will not:
 - No traffic inspection. DNS says **who** a device talked to, never what was said or how much. The
   report says "dependency detected" and never "data exfiltration"
 - Nothing is modified. Every source is read-only
+
+The Zigbee network is read from Zigbee2MQTT's retained `bridge/devices` and `bridge/info` topics, on
+whatever base topic it publishes under. That gives the part each node plays, coordinator, router or
+end device, which is the shape of the mesh, plus the channel and whether the network is currently
+open to joining. The parent of a node is deliberately not claimed: the topic that would give it is
+`bridge/request/networkmap`, and requesting one interrogates every device on the mesh, which is a
+probe. A role is joined onto the registry by IEEE address, and a node the coordinator did not name
+keeps `unknown`.
 
 Three checks in the rule file are declared but not implemented yet: Z-Wave nodes without S2,
 cleartext RTSP, and ARP against the registry. They appear in the unverified list with the reason and
