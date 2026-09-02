@@ -266,7 +266,7 @@ class TestMerge(unittest.TestCase):
         self.assertEqual(validate(self.merged.to_dict()), [])
 
     def test_input_scan_is_untouched(self) -> None:
-        self.assertEqual(self.declared.conduits, [])
+        self.assertEqual([c for c in self.declared.conduits if c.evidence == "observed"], [])
         self.assertTrue(all(d.ip is None for d in self.declared.devices))
 
     def test_leases_supply_the_addresses_the_registry_lacks(self) -> None:

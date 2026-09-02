@@ -297,6 +297,9 @@ def build_scan(
         )
 
     destinations, conduits = _endpoints(payload.config_entries, known_entries)
+    link_destinations, link_conduits = _local_links(devices)
+    destinations = sorted([*destinations, *link_destinations], key=lambda d: d.id)
+    conduits = [*conduits, *link_conduits]
 
     return Scan(
         schema_version=SCHEMA_VERSION,
@@ -404,6 +407,49 @@ def _endpoints(
                     encrypted=bool(stream.get("encrypted")),
                 )
             )
+
+    return sorted(destinations.values(), key=lambda d: d.id), conduits
+
+
+def _local_links(devices: list[Device]) -> tuple[list[Destination], list[Conduit]]:
+    """The link every device has to its hub, as a conduit.
+
+    A radio is a conduit. A Zigbee lamp exchanges data with its coordinator
+    continuously and never touches IP, so it owns no address, appears in no
+    query log, and used to be absent from every view built on conduits. That
+    said the branch was not there, when what is true is that it never leaves
+    the hub. The registry states the parent and the transport, so this is
+    declared evidence like any other, and it stops at the hub: what the hub
+    does next is the hub's own conduit.
+    """
+    destinations: dict[str, Destination] = {}
+    conduits: list[Conduit] = []
+    by_id = {device.id: device for device in devices}
+
+    for device in devices:
+        parent = by_id.get(device.via_device_id or "")
+        if parent is None or device.transport in {"unknown", "virtual"}:
+            continue
+        destination_id = f"dst.hub.{parent.id}"
+        if destination_id not in destinations:
+            destinations[destination_id] = Destination(
+                id=destination_id,
+                fqdn=parent.name,
+                kind="local_hub",
+                vendor=parent.manufacturer,
+            )
+        conduits.append(
+            Conduit(
+                id=f"cnd.{device.id}.link",
+                source=SourceRef("device", device.id),
+                destination_id=destination_id,
+                evidence="declared",
+                protocol=device.transport,
+                # A radio link is encrypted or not depending on how the mesh
+                # was set up, and the registry does not say which.
+                encrypted="unknown",
+            )
+        )
 
     return sorted(destinations.values(), key=lambda d: d.id), conduits
 

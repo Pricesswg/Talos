@@ -541,6 +541,7 @@ const I18N = {
     "kind.ntp": "orologio",
     "kind.nat_traversal": "attraversamento NAT",
     "kind.cdn": "CDN",
+    "kind.local_hub": "hub locale",
     "kind.local_broker": "broker locale",
     "kind.ha_core": "Home Assistant",
     "kind.unknown": "non classificato",
@@ -991,6 +992,7 @@ const I18N = {
     "kind.ntp": "clock",
     "kind.nat_traversal": "NAT traversal",
     "kind.cdn": "CDN",
+    "kind.local_hub": "local hub",
     "kind.local_broker": "local broker",
     "kind.ha_core": "Home Assistant",
     "kind.unknown": "unclassified",
@@ -1270,7 +1272,7 @@ table.data tr.is-key td { background: var(--alert-soft); }
 }
 .chip--vendor_cloud, .chip--telemetry, .chip--push_service { color: var(--k-vendor); }
 .chip--ntp, .chip--ota_update, .chip--cdn { color: var(--k-infra); }
-.chip--local_broker, .chip--ha_core { color: var(--k-local); }
+.chip--local_broker, .chip--local_hub, .chip--ha_core { color: var(--k-local); }
 .chip--unknown { color: var(--k-unknown); border-style: dashed; }
 
 .check {
@@ -1422,7 +1424,12 @@ svg.graph .band { fill: color-mix(in srgb, var(--ink) 5%, transparent); }
 svg.graph .edge { fill: none; }
 `;
 
-const PHONE_HOME = new Set(["vendor_cloud", "telemetry", "push_service", "cdn", "unknown"]);
+const PHONE_HOME = new Set([
+  "vendor_cloud", "telemetry", "push_service", "cdn", "nat_traversal", "unknown",
+]);
+// Inside the house. Drawn so a local branch ends somewhere real, and coloured
+// as local so it never reads as egress.
+const INTERNAL_KINDS = new Set(["ha_core", "local_broker", "local_hub"]);
 const SEVERITY_TONE = { high: "alert", medium: "attention", low: "info" };
 // Worst first, so the list opens on the thing that matters most.
 const SEVERITY_ORDER = ["high", "medium", "low"];
@@ -1438,6 +1445,9 @@ const GUIDE_STEPS = [1, 2, 3, 4, 5, 6];
  * grouped one that shows it. */
 const GROUP_THRESHOLD = 10;
 const MAX_ROWS = 10;
+// Rows kept for what is inside the house, so a local branch always ends at
+// the hub or broker it actually reaches.
+const LOCAL_ROWS = 4;
 
 const byName = (a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id));
 
@@ -2954,9 +2964,19 @@ class TalosPanel extends HTMLElement {
           x: CX + Math.cos(iMid) * R_INTEGRATION * stretch,
           y: CY + Math.sin(iMid) * R_INTEGRATION,
           rx: R_INTEGRATION * stretch, ry: R_INTEGRATION, pad: 30,
-          label, sub: integration.domain || "", colour,
+          label,
+          // The entry title is whatever Home Assistant called it when it was
+          // set up, and it goes stale: an entry created from the Mosquitto
+          // add-on keeps saying Mosquitto after it is pointed at EMQX. The
+          // address it declares is the thing that is actually true.
+          sub: [integration.domain, integration.endpoint].filter(Boolean).join(" · "),
+          colour,
           count: entry.devices.length, open, ref: entry.id,
-          hit: matches(label) || matches(integration.domain) || item.deviceMatch,
+          hit:
+            matches(label) ||
+            matches(integration.domain) ||
+            matches(integration.endpoint) ||
+            item.deviceMatch,
         };
         nodes.push(iNode);
         links.push({
@@ -3871,34 +3891,26 @@ class TalosPanel extends HTMLElement {
     // a real edge even with no query log, so the graph is never empty just
     // because nothing has been observed yet.
     const cloudIntegrations = this.cloudIntegrations();
-    if (!withConduits.size) {
-      cloudIntegrations.forEach((entryId) => {
-        Object.entries(devices).forEach(([id, device]) => {
-          if (device.integration_id === entryId) withConduits.add(id);
-        });
-      });
-    }
 
-    const grouped = withConduits.size > GROUP_THRESHOLD;
+    const grouped = Object.keys(devices).length > GROUP_THRESHOLD;
     const originOf = (deviceId) =>
       grouped ? (devices[deviceId] || {}).integration_id || "?" : deviceId;
 
-    // Origins ranked by how much traffic they account for, so the rows that
-    // get drawn are the ones worth looking at.
+    // Every origin is weighed by what it owns, then by the traffic that was
+    // actually seen. Ranking on observations alone drew the house that talks
+    // and hid the house that does not: a Zigbee branch has no IP and no query
+    // log entry by definition, and leaving it out of a picture of the flows
+    // said it was not there rather than that it never leaves the hub.
     const weight = new Map();
+    Object.keys(devices).forEach((deviceId) => {
+      const key = originOf(deviceId);
+      weight.set(key, (weight.get(key) || 0) + 1);
+    });
     d.conduits.forEach((conduit) => {
       if (conduit.source.kind !== "device" || !conduit.source.id) return;
       const key = originOf(conduit.source.id);
       weight.set(key, (weight.get(key) || 0) + (conduit.query_count || 1));
     });
-    // With no observations the weights come from the declared side instead,
-    // so the first three columns are populated rather than blank.
-    if (!weight.size) {
-      withConduits.forEach((deviceId) => {
-        const key = originOf(deviceId);
-        weight.set(key, (weight.get(key) || 0) + 1);
-      });
-    }
 
     const origins = [...weight.entries()]
       .sort((a, b) => b[1] - a[1])
@@ -3912,13 +3924,37 @@ class TalosPanel extends HTMLElement {
       members.get(key).push(deviceId);
     });
 
-    const observedDestinations = [
-      ...new Set(
-        d.conduits
-          .filter((conduit) => PHONE_HOME.has(this.destination(conduit.destination_id).kind))
-          .map((conduit) => conduit.destination_id)
-      ),
-    ];
+    // Egress first, because that is what the view is for, then the hubs and
+    // brokers the local links end at. Without those, a Zigbee branch reached
+    // the transport column and stopped there, which drew a stub instead of
+    // the coordinator it actually talks to.
+    // Ranked by what arrives at them: queries where they were observed, and
+    // the number of links otherwise. A coordinator with ninety nodes hanging
+    // off it should not lose its slot to an endpoint nobody uses.
+    const arriving = new Map();
+    d.conduits.forEach((conduit) => {
+      const id = conduit.destination_id;
+      arriving.set(id, (arriving.get(id) || 0) + (conduit.query_count || 1));
+    });
+    const rank = (ids) => ids.sort((a, b) => (arriving.get(b) || 0) - (arriving.get(a) || 0));
+
+    const seen = new Set();
+    const egress = [];
+    const internal = [];
+    d.conduits.forEach((conduit) => {
+      const destination = this.destination(conduit.destination_id);
+      if (seen.has(conduit.destination_id)) return;
+      if (PHONE_HOME.has(destination.kind)) {
+        seen.add(conduit.destination_id);
+        egress.push(conduit.destination_id);
+      } else if (INTERNAL_KINDS.has(destination.kind)) {
+        seen.add(conduit.destination_id);
+        internal.push(conduit.destination_id);
+      }
+    });
+    rank(egress);
+    rank(internal);
+    
     // One undisclosed destination per cloud integration that was never seen
     // reaching anything: the dependency is declared, the host is not.
     const seenIntegrations = new Set(
@@ -3929,15 +3965,26 @@ class TalosPanel extends HTMLElement {
     const declaredDestinations = cloudIntegrations
       .filter((entryId) => !seenIntegrations.has(entryId))
       .map((entryId) => `undisclosed:${entryId}`);
-    const destinations = [...observedDestinations, ...declaredDestinations].slice(0, MAX_ROWS);
+    // The hubs and brokers get their own slots. Ranking them against the
+    // egress would lose them every time on a house with any traffic at all,
+    // and then the local branches would end nowhere again.
+    const localRows = internal.slice(0, LOCAL_ROWS);
+    const outward = [...egress, ...declaredDestinations].slice(0, MAX_ROWS - localRows.length);
+    const destinations = [...outward, ...localRows];
 
-    const transports = [
-      ...new Set(
-        origins.flatMap((key) =>
-          (members.get(key) || []).map((id) => (devices[id] || {}).transport || "unknown")
-        )
-      ),
-    ].slice(0, 6);
+    // Every transport the drawn branches actually use, busiest first, so the
+    // column is the shape of the install rather than of its egress.
+    const transportWeight = new Map();
+    origins.forEach((key) => {
+      (members.get(key) || []).forEach((id) => {
+        const transport = (devices[id] || {}).transport || "unknown";
+        transportWeight.set(transport, (transportWeight.get(transport) || 0) + 1);
+      });
+    });
+    const transports = [...transportWeight.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([transport]) => transport);
 
     // Cloud integrations that own no device still declare a dependency, so
     // they get a node rather than a destination floating unattached.

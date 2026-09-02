@@ -73,8 +73,12 @@ class TestWebSocketCollection(unittest.TestCase):
 
     def test_declared_only(self) -> None:
         # Nothing has been observed yet, and a manifest never names a host.
-        self.assertEqual(self.scan.conduits, [])
-        self.assertEqual(self.scan.destinations, [])
+        # The local radio links are declared, so they are here: what must not
+        # be is anything claiming to have been seen on the wire.
+        self.assertEqual([c for c in self.scan.conduits if c.evidence != "declared"], [])
+        self.assertEqual(
+            [d for d in self.scan.destinations if d.kind not in INTERNAL_DESTINATION_KINDS], []
+        )
         self.assertEqual(self.scan.collector, "websocket")
         self.assertEqual(self.scan.ha_version, "2026.8.1")
         self.assertEqual(self.scan.generated_at, FROZEN_CLOCK)
@@ -730,3 +734,78 @@ class TestDeclaredStreams(unittest.TestCase):
         for secret in ("admin", "password", "h264Preview", "@"):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, document)
+
+
+class TestLocalLinks(unittest.TestCase):
+    """A radio is a conduit. A Zigbee lamp exchanges data with its
+    coordinator constantly and never touches IP, so before this it appeared
+    in no view built on conduits, which said the branch was not there."""
+
+    @staticmethod
+    def scan_for(*devices: dict[str, Any]) -> Scan:
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": "e_mqtt", "domain": "mqtt", "state": "loaded", "endpoint": None}
+            ],
+            devices=[{"config_entries": ["e_mqtt"], "primary_config_entry": "e_mqtt", **d}
+                     for d in devices],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "mqtt", "iot_class": "local_push", "is_built_in": True}],
+        )
+        return build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+
+    def hub_scan(self) -> Scan:
+        return self.scan_for(
+            {"id": "brg", "name": "Zigbee2MQTT Bridge",
+             "identifiers": [["mqtt", "zigbee2mqtt_bridge_0x0017"]]},
+            {"id": "lamp", "name": "Lampada", "via_device_id": "brg",
+             "identifiers": [["mqtt", "0x00158d0001234567"]]},
+        )
+
+    def test_the_link_to_the_hub_is_a_declared_conduit(self) -> None:
+        scan = self.hub_scan()
+        conduit = next(c for c in scan.conduits if c.source.id == "lamp")
+        self.assertEqual(conduit.evidence, "declared")
+        self.assertEqual(conduit.protocol, "zigbee")
+        destination = scan.destination(conduit.destination_id)
+        self.assertEqual(destination.kind, "local_hub")
+        self.assertEqual(destination.fqdn, "Zigbee2MQTT Bridge")
+        self.assertEqual(validate(scan.to_dict()), [])
+
+    def test_a_hub_is_one_destination_however_many_hang_off_it(self) -> None:
+        scan = self.scan_for(
+            {"id": "brg", "name": "Bridge", "identifiers": [["mqtt", "zigbee2mqtt_bridge_0x1"]]},
+            {"id": "a", "name": "A", "via_device_id": "brg",
+             "identifiers": [["mqtt", "0x00158d0001234567"]]},
+            {"id": "b", "name": "B", "via_device_id": "brg",
+             "identifiers": [["mqtt", "0x00158d0089abcdef"]]},
+        )
+        hubs = [d for d in scan.destinations if d.kind == "local_hub"]
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(len([c for c in scan.conduits if c.protocol == "zigbee"]), 2)
+
+    def test_a_device_with_no_hub_gets_no_link(self) -> None:
+        scan = self.scan_for(
+            {"id": "solo", "name": "Solo", "identifiers": [["mqtt", "0x00158d0001234567"]]}
+        )
+        self.assertEqual([c for c in scan.conduits if c.source.id == "solo"], [])
+
+    def test_a_transport_nobody_could_name_is_not_a_link(self) -> None:
+        """Claiming a conduit whose protocol is `unknown` would add a line to
+        the picture and no information to it."""
+        # Neither names a radio, and neither inherits one, so the transport
+        # stays unknown all the way down.
+        scan = self.scan_for(
+            {"id": "hub", "name": "Hub", "identifiers": [["mqtt", "hub-1"]]},
+            {"id": "x", "name": "X", "via_device_id": "hub", "identifiers": [["mqtt", "x"]]},
+        )
+        self.assertEqual([d.transport for d in scan.devices], ["unknown", "unknown"])
+        self.assertEqual([c for c in scan.conduits if c.source.id == "x"], [])
+
+    def test_the_hub_stays_internal_so_the_matrix_is_not_moved(self) -> None:
+        """A link to a hub is not egress, and must not read as any."""
+        scan = self.hub_scan()
+        hub = next(d for d in scan.destinations if d.kind == "local_hub")
+        self.assertIn(hub.kind, INTERNAL_DESTINATION_KINDS)
+        self.assertEqual(list(derive(scan).matrix.local_egress), [])

@@ -98,6 +98,10 @@ DESTINATION_KINDS: Final = frozenset(
     {
         "ha_core",
         "local_broker",
+        # A hub inside the house that other devices reach the world through.
+        # A Zigbee coordinator is not a broker and not a cloud, but it is
+        # certainly the other end of a conduit.
+        "local_hub",
         "vendor_cloud",
         "telemetry",
         "ota_update",
@@ -113,7 +117,7 @@ DESTINATION_KINDS: Final = frozenset(
 )
 
 # Destinations that live inside the house. Reaching one is not egress.
-INTERNAL_DESTINATION_KINDS: Final = frozenset({"ha_core", "local_broker"})
+INTERNAL_DESTINATION_KINDS: Final = frozenset({"ha_core", "local_broker", "local_hub"})
 
 # Outside the house but not a vendor relationship. Kept out of the matrix's
 # egress column and reported on its own, so that a clock sync never reads as

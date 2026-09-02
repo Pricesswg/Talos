@@ -82,6 +82,14 @@ Running totals per client and domain live in a dedicated SQLite file under `conf
 the recorder database, because AdGuard's retention rolls over and a device that resolved a domain
 four thousand times last week would otherwise read as a handful today.
 
+A radio is a conduit too. A Zigbee lamp exchanges data with its coordinator constantly and never
+touches IP, so it owns no address, appears in no query log, and used to be absent from every view
+built on conduits: the flows graph showed the part of the house that talks to the internet and left
+out the part that does not, which said the branch was not there rather than that it never leaves the
+hub. Each device that hangs off another now carries a declared conduit to it, with the transport as
+the protocol, ending at a `local_hub` destination. It stops there: what the hub does next is the
+hub's own conduit, and the parent of a mesh node is still never claimed.
+
 **3. Join the two.** The device registry knows MACs. The query log knows IPs. Something has to hold
 both, and there are two candidates. The DHCP leases are the usual one. The other is already inside
 Home Assistant: a router-based device tracker, AsusWRT, UniFi, Fritz, OPNsense, publishes an `ip` and

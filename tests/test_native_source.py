@@ -198,7 +198,7 @@ class TestScanFromRegistries(unittest.TestCase):
         self.assertEqual(validate(self.scan.to_dict()), [])
 
     def test_declared_only(self) -> None:
-        self.assertEqual(self.scan.conduits, [])
+        self.assertEqual([c for c in self.scan.conduits if c.evidence != "declared"], [])
         self.assertEqual(self.scan.collector, "native")
         self.assertEqual(self.scan.ha_version, "2026.8.1")
 
