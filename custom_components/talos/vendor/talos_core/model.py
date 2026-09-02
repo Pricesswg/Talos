@@ -290,6 +290,11 @@ class MqttFacts:
 
     available: bool = False
     error: str | None = None
+    # Which route produced this, and what the preferred one said if it was
+    # tried and failed. Reporting the configured route instead of the one that
+    # answered would describe an intention, not a result.
+    route: str | None = None
+    fallback_from: str | None = None
     clients: tuple[MqttClient, ...] = ()
 
     @property
@@ -301,6 +306,8 @@ class MqttFacts:
         return cls(
             available=bool(raw.get("available")),
             error=raw.get("error"),
+            route=raw.get("route"),
+            fallback_from=raw.get("fallback_from"),
             clients=tuple(
                 MqttClient.from_dict(r, f"{path}.clients[{i}]")
                 for i, r in enumerate(raw.get("clients") or [])
@@ -311,6 +318,8 @@ class MqttFacts:
         return {
             "available": self.available,
             "error": self.error,
+            "route": self.route,
+            "fallback_from": self.fallback_from,
             "clients": [client.to_dict() for client in self.clients],
         }
 

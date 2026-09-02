@@ -497,6 +497,11 @@ const I18N = {
     "mqtt.noReload":
       "Le credenziali del broker vengono rilette a ogni scansione, quindi salvarle non ricarica l'integrazione e non interrompe nulla.",
 
+    "mqtt.fallback": "Ripiego da {route}",
+    "mqtt.fallback.why": "La sorgente configurata non ha risposto: {reason}",
+    "mqtt.api.replaces":
+      "Con una API key configurata Talos non si sottoscrive più a $SYS, e non è una perdita: su EMQX 5 quell'albero contiene solo contatori, mentre l'API elenca i client con il loro indirizzo. Se però l'API non risponde, Talos torna da sola alla sottoscrizione e te lo dice qui sotto invece di restare senza dati.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -923,6 +928,11 @@ const I18N = {
     "mqtt.okApi.sub": "API reached, {n} clients read.",
     "mqtt.noReload":
       "Broker credentials are read again on every scan, so saving them does not reload the integration and interrupts nothing.",
+
+    "mqtt.fallback": "Fell back from {route}",
+    "mqtt.fallback.why": "The configured source did not answer: {reason}",
+    "mqtt.api.replaces":
+      "With an API key configured Talos stops subscribing to $SYS, and nothing is lost by that: on EMQX 5 the tree holds only counters, while the API lists the clients with their address. If the API does not answer, Talos falls back to the subscription on its own and says so below rather than ending up with nothing.",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -3497,7 +3507,8 @@ class TalosPanel extends HTMLElement {
               )}</span>
             </div>
           </div>
-          <p class="hint" style="margin:0 0 12px">${esc(this.t("mqtt.api.hint"))}</p>
+          <p class="hint" style="margin:0 0 4px">${esc(this.t("mqtt.api.hint"))}</p>
+          <p class="hint" style="margin:0 0 12px">${esc(this.t("mqtt.api.replaces"))}</p>
 
           <div class="actions">
             <button class="btn" data-action="mqtt-save" ${this._mqttSaving ? "disabled" : ""}>${esc(
@@ -3665,9 +3676,23 @@ class TalosPanel extends HTMLElement {
       </div>
       <dl class="kv" style="margin-top:10px">
         <dt>${esc(this.t("mqtt.route"))}</dt>
-        <dd>${esc(this.t(`mqtt.route.${source.route || mqtt.route || "session"}`))}</dd>
+        <dd>${esc(this.t(`mqtt.route.${source.route || mqtt.route || "session"}`))}${
+          mqtt.fallback_from
+            ? ` · ${this.t("mqtt.fallback", {
+                route: this.t(`mqtt.route.${mqtt.fallback_from}`),
+              })}`
+            : ""
+        }</dd>
         <dt>${esc(this.t("mqtt.lastRun"))}</dt>
         <dd class="mono">${esc(this.when((this._status || {}).generated_at))}</dd>
+        ${
+          // A route that fell back still answered, so the box above is green.
+          // Why the preferred one did not is the part worth acting on.
+          mqtt.fallback_from && mqtt.error
+            ? `<dt>${esc(this.t(`mqtt.route.${mqtt.fallback_from}`))}</dt>
+               <dd>${esc(this.t("mqtt.fallback.why", { reason: mqtt.error }))}</dd>`
+            : ""
+        }
       </dl>`;
   }
 

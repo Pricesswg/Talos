@@ -203,8 +203,11 @@ chose for itself, an address joins against the devices in the scan, so a client 
 by name can still be attributed to the device it connected from.
 
 The three routes are tried in that order, best first: the EMQX API when a key is configured, then
-Talos's own account, then Home Assistant's session. The panel names which one the last scan took,
-what it got, and the reason when it got nothing.
+Talos's own account, then Home Assistant's session. Configuring one replaces the routes below it
+while it works, and hands over to them when it does not: an API key that stops being valid falls back
+to the subscription rather than taking it down too, because configuring something must never leave
+Talos with less than it had before. The panel names the route that actually answered, what it got,
+and, when it fell back, which route was meant to answer and why it did not.
 
 None of these credentials cause a reload. They are read again on every scan, so saving them updates
 the entry and runs one scan, rather than tearing down the store, the coordinator and every entity the

@@ -19,6 +19,7 @@ import asyncio
 import logging
 import re
 import ssl
+from dataclasses import replace
 from typing import Any
 
 from .core import MqttFacts, Scan, match_clients
@@ -158,7 +159,7 @@ async def collect_via_credentials(
     """Talos's own read-only session, used only when one is configured."""
     host = str(credentials.get("host") or "").strip()
     if not host:
-        return MqttFacts(available=False, error="no broker address configured")
+        return MqttFacts(available=False, route="account", error="no broker address configured")
     found, error = await hass.async_add_executor_job(
         read_sys_blocking,
         host,
@@ -169,8 +170,8 @@ async def collect_via_credentials(
         seconds,
     )
     if error:
-        return MqttFacts(available=False, error=error)
-    return MqttFacts(available=True, clients=match_clients(found, scan))
+        return MqttFacts(available=False, route="account", error=error)
+    return MqttFacts(available=True, route="account", clients=match_clients(found, scan))
 
 
 async def collect_via_home_assistant(
@@ -180,13 +181,14 @@ async def collect_via_home_assistant(
     if "mqtt" not in hass.config.components:
         return MqttFacts(
             available=False,
+            route="session",
             error="the MQTT integration is not loaded, so there is no broker session to use",
         )
 
     try:
         from homeassistant.components import mqtt
     except ImportError as err:  # pragma: no cover - only on a build without MQTT
-        return MqttFacts(available=False, error=f"the MQTT component is unavailable: {err}")
+        return MqttFacts(available=False, route="session", error=f"the MQTT component is unavailable: {err}")
 
     found: set[str] = set()
 
@@ -202,7 +204,7 @@ async def collect_via_home_assistant(
             unsubscribe.append(await mqtt.async_subscribe(hass, topic, _on_message, qos=0))
         await asyncio.sleep(seconds)
     except Exception as err:  # noqa: BLE001 - a broker refusing $SYS is normal
-        return MqttFacts(available=False, error=f"subscribing to $SYS failed: {err}")
+        return MqttFacts(available=False, route="session", error=f"subscribing to $SYS failed: {err}")
     finally:
         for stop in unsubscribe:
             try:
@@ -211,8 +213,8 @@ async def collect_via_home_assistant(
                 _LOGGER.debug("Talos: unsubscribing from $SYS failed", exc_info=True)
 
     if not found:
-        return MqttFacts(available=False, error=NO_CLIENT_IDS)
-    return MqttFacts(available=True, clients=match_clients(found, scan))
+        return MqttFacts(available=False, route="session", error=NO_CLIENT_IDS)
+    return MqttFacts(available=True, route="session", clients=match_clients(found, scan))
 
 
 async def collect_via_api(
@@ -238,7 +240,7 @@ async def collect_via_api(
 
     url = str(api.get("url") or "").strip().rstrip("/")
     if not url:
-        return MqttFacts(available=False, error="no EMQX API address configured")
+        return MqttFacts(available=False, route="api", error="no EMQX API address configured")
 
     transport = HassHttpTransport(
         hass,
@@ -260,22 +262,23 @@ async def collect_via_api(
             if not found or not emqx_has_more(payload, len(rows)):
                 break
     except ObservedAuthError as err:
-        return MqttFacts(available=False, error=f"the EMQX API rejected the key: {err}")
+        return MqttFacts(available=False, route="api", error=f"the EMQX API rejected the key: {err}")
     except ObservedError as err:
-        return MqttFacts(available=False, error=f"the EMQX API is unreachable: {err}")
+        return MqttFacts(available=False, route="api", error=f"the EMQX API is unreachable: {err}")
     except Exception as err:  # noqa: BLE001
-        return MqttFacts(available=False, error=f"reading the EMQX client list failed: {err}")
+        return MqttFacts(available=False, route="api", error=f"reading the EMQX client list failed: {err}")
 
     if not rows:
         return MqttFacts(
             available=False,
+            route="api",
             error=(
                 "the EMQX API answered with no client at all, which a broker"
                 " running Home Assistant cannot be: check that the key belongs"
                 " to the same node the devices connect to"
             ),
         )
-    return MqttFacts(available=True, clients=emqx_to_clients(rows, scan))
+    return MqttFacts(available=True, route="api", clients=emqx_to_clients(rows, scan))
 
 
 async def collect_mqtt(
@@ -285,19 +288,44 @@ async def collect_mqtt(
     seconds: float = LISTEN_SECONDS,
     api: dict[str, Any] | None = None,
 ) -> MqttFacts:
-    """Best route first.
+    """Best route first, and the next one when the best fails.
 
-    The EMQX API when one is configured, because it is the only one that
-    answers on EMQX 5 and the only one that returns addresses. Then Talos's
-    own account, which gets past a broker that reserves $SYS. Then the session
-    Home Assistant already holds, which needs nothing and works on a broker
-    that publishes client topics and lets anyone read them.
+    The EMQX API is preferred where a key is configured: on EMQX 5 it is the
+    only route that can answer at all, and it is the only one anywhere that
+    returns the address each client connected from. Then Talos's own account,
+    which gets past a broker that reserves $SYS. Then the session Home
+    Assistant already holds, which needs nothing.
+
+    A configured route that fails hands over to the next rather than ending
+    the search. Configuring something must never leave Talos with less than it
+    had before, and the failure is carried on the result so the panel can say
+    which route answered and which one was meant to.
     """
+    attempts: list[tuple[str, Any]] = []
     if api and api.get("url"):
-        return await collect_via_api(hass, scan, api)
+        attempts.append(("api", lambda: collect_via_api(hass, scan, api)))
     if credentials and credentials.get("host"):
-        return await collect_via_credentials(hass, scan, credentials, seconds)
-    return await collect_via_home_assistant(hass, scan, seconds)
+        attempts.append(
+            ("account", lambda: collect_via_credentials(hass, scan, credentials, seconds))
+        )
+    attempts.append(("session", lambda: collect_via_home_assistant(hass, scan, seconds)))
+
+    first_failure: MqttFacts | None = None
+    for _name, run in attempts:
+        facts = await run()
+        if facts.available:
+            if first_failure is not None:
+                return replace(
+                    facts,
+                    fallback_from=first_failure.route,
+                    error=first_failure.error,
+                )
+            return facts
+        if first_failure is None:
+            first_failure = facts
+    # Nothing answered. The first failure is the one worth reporting: it is
+    # the route the user configured and expected to work.
+    return first_failure or MqttFacts(available=False, error="no MQTT source available")
 
 
 def callback_safe(func: Any) -> Any:

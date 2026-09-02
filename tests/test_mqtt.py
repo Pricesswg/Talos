@@ -213,5 +213,88 @@ class TestCredentialledCollection(unittest.TestCase):
         facts = self.run_collect(Hass(), {"username": "talos"})
         self.assertFalse(facts.available)
 
+
+class TestRouteCascade(unittest.TestCase):
+    """Configuring a route must never leave Talos with less than it had.
+
+    The EMQX API is preferred where it exists, but a key that stops working
+    used to take the subscription down with it, which is the opposite of what
+    configuring something is for.
+    """
+
+    def setUp(self) -> None:
+        self.source = _load_mqtt_source()
+
+    def collect(self, hass: Any, credentials=None, api=None) -> MqttFacts:
+        import asyncio
+
+        return asyncio.run(self.source.collect_mqtt(hass, house(), credentials, 0.01, api=api))
+
+    @staticmethod
+    def hass_with(sys_clients: set[str]) -> Any:
+        class Hass:
+            config = types.SimpleNamespace(components={"mqtt"})
+
+            async def async_add_executor_job(self, func, *args):
+                return set(sys_clients), None if sys_clients else "nothing"
+
+        return Hass()
+
+    def test_a_failing_api_hands_over_to_the_account(self) -> None:
+        async def failing(hass, scan, api):
+            return MqttFacts(available=False, route="api", error="the EMQX API rejected the key")
+
+        original = self.source.collect_via_api
+        self.source.collect_via_api = failing
+        try:
+            facts = self.collect(
+                self.hass_with({"zigbee2mqtt"}),
+                credentials={"host": "10.0.0.4"},
+                api={"url": "https://emqx:18083"},
+            )
+        finally:
+            self.source.collect_via_api = original
+        self.assertTrue(facts.available)
+        self.assertEqual(facts.route, "account")
+        # And the panel is told which route was meant to answer, and why not.
+        self.assertEqual(facts.fallback_from, "api")
+        self.assertIn("rejected the key", facts.error)
+
+    def test_a_working_api_is_not_second_guessed(self) -> None:
+        async def working(hass, scan, api):
+            return MqttFacts(available=True, route="api", clients=(MqttClient("esp-1"),))
+
+        original = self.source.collect_via_api
+        self.source.collect_via_api = working
+        try:
+            facts = self.collect(
+                self.hass_with(set()),
+                credentials={"host": "10.0.0.4"},
+                api={"url": "https://emqx:18083"},
+            )
+        finally:
+            self.source.collect_via_api = original
+        self.assertEqual(facts.route, "api")
+        self.assertIsNone(facts.fallback_from)
+        self.assertIsNone(facts.error)
+
+    def test_when_nothing_answers_the_configured_route_is_the_one_reported(self) -> None:
+        async def failing(hass, scan, api):
+            return MqttFacts(available=False, route="api", error="the EMQX API is unreachable")
+
+        original = self.source.collect_via_api
+        self.source.collect_via_api = failing
+        try:
+            facts = self.collect(self.hass_with(set()), api={"url": "https://emqx:18083"})
+        finally:
+            self.source.collect_via_api = original
+        self.assertFalse(facts.available)
+        self.assertEqual(facts.route, "api")
+        self.assertIn("unreachable", facts.error)
+
+    def test_the_session_still_names_itself(self) -> None:
+        facts = self.collect(self.hass_with({"zigbee2mqtt"}))
+        self.assertEqual(facts.route, "session")
+
 if __name__ == "__main__":
     unittest.main()

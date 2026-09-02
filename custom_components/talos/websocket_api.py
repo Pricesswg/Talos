@@ -115,14 +115,20 @@ def ws_status(
                 CONF_MQTT_API_URL: coordinator.entry.data.get(CONF_MQTT_API_URL, ""),
                 CONF_MQTT_API_KEY: coordinator.entry.data.get(CONF_MQTT_API_KEY, ""),
                 "has_api_secret": bool(coordinator.entry.data.get(CONF_MQTT_API_SECRET)),
-                # Which of the three routes the last scan actually took.
+                # The route that answered, which is not always the one that
+                # was configured: a preferred route that fails hands over.
                 "route": (
-                    "api"
+                    data.scan.mqtt.route
+                    if data and data.scan.mqtt and data.scan.mqtt.route
+                    else "api"
                     if coordinator.entry.data.get(CONF_MQTT_API_URL)
                     else "account"
                     if coordinator.entry.data.get(CONF_MQTT_USERNAME)
                     or coordinator.entry.data.get(CONF_MQTT_HOST)
                     else "session"
+                ),
+                "fallback_from": (
+                    data.scan.mqtt.fallback_from if data and data.scan.mqtt else None
                 ),
                 CONF_MQTT_HOST: coordinator.entry.data.get(CONF_MQTT_HOST, ""),
                 CONF_MQTT_PORT: coordinator.entry.data.get(CONF_MQTT_PORT, DEFAULT_MQTT_PORT),
