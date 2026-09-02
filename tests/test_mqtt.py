@@ -363,3 +363,54 @@ class TestZigbeeBridge(unittest.TestCase):
         identifiers = {device.id: ["zigbee2mqtt_0x00158d00ffa2b3c4"] for device in scan.devices}
         self.assertEqual(apply_mesh_roles(scan.devices, {"0x00158d0002a2b3c4": "router"}, identifiers), 0)
         self.assertEqual(scan.devices[0].mesh_role, "unknown")
+
+
+class TestClientSubjects(unittest.TestCase):
+    """A client id is a name the client gave itself, so a finding that lists
+    only ids gives the reader nothing to act on."""
+
+    def report_for(self, facts: MqttFacts):
+        scan = house()
+        scan.mqtt = facts
+        return derive(scan).checks
+
+    def test_the_subjects_are_named_as_clients_not_as_nothing(self) -> None:
+        facts = MqttFacts(
+            available=True,
+            clients=(
+                MqttClient("home-assistant-1", address="10.0.0.2", matched="Home Assistant"),
+                MqttClient("mosq-Xy99Zq", address="10.0.0.77"),
+            ),
+        )
+        result = next(
+            r for r in self.report_for(facts).failed if r.id == "chk.mqtt_unknown_client"
+        )
+        self.assertEqual(result.subject_kind, "mqtt_client")
+        self.assertEqual(result.subjects, ("mosq-Xy99Zq",))
+
+    def test_the_address_travels_with_the_client(self) -> None:
+        """It is the only handle on a client nothing else names."""
+        facts = MqttFacts(available=True, clients=(MqttClient("x", address="10.0.0.77"),))
+        scan = house()
+        scan.mqtt = facts
+        document = scan.to_dict()
+        self.assertEqual(document["mqtt"]["clients"][0]["address"], "10.0.0.77")
+
+    def test_the_export_names_the_address_beside_the_id(self) -> None:
+        from talos_core.export_html import render_html
+
+        scan = house()
+        scan.mqtt = MqttFacts(available=True, clients=(MqttClient("mosq-Xy", address="10.0.0.77"),))
+        page = render_html(scan, derive(scan))
+        self.assertIn("mosq-Xy (10.0.0.77)", page)
+
+    def test_a_broker_that_named_nobody_keeps_its_reason(self) -> None:
+        """The panel prints this instead of an empty list, which is the whole
+        difference between "nothing connected" and "I could not look"."""
+        facts = MqttFacts(available=False, error="the broker published no client id under $SYS")
+        scan = house()
+        scan.mqtt = facts
+        self.assertIn("$SYS", scan.to_dict()["mqtt"]["error"])
+        self.assertIn(
+            "chk.mqtt_unknown_client", {r.id for r in derive(scan).checks.unverified}
+        )

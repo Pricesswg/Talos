@@ -103,6 +103,10 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
     autonomy = derived.autonomy
     checks = derived.checks
 
+    mqtt_clients = {
+        client.client_id: client for client in (scan.mqtt.clients if scan.mqtt else ())
+    }
+
     def name_of(kind: str, identifier: str) -> str:
         if kind == "device":
             device = devices.get(identifier)
@@ -110,6 +114,10 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
         if kind == "integration":
             integration = integrations.get(identifier)
             return integration.title if integration else identifier
+        if kind == "mqtt_client":
+            # The address is the only handle on a client nothing else names.
+            client = mqtt_clients.get(identifier)
+            return f"{identifier} ({client.address})" if client and client.address else identifier
         return identifier
 
     parts: list[str] = []

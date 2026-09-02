@@ -239,6 +239,9 @@ def ws_derived(
             },
             "conduits": [conduit.to_dict() for conduit in data.scan.conduits],
             "zigbee": data.scan.zigbee.to_dict() if data.scan.zigbee else None,
+            # The client list itself, so the panel can say which ones it could
+            # not account for instead of only how many.
+            "mqtt": data.scan.mqtt.to_dict() if data.scan.mqtt else None,
             "observed_available": data.observed_available,
             "observed_error": data.observed_error,
         },

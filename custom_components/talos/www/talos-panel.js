@@ -529,6 +529,22 @@ const I18N = {
     "mesh.version": "Versione Zigbee2MQTT",
     "map.mesh": "Ruolo nella mesh",
 
+    "mqtt.clients.title": "Client MQTT",
+    "mqtt.clients.lead":
+      "Chi risulta collegato al broker, letto dal broker stesso. Il client id è il nome che il client si è dato, quindi da solo non dice niente: quando la sorgente lo fornisce, accanto trovi l'indirizzo da cui si è collegato, che è l'unico appiglio per andarlo a cercare.",
+    "mqtt.clients.matched": "Attribuiti",
+    "mqtt.clients.unmatched": "Non attribuiti",
+    "mqtt.clients.none": "Nessun client letto",
+    "mqtt.clients.why":
+      "Il controllo sui client sconosciuti non è eseguibile e per questo motivo: {reason}",
+    "mqtt.clients.emqx5":
+      "Su EMQX 5 i topic per client sotto $SYS non esistono più, restano solo i contatori. La strada che funziona è la API key, che si imposta qui sopra: elenca i client collegati adesso e in più dà l'indirizzo di ognuno.",
+    "mqtt.client.noAddress":
+      "indirizzo non fornito dalla sorgente",
+    "mqtt.client.seen": "il resolver ha visto {n} query da questo indirizzo",
+    "mqtt.client.unseen": "il resolver non ha mai visto questo indirizzo",
+    "mqtt.client.unmatched": "non attribuito",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -983,6 +999,20 @@ const I18N = {
     "mesh.permitJoin.off": "closed",
     "mesh.version": "Zigbee2MQTT version",
     "map.mesh": "Mesh role",
+
+    "mqtt.clients.title": "MQTT clients",
+    "mqtt.clients.lead":
+      "Who the broker reports as connected, read from the broker itself. A client id is the name a client gave itself, so on its own it says nothing: where the source provides one, the address it connected from is shown next to it, and that is the only handle for going to look.",
+    "mqtt.clients.matched": "Accounted for",
+    "mqtt.clients.unmatched": "Not accounted for",
+    "mqtt.clients.none": "No client read",
+    "mqtt.clients.why": "The unknown-client check cannot run, and this is why: {reason}",
+    "mqtt.clients.emqx5":
+      "On EMQX 5 the per-client topics under $SYS are gone and only counters are left. The route that works is the API key, set above: it lists the clients connected right now and gives the address of each.",
+    "mqtt.client.noAddress": "no address supplied by the source",
+    "mqtt.client.seen": "the resolver saw {n} queries from this address",
+    "mqtt.client.unseen": "the resolver has never seen this address",
+    "mqtt.client.unmatched": "not accounted for",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -2144,10 +2174,47 @@ class TalosPanel extends HTMLElement {
           ]
             .filter(Boolean)
             .join(" · ");
+        } else if (kind === "mqtt_client") {
+          meta = this.clientTrace(id);
         }
         return `<div class="exp__row"><b>${esc(name)}</b><span class="mono">${esc(meta)}</span></div>`;
       })
       .join("");
+  }
+
+  /** What is known about an MQTT client beyond its own name.
+   *
+   *  A client id is whatever the client called itself, so on its own it is a
+   *  string a reader can do nothing with. The address is the handle: it says
+   *  where on the network to look, and whether the resolver has seen that
+   *  host doing anything else. */
+  clientTrace(clientId) {
+    const facts = (this._data || {}).mqtt || {};
+    const client = (facts.clients || []).find((row) => row.client_id === clientId);
+    if (!client) return this.t("mqtt.client.noAddress");
+    if (!client.address) return this.t("mqtt.client.noAddress");
+
+    // Plain text, joined rather than interpolated: the caller escapes it, and
+    // a template literal here would read as markup being built by hand.
+    const device = Object.values(this._data.labels.devices || {}).find(
+      (row) => row.ip === client.address
+    );
+    if (device) return [client.address, device.name].join(" · ");
+
+    // The resolver may have seen the same address, which at least says the
+    // host is real and what it has been asking for.
+    const queries = this._data.conduits
+      .filter(
+        (conduit) =>
+          conduit.source.kind === "unknown_host" && conduit.source.id === client.address
+      )
+      .reduce((total, conduit) => total + (conduit.query_count || 0), 0);
+    return [
+      client.address,
+      queries
+        ? this.t("mqtt.client.seen", { n: this.num(queries) })
+        : this.t("mqtt.client.unseen"),
+    ].join(" · ");
   }
 
   /** Who a single device was seen resolving, and how insistently. */
@@ -2827,6 +2894,7 @@ class TalosPanel extends HTMLElement {
       </div>
 
       ${this.meshSection()}
+      ${this.mqttClientSection()}
       ${this.hubSection()}
 
       <div>
@@ -2867,6 +2935,73 @@ class TalosPanel extends HTMLElement {
     const label = this.t(`map.scope.${scope.kind}`, { name });
     return `<span class="scopebadge">${esc(label)}
       <button data-scope="all">${esc(this.t("map.clearScope"))}</button></span>`;
+  }
+
+  /** Every client the broker named, and what could be made of each.
+   *
+   *  Drawn whether the check passed, failed or could not run, because "which
+   *  ones could you not account for" is a question with an answer in all
+   *  three cases, and when the answer is "none of them, and here is why" that
+   *  is the most useful thing the panel can say. */
+  mqttClientSection() {
+    const facts = (this._data || {}).mqtt;
+    if (!facts) return "";
+
+    const clients = facts.clients || [];
+    const matched = clients.filter((client) => client.matched);
+    const unmatched = clients.filter((client) => !client.matched);
+    const row = (client) =>
+      `<div class="exp__row"><b>${esc(client.client_id)}</b>
+        <span class="mono">${esc(
+          client.matched
+            ? [client.address, client.matched].filter(Boolean).join(" · ")
+            : this.clientTrace(client.client_id)
+        )}</span></div>`;
+
+    const body = facts.available
+      ? `${
+          unmatched.length
+            ? `<div class="exp__lab"><i style="background:var(--alert)"></i>${esc(
+                this.t("mqtt.clients.unmatched")
+              )} · ${this.num(unmatched.length)}</div>
+               <div class="exp__rows">${unmatched.map(row).join("")}</div>`
+            : ""
+        }
+        ${
+          matched.length
+            ? `<div class="exp__lab"><i style="background:var(--k-local)"></i>${esc(
+                this.t("mqtt.clients.matched")
+              )} · ${this.num(matched.length)}</div>
+               <div class="exp__rows">${matched.map(row).join("")}</div>`
+            : ""
+        }`
+      : `<p>${esc(this.t("mqtt.clients.why", { reason: facts.error || "-" }))}</p>
+         <p>${esc(this.t("mqtt.clients.emqx5"))}</p>`;
+
+    return `<div>
+      <h2 class="sec">${esc(this.t("mqtt.clients.title"))}${
+        facts.available ? ` · ${this.num(clients.length)}` : ""
+      }</h2>
+      <p class="page-sub" style="margin-bottom:12px">${esc(this.t("mqtt.clients.lead"))}</p>
+      ${this.expander({
+        tone: facts.available ? (unmatched.length ? "alert" : "pass") : "muted",
+        title: esc(
+          facts.available
+            ? this.t("mqtt.state.ok", {
+                clients: this.num(clients.length),
+                unmatched: this.num(unmatched.length),
+              })
+            : this.t("mqtt.clients.none")
+        ),
+        chips: [
+          `<span class="chip">${esc(
+            this.t(`mqtt.route.${facts.route || "session"}`)
+          )}</span>`,
+        ],
+        open: !facts.available || unmatched.length > 0,
+        body,
+      })}
+    </div>`;
   }
 
   /** The Zigbee network as its coordinator reports it. Absent entirely when

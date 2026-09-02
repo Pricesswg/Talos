@@ -266,8 +266,15 @@ the entry and runs one scan, rather than tearing down the store, the coordinator
 way a change to the interval or the retention policy has to.
 
 Client ids are matched against the names in the scan, and anything left over is reported as
-unmatched, which is not the same as hostile. When no client id arrives at all, by either route, the
-check declares itself unable to run rather than passing on an empty list.
+unmatched, which is not the same as hostile. A client id is only ever a name the client gave itself,
+so the panel shows the address it connected from beside it, and says whether the resolver has seen
+that host doing anything else: an unattributed client on an address that has been resolving STUN
+servers is a different thing from one that has never appeared anywhere.
+
+The client list is shown whether the check passed, failed or could not run, because "which ones could
+you not account for" has an answer in all three cases. When no client id arrives at all, by either
+route, the check declares itself unable to run rather than passing on an empty list, and the panel
+prints the broker's reason next to the empty list instead of leaving it looking like a clean result.
 
 ### Unverified is its own category
 

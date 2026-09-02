@@ -362,17 +362,19 @@ def _select(
 
     if kind == "mqtt_client_where":
         # A client the broker knows and the registry does not. Reported by
-        # client id, because that is the only name the broker has for it.
+        # client id, because that is the only name the broker has for it, and
+        # under its own subject kind so a reader is shown where it connected
+        # from rather than a bare name they can do nothing with.
         facts = scan.mqtt
         if facts is None:
-            return "unknown", ()
+            return "mqtt_client", ()
         matched = selector.get("matched")
         clients = [
             client.client_id
             for client in facts.clients
             if matched is None or bool(client.matched) is bool(matched)
         ]
-        return "unknown", tuple(sorted(clients))
+        return "mqtt_client", tuple(sorted(clients))
 
     if kind == "unverified_present":
         check_id = selector.get("check_id") or ""
