@@ -1,6 +1,9 @@
 {
   "domain": "talos",
   "name": "Talos - HA Security scanner",
+  "after_dependencies": [
+    "mqtt"
+  ],
   "codeowners": [
     "@Pricesswg"
   ],
@@ -17,5 +20,5 @@
   "requirements": [
     "paho-mqtt>=1.6.1"
   ],
-  "version": "1.17.0"
+  "version": "1.17.1"
 }
