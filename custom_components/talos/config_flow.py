@@ -30,6 +30,7 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_AUTO_RETENTION,
     CONF_CHECK_RULES,
     CONF_DOMAIN_RULES,
     CONF_MAX_OBSERVATIONS,
@@ -41,10 +42,12 @@ from .const import (
     CONF_MQTT_USERNAME,
     CONF_OBSERVATION_DAYS,
     CONF_PAGE_SIZE,
+    CONF_RETENTION_DAYS,
     CONF_SCAN_HISTORY,
     CONF_SCAN_INTERVAL,
     CONF_VERIFY_SSL,
     DEFAULT_MQTT_PORT,
+    DEFAULT_RETENTION_DAYS,
     CONF_ZONE_GUEST,
     CONF_ZONE_IOT,
     CONF_ZONE_TRUSTED,
@@ -355,6 +358,13 @@ class TalosOptionsFlow(OptionsFlow):
                     CONF_SCAN_INTERVAL,
                     default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
                 ): _bounded(CONF_SCAN_INTERVAL, "min"),
+                vol.Required(
+                    CONF_RETENTION_DAYS,
+                    default=options.get(CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS),
+                ): _bounded(CONF_RETENTION_DAYS, "d"),
+                vol.Required(
+                    CONF_AUTO_RETENTION, default=options.get(CONF_AUTO_RETENTION, True)
+                ): bool,
                 vol.Required(
                     CONF_OBSERVATION_DAYS,
                     default=options.get(CONF_OBSERVATION_DAYS, default.observation_days),

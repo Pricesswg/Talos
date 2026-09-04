@@ -272,3 +272,36 @@ class TestIncrementalPolling(StoreCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSnapshots(unittest.TestCase):
+    """One compact row per scan, kept for the window, oldest first."""
+
+    def test_rows_come_back_oldest_first_and_bounded(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from talos_core import RetentionPolicy, TalosStore
+
+        with tempfile.TemporaryDirectory() as folder:
+            with TalosStore(Path(folder, "t.sqlite"), RetentionPolicy(observation_days=30)) as store:
+                for day in (1, 2, 3):
+                    store.save_snapshot({"generated_at": f"2026-09-0{day}T00:00:00+00:00", "failed_high": day})
+                rows = store.history(limit=10)
+                self.assertEqual([r["failed_high"] for r in rows], [1, 2, 3])
+                self.assertEqual([r["failed_high"] for r in store.history(limit=2)], [2, 3])
+                self.assertEqual(store.stats().snapshots, 3)
+
+    def test_rows_older_than_the_window_are_pruned_with_it(self) -> None:
+        import tempfile
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        from talos_core import RetentionPolicy, TalosStore
+
+        with tempfile.TemporaryDirectory() as folder:
+            with TalosStore(Path(folder, "t.sqlite"), RetentionPolicy(observation_days=7)) as store:
+                store.save_snapshot({"generated_at": "2026-08-01T00:00:00+00:00", "failed_high": 9})
+                store.save_snapshot({"generated_at": "2026-09-03T00:00:00+00:00", "failed_high": 1})
+                store.prune(now=datetime(2026, 9, 4, tzinfo=timezone.utc))
+                self.assertEqual([r["failed_high"] for r in store.history()], [1])

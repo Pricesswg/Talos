@@ -40,6 +40,7 @@ def editable_options() -> set[str]:
     constants: dict[str, str] = {}
     numeric: list[str] = []
     text: list[str] = []
+    flags: list[str] = []
     for node in tree.body:
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
             name, value = node.target.id, node.value
@@ -53,9 +54,11 @@ def editable_options() -> set[str]:
             numeric = [k.id for k in value.keys if isinstance(k, ast.Name)]
         elif name == "TEXT_OPTIONS" and isinstance(value, ast.Tuple):
             text = [e.id for e in value.elts if isinstance(e, ast.Name)]
+        elif name == "BOOL_OPTIONS" and isinstance(value, ast.Tuple):
+            flags = [e.id for e in value.elts if isinstance(e, ast.Name)]
 
-    assert numeric and text, "could not read the option lists from const.py"
-    return {constants[name] for name in (*numeric, *text)}
+    assert numeric and text and flags, "could not read the option lists from const.py"
+    return {constants[name] for name in (*numeric, *text, *flags)}
 
 
 def table(language: str) -> set[str]:

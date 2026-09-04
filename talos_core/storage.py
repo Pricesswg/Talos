@@ -105,6 +105,7 @@ class StoreStats:
     observations: int = 0
     leases: int = 0
     scans: int = 0
+    snapshots: int = 0
     oldest_observation: str | None = None
     bytes_used: int = 0
 
@@ -113,6 +114,7 @@ class StoreStats:
             "observations": self.observations,
             "leases": self.leases,
             "scans": self.scans,
+            "snapshots": self.snapshots,
             "oldest_observation": self.oldest_observation,
             "bytes_used": self.bytes_used,
         }
@@ -154,6 +156,17 @@ CREATE TABLE IF NOT EXISTS scans (
     generated_at TEXT NOT NULL,
     document     TEXT NOT NULL
 );
+
+-- One compact row per scan, kept for the whole retention window. The scan
+-- documents above are heavy and pruned early; these are what the history
+-- charts draw and they cost a few hundred bytes each.
+CREATE TABLE IF NOT EXISTS snapshots (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    generated_at TEXT NOT NULL,
+    generated_ts REAL,
+    row          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS snapshots_ts ON snapshots (generated_ts);
 """
 
 
@@ -348,6 +361,24 @@ class TalosStore:
             )
             self._connection.commit()
 
+    def save_snapshot(self, row: dict[str, Any]) -> None:
+        """One history row. Written after the scan, pruned with the window."""
+        stamp = str(row.get("generated_at") or "")
+        with self._lock:
+            self._connection.execute(
+                "INSERT INTO snapshots (generated_at, generated_ts, row) VALUES (?, ?, ?)",
+                (stamp, _epoch(stamp), json.dumps(row, separators=(",", ":"))),
+            )
+            self._connection.commit()
+
+    def history(self, limit: int = 500) -> list[dict[str, Any]]:
+        """The history rows, oldest first, at most `limit` of the newest."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT row FROM snapshots ORDER BY id DESC LIMIT ?", (int(limit),)
+            ).fetchall()
+        return [json.loads(r["row"]) for r in reversed(rows)]
+
     def latest_scan(self) -> dict[str, Any] | None:
         with self._lock:
             row = self._connection.execute(
@@ -394,6 +425,13 @@ class TalosStore:
             )
             scans_removed = cursor.rowcount or 0
 
+            # History rows follow the observation window, not the document
+            # cap: they are the record, the documents are the convenience.
+            self._connection.execute(
+                "DELETE FROM snapshots WHERE generated_ts IS NOT NULL AND generated_ts < ?",
+                (horizon,),
+            )
+
             self._connection.commit()
 
             self._prune_counter += 1
@@ -414,6 +452,7 @@ class TalosStore:
             observations = self._scalar("SELECT COUNT(*) FROM observations")
             leases = self._scalar("SELECT COUNT(*) FROM leases")
             scans = self._scalar("SELECT COUNT(*) FROM scans")
+            snapshots = self._scalar("SELECT COUNT(*) FROM snapshots")
             oldest = self._connection.execute(
                 "SELECT first_seen FROM observations"
                 " WHERE first_seen_ts IS NOT NULL"
@@ -426,6 +465,7 @@ class TalosStore:
             observations=observations,
             leases=leases,
             scans=scans,
+            snapshots=snapshots,
             oldest_observation=oldest["first_seen"] if oldest else None,
             bytes_used=page_count * page_size,
         )

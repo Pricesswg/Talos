@@ -671,6 +671,46 @@ const I18N = {
     "mqtt.test.done": "Prova eseguita",
     "mqtt.test.none": "Nessuna strada ha risposto",
 
+    "opt.retention_days": "Conserva i dati per (giorni)",
+    "opt.hint.retention_days":
+      "L'unica domanda che serve. Con il dimensionamento automatico acceso, età massima delle osservazioni, tetto di righe e numero di scansioni conservate si ricavano da questo numero e dal ritmo reale dell'impianto.",
+    "opt.auto_retention": "Dimensionamento automatico",
+    "opt.hint.auto_retention":
+      "Acceso: i tre limiti qui sotto sono derivati e mostrati, non modificabili. Spento: li imposti a mano.",
+    "retention.derived": "Derivato dal ritmo dell'impianto",
+    "retention.rate.measured": "{n} osservazioni al giorno, misurate",
+    "retention.rate.assumed": "{n} osservazioni al giorno, presunte: non c'è ancora abbastanza storico per misurarle",
+    "retention.rows": "Tetto di righe",
+    "retention.scans": "Documenti di scansione conservati",
+    "retention.days": "Età massima delle osservazioni",
+    "retention.estimate": "Dimensione stimata a regime",
+    "retention.estimate.none": "stima non disponibile finché il database non contiene osservazioni",
+    "retention.manual": "Limiti impostati a mano",
+
+    "history.title": "Andamento",
+    "history.lead":
+      "Una riga compatta per ogni scansione, conservata per tutta la finestra di ritenzione. La fotografia dice dove sei; queste righe dicono se le cose migliorano. L'asse orizzontale è la sequenza delle scansioni, dalla più vecchia alla più recente.",
+    "history.none": "Servono almeno due scansioni per disegnare un andamento. La prossima scansione aggiunge un punto.",
+    "history.scans": "{n} scansioni, dal {from}",
+    "history.findings": "Rilievi per severità",
+    "history.high": "alta",
+    "history.medium": "media",
+    "history.low": "bassa",
+    "history.partial": "verificati in parte",
+    "history.unverified": "non eseguibili",
+    "history.entities": "Entità: locali, cloud, non disponibili",
+    "history.local": "locali",
+    "history.cloud": "cloud",
+    "history.unavailable": "non disponibili",
+    "history.exposure": "Dispositivi che parlano fuori",
+    "history.exposed": "con egress diretto",
+    "history.localEgress": "locali con egress",
+    "history.unclassified": "Domini non classificati",
+    "history.unclassifiedSeries": "domini",
+    "history.correlation": "Dispositivi correlati",
+    "history.correlated": "correlati",
+    "history.last": "ultimo",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -1266,6 +1306,46 @@ const I18N = {
     "mqtt.test.done": "Test complete",
     "mqtt.test.none": "No route answered",
 
+    "opt.retention_days": "Keep data for (days)",
+    "opt.hint.retention_days":
+      "The one question that matters. With auto sizing on, the observation age, the row ceiling and the number of scan documents kept are derived from this number and from the install's measured rate.",
+    "opt.auto_retention": "Auto sizing",
+    "opt.hint.auto_retention":
+      "On: the three limits below are derived and shown, not editable. Off: you set them by hand.",
+    "retention.derived": "Derived from the install's rate",
+    "retention.rate.measured": "{n} observations a day, measured",
+    "retention.rate.assumed": "{n} observations a day, assumed: not enough history yet to measure",
+    "retention.rows": "Row ceiling",
+    "retention.scans": "Scan documents kept",
+    "retention.days": "Observation age",
+    "retention.estimate": "Estimated size at steady state",
+    "retention.estimate.none": "no estimate until the database holds observations",
+    "retention.manual": "Limits set by hand",
+
+    "history.title": "Trend",
+    "history.lead":
+      "One compact row per scan, kept for the whole retention window. The picture says where you are; these rows say whether it is getting better. The horizontal axis is the sequence of scans, oldest to newest.",
+    "history.none": "At least two scans are needed to draw a trend. The next scan adds a point.",
+    "history.scans": "{n} scans, since {from}",
+    "history.findings": "Findings by severity",
+    "history.high": "high",
+    "history.medium": "medium",
+    "history.low": "low",
+    "history.partial": "verified in part",
+    "history.unverified": "could not run",
+    "history.entities": "Entities: local, cloud, unavailable",
+    "history.local": "local",
+    "history.cloud": "cloud",
+    "history.unavailable": "unavailable",
+    "history.exposure": "Devices talking outside",
+    "history.exposed": "with direct egress",
+    "history.localEgress": "local with egress",
+    "history.unclassified": "Unclassified domains",
+    "history.unclassifiedSeries": "domains",
+    "history.correlation": "Correlated devices",
+    "history.correlated": "correlated",
+    "history.last": "last",
+
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -1456,6 +1536,16 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .guide h4 { margin: 14px 0 5px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .guide h4:first-child { margin-top: 0; }
 .guide p { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); max-width: 84ch; }
+
+.charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.chart { }
+.chart__title { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); margin: 0 0 6px; }
+.chart svg { width: 100%; height: 150px; display: block; }
+.chart__legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--ink-soft); margin-top: 6px; }
+.chart__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.chart__legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+.chart__legend b { font-weight: 500; color: var(--ink); font-family: var(--font-mono); }
+.chart text { font-family: var(--font-mono); font-size: 10px; fill: var(--ink-mute); }
 
 .pies { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
 .pie { display: flex; gap: 14px; align-items: flex-start; }
@@ -1927,13 +2017,16 @@ class TalosPanel extends HTMLElement {
     this._loading = true;
     if (!quiet) this.render();
     try {
-      const [derived, status, suggested, diagnostics] = await Promise.all([
+      const [derived, status, suggested, diagnostics, history] = await Promise.all([
         this._hass.callWS({ type: "talos/derived" }),
         this._hass.callWS({ type: "talos/status" }),
         // Advisory only: an older integration without the command must not
         // take the whole panel down with it.
         this._hass.callWS({ type: "talos/suggest" }).catch(() => ({ suggestions: [] })),
         this._hass.callWS({ type: "talos/diagnostics/last" }).catch(() => ({ run: null })),
+        // Advisory: an older integration without the command must not take
+        // the panel down, and a fresh install simply has no rows yet.
+        this._hass.callWS({ type: "talos/history", limit: 500 }).catch(() => ({ rows: [] })),
       ]);
       this._data = derived;
       // A finished scan supersedes the last save's test result.
@@ -1943,6 +2036,7 @@ class TalosPanel extends HTMLElement {
       this._status = status;
       this._suggestions = (suggested || {}).suggestions || [];
       if (diagnostics && diagnostics.run) this._diagnostics = diagnostics.run;
+      this._history = (history && history.rows) || [];
       this._error = null;
     } catch (err) {
       this._error = err && err.message ? err.message : String(err);
@@ -2404,6 +2498,8 @@ class TalosPanel extends HTMLElement {
         <h2 class="sec">${esc(this.t("base.checks"))}</h2>
         ${this.checksSection()}
       </div>
+
+      ${this.historySection()}
     </div>`;
   }
 
@@ -4678,6 +4774,79 @@ class TalosPanel extends HTMLElement {
     </div>`;
   }
 
+  /** A line chart from rows. Series are {key, label, colour}; x is the row
+   *  index, y from zero to the largest value across the series, so two
+   *  charts of the same kind read against the same baseline. Plain SVG,
+   *  nothing this file does not already have. */
+  lineChart(rows, series, title) {
+    const W = 600, H = 150, L = 34, R = 10, T = 10, B = 18;
+    const n = rows.length;
+    if (n < 2) return "";
+    const max = Math.max(1, ...series.flatMap((s) => rows.map((r) => Number(r[s.key]) || 0)));
+    const x = (i) => L + (i / (n - 1)) * (W - L - R);
+    const y = (v) => T + (1 - v / max) * (H - T - B);
+    const ticks = [0, Math.round(max / 2), max];
+    const grid = ticks
+      .map((v) => `<line x1="${L}" x2="${W - R}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" stroke="var(--border)" stroke-width="1"/>
+        <text x="${L - 4}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${v}</text>`)
+      .join("");
+    const lines = series
+      .map((s) => {
+        const points = rows.map((r, i) => `${x(i).toFixed(1)},${y(Number(r[s.key]) || 0).toFixed(1)}`).join(" ");
+        const last = Number(rows[n - 1][s.key]) || 0;
+        return `<polyline points="${points}" fill="none" stroke="${s.colour}" stroke-width="1.8" stroke-linejoin="round"/>
+          <circle cx="${x(n - 1).toFixed(1)}" cy="${y(last).toFixed(1)}" r="2.6" fill="${s.colour}"/>`;
+      })
+      .join("");
+    const legend = series
+      .map((s) => `<span><i style="background:${s.colour}"></i>${esc(s.label)} <b>${this.num(Number(rows[n - 1][s.key]) || 0)}</b></span>`)
+      .join("");
+    return `<div class="chart">
+      <p class="chart__title">${esc(title)}</p>
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(title)}">${grid}${lines}</svg>
+      <div class="chart__legend">${legend}</div>
+    </div>`;
+  }
+
+  historySection() {
+    const rows = this._history || [];
+    const body =
+      rows.length < 2
+        ? `<p class="status">${esc(this.t("history.none"))}</p>`
+        : `<p class="hint" style="margin:0 0 10px">${esc(
+            this.t("history.scans", { n: this.num(rows.length), from: this.when(rows[0].generated_at) })
+          )}</p>
+          <div class="charts">
+            ${this.lineChart(rows, [
+              { key: "failed_high", label: this.t("history.high"), colour: "var(--alert)" },
+              { key: "failed_medium", label: this.t("history.medium"), colour: "var(--attention)" },
+              { key: "failed_low", label: this.t("history.low"), colour: "var(--accent)" },
+              { key: "partial", label: this.t("history.partial"), colour: "var(--k-infra)" },
+              { key: "unverified", label: this.t("history.unverified"), colour: "var(--k-unknown)" },
+            ], this.t("history.findings"))}
+            ${this.lineChart(rows, [
+              { key: "entities_local", label: this.t("history.local"), colour: "var(--k-local)" },
+              { key: "entities_cloud", label: this.t("history.cloud"), colour: "var(--k-vendor)" },
+              { key: "entities_unavailable", label: this.t("history.unavailable"), colour: "var(--k-unknown)" },
+            ], this.t("history.entities"))}
+            ${this.lineChart(rows, [
+              { key: "devices_exposed", label: this.t("history.exposed"), colour: "var(--k-vendor)" },
+              { key: "local_egress", label: this.t("history.localEgress"), colour: "var(--alert)" },
+            ], this.t("history.exposure"))}
+            ${this.lineChart(rows, [
+              { key: "unclassified", label: this.t("history.unclassifiedSeries"), colour: "var(--k-unknown)" },
+            ], this.t("history.unclassified"))}
+            ${this.lineChart(rows, [
+              { key: "devices_correlated", label: this.t("history.correlated"), colour: "var(--k-local)" },
+            ], this.t("history.correlation"))}
+          </div>`;
+    return `<div>
+      <h2 class="sec">${esc(this.t("history.title"))}</h2>
+      <p class="page-sub" style="margin-bottom:10px">${esc(this.t("history.lead"))}</p>
+      ${body}
+    </div>`;
+  }
+
   /** A donut from a list of {name, percent} slices. Plain SVG arcs, so it
    *  needs nothing this file does not already have. */
   pie(slices, title, note) {
@@ -4792,6 +4961,42 @@ class TalosPanel extends HTMLElement {
   }
 
   /* ── settings ────────────────────────────────────────────────────────── */
+
+  boolField(key) {
+    const status = this._status || {};
+    const value = (status.options || {})[key];
+    const on = value == null ? true : Boolean(value);
+    const hint = this.t(`opt.hint.${key}`);
+    return `<div class="field">
+      <label for="opt-${key}">${esc(this.t(`opt.${key}`))}</label>
+      <select id="opt-${key}" data-option="${key}" data-bool="1">
+        <option value="1" ${on ? "selected" : ""}>${esc(this.t("settings.value.yes"))}</option>
+        <option value="0" ${on ? "" : "selected"}>${esc(this.t("settings.value.no"))}</option>
+      </select>
+      ${hint.startsWith("opt.hint.") ? "" : `<span class="hint">${esc(hint)}</span>`}
+    </div>`;
+  }
+
+  retentionSummary() {
+    const retention = (this._status || {}).retention || {};
+    const sizing = retention.sizing;
+    if (!sizing) return "";
+    return `<dl class="kv" style="margin-top:12px">
+      <dt>${esc(this.t("retention.derived"))}</dt>
+      <dd>${esc(
+        this.t(sizing.rate_measured ? "retention.rate.measured" : "retention.rate.assumed", {
+          n: this.num(Math.round(sizing.rate_per_day)),
+        })
+      )}</dd>
+      <dt>${esc(this.t("retention.days"))}</dt><dd class="mono">${this.num(sizing.observation_days)} d</dd>
+      <dt>${esc(this.t("retention.rows"))}</dt><dd class="mono">${this.num(sizing.max_observations)}</dd>
+      <dt>${esc(this.t("retention.scans"))}</dt><dd class="mono">${this.num(sizing.scan_history)}</dd>
+      <dt>${esc(this.t("retention.estimate"))}</dt>
+      <dd class="mono">${
+        sizing.estimate_bytes != null ? esc(this.bytes(sizing.estimate_bytes)) : esc(this.t("retention.estimate.none"))
+      }</dd>
+    </dl>`;
+  }
 
   numberField(key, bounds) {
     const status = this._status || {};
@@ -4995,11 +5200,22 @@ class TalosPanel extends HTMLElement {
 
       <div>
         <h2 class="sec">${esc(this.t("settings.section.retention"))}</h2>
-        <div class="panel-card"><div class="form">
-          ${this.numberField("observation_days")}
-          ${this.numberField("max_observations")}
-          ${this.numberField("scan_history")}
-        </div></div>
+        <div class="panel-card">
+          <div class="form">
+            ${this.numberField("retention_days")}
+            ${this.boolField("auto_retention")}
+          </div>
+          ${
+            (((this._status || {}).options || {}).auto_retention ?? true)
+              ? this.retentionSummary()
+              : `<p class="hint" style="margin:12px 0 4px">${esc(this.t("retention.manual"))}</p>
+                 <div class="form">
+                   ${this.numberField("observation_days")}
+                   ${this.numberField("max_observations")}
+                   ${this.numberField("scan_history")}
+                 </div>`
+          }
+        </div>
       </div>
 
       <div>
@@ -5073,7 +5289,9 @@ class TalosPanel extends HTMLElement {
     const options = {};
     host.querySelectorAll("[data-option]").forEach((input) => {
       const key = input.dataset.option;
-      options[key] = input.type === "number" ? Number(input.value) : input.value;
+      options[key] = input.dataset.bool === "1"
+        ? input.value === "1"
+        : input.type === "number" ? Number(input.value) : input.value;
     });
 
     this._saving = true;

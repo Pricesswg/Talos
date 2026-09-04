@@ -393,6 +393,22 @@ dash from the leaf towards the hub, which is the direction the data goes. Escape
 space clears it. Dragging a node pins it to the pointer and lets the rest settle around it; letting
 go frees it.
 
+### History, and how the store is sized
+
+Every scan leaves one compact row behind: findings by severity, passed, partial and could-not-run,
+local and cloud entities, exposed devices, unclassified domains, correlation. The scan documents are
+heavy and pruned early; these rows cost a few hundred bytes each and are kept for the whole retention
+window, and they are what the charts at the bottom of the overview draw. A picture says where you
+are; the rows say whether it is getting better.
+
+The store is sized from one answer: for how long to keep the data. The three knobs it enforces, the
+age of an observation, the ceiling on rows and the number of scan documents, are derived from the
+days and from the rate the install actually produces, which the store already knows from how many
+observations it holds and how old the oldest is. A ceiling that is not derived from the rate is
+either so high it bounds nothing or so low it cuts the window short without saying so. The derived
+numbers and a size estimate are shown in Settings, labelled as measured or assumed, and the three
+knobs can still be set by hand with auto sizing off.
+
 ## The two views
 
 **Basic** answers two things: what stops working without internet, and which devices talk outside.

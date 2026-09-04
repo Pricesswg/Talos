@@ -28,6 +28,7 @@ from .const import (
     CONF_VERIFY_SSL,
     DEFAULT_MQTT_PORT,
     DOMAIN,
+    BOOL_OPTIONS,
     OPTION_BOUNDS,
     TEXT_OPTIONS,
 )
@@ -59,6 +60,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_suggest)
     websocket_api.async_register_command(hass, ws_set_mqtt)
     websocket_api.async_register_command(hass, ws_mqtt_test)
+    websocket_api.async_register_command(hass, ws_history)
     websocket_api.async_register_command(hass, ws_diagnostics_run)
     websocket_api.async_register_command(hass, ws_diagnostics_last)
     websocket_api.async_register_command(hass, ws_refresh)
@@ -113,6 +115,7 @@ def ws_status(
             "options": dict(coordinator.entry.options),
             "bounds": {key: list(value) for key, value in OPTION_BOUNDS.items()},
             "text_options": list(TEXT_OPTIONS),
+            "bool_options": list(BOOL_OPTIONS),
             # The endpoint is shown so the settings screen can state what it is
             # talking to. The password never leaves the config entry: only
             # whether one is set.
@@ -502,6 +505,25 @@ async def ws_mqtt_test(
     )
 
 
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {vol.Required("type"): f"{DOMAIN}/history", vol.Optional("limit", default=500): vol.Coerce(int)}
+)
+@websocket_api.async_response
+async def ws_history(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """The compact rows the charts draw, oldest first."""
+    coordinator = _coordinator(hass)
+    store = getattr(coordinator, "_store", None) if coordinator else None
+    if coordinator is None or store is None:
+        _not_ready(connection, msg["id"])
+        return
+    limit = max(1, min(5000, int(msg["limit"])))
+    rows = await hass.async_add_executor_job(store.history, limit)
+    connection.send_result(msg["id"], {"rows": rows})
+
+
 def _entry_broker(coordinator: TalosCoordinator) -> str:
     """The broker the MQTT config entry names, when the form gives no address."""
     data = coordinator.data
@@ -585,6 +607,8 @@ async def ws_set_options(
             merged[key] = number
         elif key in TEXT_OPTIONS:
             merged[key] = str(value or "").strip()
+        elif key in BOOL_OPTIONS:
+            merged[key] = bool(value)
         else:
             connection.send_error(msg["id"], "invalid_format", f"unknown option: {key}")
             return

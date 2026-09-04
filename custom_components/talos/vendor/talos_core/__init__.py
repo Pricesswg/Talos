@@ -41,6 +41,7 @@ from .derive import (
     derive,
 )
 from .errors import CODES, Finding, TalosSchemaError
+from .retention import Sizing, size_for, snapshot_of
 from .storage import PruneReport, RetentionPolicy, StoreStats, TalosStore
 from .model import (
     Conduit,
@@ -98,6 +99,7 @@ __all__ = [
     "SCHEMA_VERSION",
     "SUPPORTED_SCHEMA_VERSIONS",
     "Scan",
+    "Sizing",
     "SourceRef",
     "StoreStats",
     "TalosSchemaError",
@@ -112,7 +114,9 @@ __all__ = [
     "default_engine",
     "derive",
     "is_valid",
+    "size_for",
+    "snapshot_of",
     "validate",
 ]
 
-__version__ = "1.21.0"
+__version__ = "1.22.0"

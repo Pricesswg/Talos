@@ -34,6 +34,11 @@ CONF_SCAN_INTERVAL: Final = "scan_interval_minutes"
 CONF_OBSERVATION_DAYS: Final = "observation_days"
 CONF_MAX_OBSERVATIONS: Final = "max_observations"
 CONF_SCAN_HISTORY: Final = "scan_history"
+# The one question a person can answer: for how long. The three above are
+# derived from it and from the measured rate when auto sizing is on.
+CONF_RETENTION_DAYS: Final = "retention_days"
+CONF_AUTO_RETENTION: Final = "auto_retention"
+DEFAULT_RETENTION_DAYS: Final = 90
 CONF_PAGE_SIZE: Final = "page_size"
 CONF_MAX_PAGES: Final = "max_pages"
 CONF_DOMAIN_RULES: Final = "domain_rules_path"
@@ -57,9 +62,13 @@ OPTION_BOUNDS: Final[dict[str, tuple[int, int]]] = {
     CONF_OBSERVATION_DAYS: (1, 3650),
     CONF_MAX_OBSERVATIONS: (500, 500_000),
     CONF_SCAN_HISTORY: (1, 200),
+    CONF_RETENTION_DAYS: (1, 3650),
     CONF_PAGE_SIZE: (50, 2000),
     CONF_MAX_PAGES: (1, 500),
 }
+
+# Yes or no options, written from the panel as booleans.
+BOOL_OPTIONS: Final[tuple[str, ...]] = (CONF_AUTO_RETENTION,)
 
 # Free text options: network ranges and paths to user rule files.
 TEXT_OPTIONS: Final[tuple[str, ...]] = (

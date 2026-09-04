@@ -1,6 +1,6 @@
 [project]
 name = "talos-core"
-version = "1.21.0"
+version = "1.22.0"
 description = "Talos, HA Security scanner: data provenance and offline autonomy, standalone core"
 requires-python = ">=3.12"
 license = { text = "MIT" }

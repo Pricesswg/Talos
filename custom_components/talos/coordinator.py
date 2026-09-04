@@ -25,6 +25,10 @@ from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
     CONF_ADGUARD_USERNAME,
+    CONF_AUTO_RETENTION,
+    CONF_RETENTION_DAYS,
+    DEFAULT_RETENTION_DAYS,
+    OPTION_BOUNDS,
     CONF_MQTT_API_KEY,
     CONF_MQTT_API_SECRET,
     CONF_MQTT_API_URL,
@@ -69,7 +73,7 @@ from .core import (
     merge_observed,
 )
 from .http_transport import HassHttpTransport
-from .core import DiagnosticRun, apply_mesh_roles
+from .core import DiagnosticRun, apply_mesh_roles, size_for, snapshot_of
 from .mqtt_source import collect_mqtt, collect_zigbee
 from .native_source import NativeSource
 
@@ -102,6 +106,7 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         # The last diagnostic run. Never persisted: it is a measurement taken
         # at a moment, and the moment is part of what it says.
         self.last_diagnostics: DiagnosticRun | None = None
+        self.last_sizing = None
         self.diagnostics_running: bool = False
 
         minutes = int(entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
@@ -119,9 +124,34 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
     def database_path(self) -> Path:
         return Path(self.hass.config.path(STORAGE_DIR)) / STORAGE_FILE
 
-    def retention_policy(self) -> RetentionPolicy:
+    def retention_policy(self, stats: dict[str, Any] | None = None) -> RetentionPolicy:
+        """The policy the store enforces.
+
+        With auto sizing on, the three knobs follow from the days to keep
+        and from the rate the store measured; the sizing is remembered so
+        the panel can show what was derived and why. Otherwise the three
+        options are used as written.
+        """
         options = self.entry.options
         default = RetentionPolicy()
+        if options.get(CONF_AUTO_RETENTION, True):
+            stats = stats or {}
+            sizing = size_for(
+                int(options.get(CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS)),
+                int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+                int(stats.get("observations") or 0),
+                stats.get("oldest_observation"),
+                int(stats.get("bytes_used") or 0),
+                {key: OPTION_BOUNDS[key] for key in (CONF_OBSERVATION_DAYS, CONF_MAX_OBSERVATIONS, CONF_SCAN_HISTORY)},
+            )
+            self.last_sizing = sizing
+            return RetentionPolicy(
+                observation_days=sizing.observation_days,
+                max_observations=sizing.max_observations,
+                scan_history=sizing.scan_history,
+                vacuum_every=default.vacuum_every,
+            )
+        self.last_sizing = None
         return RetentionPolicy(
             observation_days=int(options.get(CONF_OBSERVATION_DAYS, default.observation_days)),
             max_observations=int(options.get(CONF_MAX_OBSERVATIONS, default.max_observations)),
@@ -340,9 +370,15 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
 
         def persist() -> tuple[dict[str, Any], dict[str, Any]]:
             store.save_scan(scan)
+            store.save_snapshot(snapshot_of(scan, derived))
+            # Size from what the store holds now, then prune to that size.
+            store.set_policy(self.retention_policy(store.stats().to_dict()))
             report = store.prune()
             return store.stats().to_dict(), {
                 "policy": store.policy.to_dict(),
+                "auto": bool(self.entry.options.get(CONF_AUTO_RETENTION, True)),
+                "retention_days": int(self.entry.options.get(CONF_RETENTION_DAYS, DEFAULT_RETENTION_DAYS)),
+                "sizing": self.last_sizing.to_dict() if self.last_sizing else None,
                 "last_prune": {
                     "observations_expired": report.observations_expired,
                     "observations_over_cap": report.observations_over_cap,
