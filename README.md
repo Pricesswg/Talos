@@ -293,6 +293,37 @@ green would be the exact failure this tool exists to avoid. Every check declares
 and when one is not met the check moves to the unverified list with the reason spelled out. That
 count sits next to the other two in the panel and cannot be hidden.
 
+## Diagnostics, on demand
+
+A different kind of evidence, and kept apart from the scan on purpose. The scan is passive and
+periodic, and every row carries a proof that is declared or observed. A diagnostic run is something
+you start from its own tab, it lasts the window you pick, thirty seconds to two minutes, and then it
+stops: it is never scheduled, it feeds no posture check, and the last run is held in memory until the
+next one rather than stored. Every row carries the time it was measured, because the moment is part
+of the data.
+
+Three measures, each attributable to a config entry:
+
+- **State changes per integration.** The event bus is listened to for the window and every
+  `state_changed` is attributed to its entry through the entity registry. Every change is a row in
+  the recorder and a turn on the loop, so the integration producing hundreds a minute is the one
+  filling the database and keeping the system busy, even when each single write is harmless.
+  Changes that belong to no entry, YAML entities and helpers, are counted but not attributed, so the
+  total adds up.
+- **Calls that block the loop.** Home Assistant logs every call that blocked the event loop with the
+  integration that made it. The tail of the log is read once, bounded to four megabytes, and the
+  warnings are counted by integration. While the loop is blocked nothing else runs, which makes this
+  the most direct signal of "this thing slows everything down". Nothing is executed to get it.
+- **Reachability of declared endpoints.** One TCP connection, timed, to every host and port the
+  config entries declare, a few at a time with a three second timeout. Only to what you configured,
+  only on the port you wrote, never ICMP and never a sweep. That is the line between checking the
+  broker answers and knocking on doors on the network, and this stays on the right side of it. An
+  endpoint that names no port is skipped rather than guessed at.
+
+What could not be measured is listed under the results with the reason, in the same spirit as the
+scan's unverified list: a section that is empty and a section that was not looked at are different
+things. Two runs cannot overlap, because they would measure each other.
+
 ## The two views
 
 **Basic** answers two things: what stops working without internet, and which devices talk outside.

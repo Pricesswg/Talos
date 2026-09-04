@@ -549,6 +549,48 @@ const I18N = {
     "mqtt.client.unseen": "il resolver non ha mai visto questo indirizzo",
     "mqtt.client.unmatched": "non attribuito",
 
+    "mode.diagnostics": "Diagnostica",
+    "diag.title": "Diagnostica",
+    "diag.lead":
+      "Una misura presa adesso, non una scansione. La lanci tu, dura il tempo della finestra e poi si ferma: non viene mai schedulata e non concorre a nessun controllo di sicurezza. Ogni riga porta l'ora in cui è stata misurata, perché il momento fa parte del dato.",
+    "diag.run": "Avvia la diagnostica",
+    "diag.running": "In corso…",
+    "diag.window": "Finestra di ascolto",
+    "diag.seconds": "{n} s",
+    "diag.busy": "Diagnostica in corso",
+    "diag.busy.sub":
+      "Ascolto i cambi di stato per {n} secondi. Intanto leggo il log e provo a raggiungere gli endpoint dichiarati. Non tocco nient'altro.",
+    "diag.done": "Diagnostica completata",
+    "diag.done.sub": "Misurata alle {when}, finestra di {n} secondi.",
+    "diag.failed": "Diagnostica fallita",
+    "diag.none": "Nessuna diagnostica ancora eseguita. Premi il bottone: dura un minuto.",
+    "diag.measured": "misurato alle {when}",
+    "diag.churn": "Cambi di stato per integrazione",
+    "diag.churn.lead":
+      "Chi scrive di più nella finestra. Ogni cambio di stato è una riga nel recorder e un giro sul loop: un'integrazione che ne produce centinaia al minuto è quella che gonfia il database e tiene occupato il sistema, anche se ogni singola scrittura è innocua.",
+    "diag.churn.total": "{total} cambi in {n} secondi, {rate} al minuto",
+    "diag.churn.unattributed":
+      "{n} cambi appartengono a entità senza config entry (YAML, helper) e sono conteggiati ma non attribuiti.",
+    "diag.churn.none": "Nessun cambio di stato nella finestra.",
+    "diag.churn.perMinute": "{n}/min",
+    "diag.churn.entities": "{n} entità",
+    "diag.churn.top": "Le più attive",
+    "diag.blocking": "Chiamate che bloccano il loop",
+    "diag.blocking.lead":
+      "Home Assistant scrive nel log ogni chiamata che ha bloccato l'event loop, e nel traceback c'è l'integrazione che l'ha fatta. È il segnale più diretto di \"questa cosa rallenta tutto\": mentre il loop è bloccato, niente altro gira. Letto dalla coda del log, senza eseguire nulla.",
+    "diag.blocking.none": "Nessuna chiamata bloccante nella coda del log.",
+    "diag.blocking.count": "{n} volte",
+    "diag.blocking.last": "ultima",
+    "diag.blocking.sample": "Esempio dal log",
+    "diag.reach": "Raggiungibilità degli endpoint dichiarati",
+    "diag.reach.lead":
+      "Una connessione TCP a ogni host e porta che le config entry dichiarano, con il tempo di risposta. Solo verso quello che hai configurato tu, solo sulla porta che hai scritto, niente ICMP e nessuna scansione: è la differenza fra verificare che il broker risponda e andare a bussare in rete.",
+    "diag.reach.none": "Nessuna config entry dichiara host e porta, quindi non c'era niente a cui collegarsi.",
+    "diag.reach.ok": "raggiungibile",
+    "diag.reach.fail": "non raggiungibile",
+    "diag.reach.ms": "{n} ms",
+    "diag.notes": "Cosa non è stato misurato",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -1021,6 +1063,48 @@ const I18N = {
     "mqtt.client.seen": "the resolver saw {n} queries from this address",
     "mqtt.client.unseen": "the resolver has never seen this address",
     "mqtt.client.unmatched": "not accounted for",
+
+    "mode.diagnostics": "Diagnostics",
+    "diag.title": "Diagnostics",
+    "diag.lead":
+      "A measurement taken now, not a scan. You start it, it lasts the window and then stops: it is never scheduled and it feeds no security check. Every row carries the time it was measured, because the moment is part of the data.",
+    "diag.run": "Run diagnostics",
+    "diag.running": "Running…",
+    "diag.window": "Listening window",
+    "diag.seconds": "{n} s",
+    "diag.busy": "Diagnostics running",
+    "diag.busy.sub":
+      "Listening to state changes for {n} seconds. Meanwhile the log is read and the declared endpoints are connected to. Nothing else is touched.",
+    "diag.done": "Diagnostics complete",
+    "diag.done.sub": "Measured at {when}, over a {n} second window.",
+    "diag.failed": "Diagnostics failed",
+    "diag.none": "No diagnostic run yet. Press the button: it takes a minute.",
+    "diag.measured": "measured at {when}",
+    "diag.churn": "State changes per integration",
+    "diag.churn.lead":
+      "Who writes the most in the window. Every state change is a row in the recorder and a turn on the loop: an integration producing hundreds a minute is what fills the database and keeps the system busy, even if each single write is harmless.",
+    "diag.churn.total": "{total} changes in {n} seconds, {rate} a minute",
+    "diag.churn.unattributed":
+      "{n} changes belong to entities with no config entry (YAML, helpers) and are counted but not attributed.",
+    "diag.churn.none": "No state change in the window.",
+    "diag.churn.perMinute": "{n}/min",
+    "diag.churn.entities": "{n} entities",
+    "diag.churn.top": "Most active",
+    "diag.blocking": "Calls that block the loop",
+    "diag.blocking.lead":
+      "Home Assistant logs every call that blocked the event loop, and the traceback names the integration that made it. It is the most direct signal of \"this thing slows everything down\": while the loop is blocked, nothing else runs. Read from the tail of the log, without running anything.",
+    "diag.blocking.none": "No blocking call in the tail of the log.",
+    "diag.blocking.count": "{n} times",
+    "diag.blocking.last": "last",
+    "diag.blocking.sample": "Sample from the log",
+    "diag.reach": "Reachability of the declared endpoints",
+    "diag.reach.lead":
+      "One TCP connection to every host and port the config entries declare, with the response time. Only to what you configured, only on the port you wrote, no ICMP and no sweep: that is the difference between checking the broker answers and knocking on doors on the network.",
+    "diag.reach.none": "No config entry declares a host and a port, so there was nothing to connect to.",
+    "diag.reach.ok": "reachable",
+    "diag.reach.fail": "unreachable",
+    "diag.reach.ms": "{n} ms",
+    "diag.notes": "What was not measured",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -1615,12 +1699,13 @@ class TalosPanel extends HTMLElement {
     this._loading = true;
     if (!quiet) this.render();
     try {
-      const [derived, status, suggested] = await Promise.all([
+      const [derived, status, suggested, diagnostics] = await Promise.all([
         this._hass.callWS({ type: "talos/derived" }),
         this._hass.callWS({ type: "talos/status" }),
         // Advisory only: an older integration without the command must not
         // take the whole panel down with it.
         this._hass.callWS({ type: "talos/suggest" }).catch(() => ({ suggestions: [] })),
+        this._hass.callWS({ type: "talos/diagnostics/last" }).catch(() => ({ run: null })),
       ]);
       this._data = derived;
       // A finished scan supersedes the last save's test result.
@@ -1629,6 +1714,7 @@ class TalosPanel extends HTMLElement {
       }
       this._status = status;
       this._suggestions = (suggested || {}).suggestions || [];
+      if (diagnostics && diagnostics.run) this._diagnostics = diagnostics.run;
       this._error = null;
     } catch (err) {
       this._error = err && err.message ? err.message : String(err);
@@ -1779,7 +1865,9 @@ class TalosPanel extends HTMLElement {
           ? this.viewMap()
           : this._mode === "settings"
             ? this.viewSettings()
-            : this.viewAdvanced()) +
+            : this._mode === "diagnostics"
+              ? this.viewDiagnostics()
+              : this.viewAdvanced()) +
       `</div>`;
 
     host.querySelectorAll("[data-mode]").forEach((button) => {
@@ -1793,6 +1881,9 @@ class TalosPanel extends HTMLElement {
       if (this._scanning) refresh.dataset.busy = "1";
       refresh.addEventListener("click", () => this.refresh());
     }
+
+    const diagRun = host.querySelector("[data-action='diag-run']");
+    if (diagRun) diagRun.addEventListener("click", () => this.runDiagnostics());
 
     const mqttSave = host.querySelector("[data-action='mqtt-save']");
     if (mqttSave) mqttSave.addEventListener("click", () => this.saveMqtt(false));
@@ -1985,6 +2076,7 @@ class TalosPanel extends HTMLElement {
           <button data-mode="base" aria-pressed="${this._mode === "base"}">${esc(this.t("mode.base"))}</button>
           <button data-mode="map" aria-pressed="${this._mode === "map"}">${esc(this.t("mode.map"))}</button>
           <button data-mode="advanced" aria-pressed="${this._mode === "advanced"}">${esc(this.t("mode.advanced"))}</button>
+          <button data-mode="diagnostics" aria-pressed="${this._mode === "diagnostics"}">${esc(this.t("mode.diagnostics"))}</button>
           <button data-mode="settings" aria-pressed="${this._mode === "settings"}">${esc(this.t("mode.settings"))}</button>
         </div>
         <button class="icon-btn" data-action="refresh" title="${esc(this.t("app.refresh"))}">
@@ -3679,6 +3771,193 @@ class TalosPanel extends HTMLElement {
           </details>`;
         })
         .join("")}
+    </div>`;
+  }
+
+  /* ── diagnostics ─────────────────────────────────────────────────────── */
+
+  async runDiagnostics() {
+    if (this._diagRunning) return;
+    const host = this.shadowRoot;
+    const field = host.querySelector("#diag-window");
+    const window = Number((field || {}).value) || 60;
+    this._diagWindow = window;
+    this._diagRunning = true;
+    this.setBusy("busy", this.t("diag.busy"), this.t("diag.busy.sub", { n: window }));
+    try {
+      const run = await this._hass.callWS({ type: "talos/diagnostics/run", window });
+      this._diagnostics = run;
+      this._diagRunning = false;
+      this.setBusy(
+        "ok",
+        this.t("diag.done"),
+        this.t("diag.done.sub", { when: this.when(run.finished_at), n: run.window_seconds })
+      );
+    } catch (err) {
+      this._diagRunning = false;
+      this.setBusy("error", this.t("diag.failed"), err && err.message ? err.message : String(err));
+    }
+  }
+
+  diagName(entryId) {
+    const labels = (this._diagnostics || {}).labels || {};
+    return (labels.titles || {})[entryId] || entryId;
+  }
+
+  diagDomain(entryId) {
+    const labels = (this._diagnostics || {}).labels || {};
+    return (labels.domains || {})[entryId] || "";
+  }
+
+  viewDiagnostics() {
+    const run = this._diagnostics;
+    const window = this._diagWindow || (run && run.window_seconds) || 60;
+    const controls = `<div class="panel-card">
+      <div class="form">
+        <div class="field">
+          <label for="diag-window">${esc(this.t("diag.window"))}</label>
+          <select id="diag-window">
+            ${[30, 60, 120]
+              .map(
+                (n) => `<option value="${n}" ${n === window ? "selected" : ""}>${esc(
+                  this.t("diag.seconds", { n })
+                )}</option>`
+              )
+              .join("")}
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" data-action="diag-run" ${this._diagRunning ? "disabled" : ""}>${esc(
+          this._diagRunning ? this.t("diag.running") : this.t("diag.run")
+        )}</button>
+        ${
+          run
+            ? `<span class="status">${esc(
+                this.t("diag.measured", { when: this.when(run.finished_at) })
+              )}</span>`
+            : ""
+        }
+      </div>
+    </div>`;
+
+    if (!run) {
+      return `<div class="stack">
+        <div>
+          <h1 class="page">${esc(this.t("diag.title"))}</h1>
+          <p class="page-sub">${esc(this.t("diag.lead"))}</p>
+        </div>
+        ${controls}
+        <p class="status">${esc(this.t("diag.none"))}</p>
+      </div>`;
+    }
+
+    const minutes = Math.max(run.window_seconds, 1) / 60;
+    const churn = (run.churn || [])
+      .map((row) =>
+        this.expander({
+          tone: "info",
+          title: esc(this.diagName(row.entry_id)),
+          chips: [
+            `<span class="chip">${esc(this.diagDomain(row.entry_id))}</span>`,
+            `<span class="chip">${esc(this.t("diag.churn.perMinute", { n: this.num(row.per_minute) }))}</span>`,
+            `<span class="chip">${esc(this.t("diag.churn.entities", { n: this.num(row.entities) }))}</span>`,
+          ],
+          body: `<div class="exp__lab">${esc(this.t("diag.churn.top"))}</div>
+            <div class="exp__rows">${(row.top_entities || [])
+              .map(
+                ([entityId, count]) =>
+                  `<div class="exp__row"><b class="mono">${esc(entityId)}</b><span class="mono">${this.num(
+                    count
+                  )}</span></div>`
+              )
+              .join("")}</div>`,
+        })
+      )
+      .join("");
+
+    const blocking = (run.blocking || [])
+      .map((row) =>
+        this.expander({
+          tone: "attention",
+          title: esc(row.domain),
+          chips: [
+            `<span class="chip">${esc(this.t("diag.blocking.count", { n: this.num(row.count) }))}</span>`,
+            row.last_seen
+              ? `<span class="chip mono">${esc(this.t("diag.blocking.last"))} ${esc(row.last_seen)}</span>`
+              : "",
+          ].filter(Boolean),
+          body: `<div class="exp__lab">${esc(this.t("diag.blocking.sample"))}</div>
+            <p class="mono" style="font-size:12px;word-break:break-word">${esc(row.sample)}</p>`,
+        })
+      )
+      .join("");
+
+    const reach = (run.reachability || [])
+      .map(
+        (row) => `<div class="exp__row">
+          <b>${esc(this.diagName(row.entry_id))}</b>
+          <span class="mono">${esc(`${row.host}:${row.port}`)} · ${
+            row.reachable
+              ? `<span style="color:var(--k-local)">${esc(this.t("diag.reach.ok"))}, ${esc(
+                  this.t("diag.reach.ms", { n: this.num(row.latency_ms) })
+                )}</span>`
+              : `<span style="color:var(--alert)">${esc(this.t("diag.reach.fail"))}${
+                  row.error ? `, ${esc(row.error)}` : ""
+                }</span>`
+          }</span>
+        </div>`
+      )
+      .join("");
+
+    return `<div class="stack">
+      <div>
+        <h1 class="page">${esc(this.t("diag.title"))}</h1>
+        <p class="page-sub">${esc(this.t("diag.lead"))}</p>
+      </div>
+      ${controls}
+
+      <div>
+        <h2 class="sec">${esc(this.t("diag.churn"))}</h2>
+        <p class="page-sub" style="margin-bottom:10px">${esc(this.t("diag.churn.lead"))}</p>
+        <p class="hint" style="margin:0 0 10px">${esc(
+          this.t("diag.churn.total", {
+            total: this.num(run.total_changes),
+            n: run.window_seconds,
+            rate: this.num(Math.round(run.total_changes / minutes)),
+          })
+        )}${
+          run.unattributed_changes
+            ? ` ${esc(this.t("diag.churn.unattributed", { n: this.num(run.unattributed_changes) }))}`
+            : ""
+        }</p>
+        ${churn || `<p class="status">${esc(this.t("diag.churn.none"))}</p>`}
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("diag.blocking"))}</h2>
+        <p class="page-sub" style="margin-bottom:10px">${esc(this.t("diag.blocking.lead"))}</p>
+        ${blocking || `<p class="status">${esc(this.t("diag.blocking.none"))}</p>`}
+      </div>
+
+      <div>
+        <h2 class="sec">${esc(this.t("diag.reach"))}</h2>
+        <p class="page-sub" style="margin-bottom:10px">${esc(this.t("diag.reach.lead"))}</p>
+        ${
+          reach
+            ? `<div class="panel-card"><div class="exp__rows">${reach}</div></div>`
+            : `<p class="status">${esc(this.t("diag.reach.none"))}</p>`
+        }
+      </div>
+
+      ${
+        (run.notes || []).length
+          ? `<div class="note">
+              <div class="note__label">${esc(this.t("diag.notes"))}</div>
+              ${run.notes.map((note) => `<p>· ${esc(note)}</p>`).join("")}
+            </div>`
+          : ""
+      }
     </div>`;
   }
 

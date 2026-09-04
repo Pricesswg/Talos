@@ -10,6 +10,17 @@ from __future__ import annotations
 from .checks import CheckEngine, CheckReport, CheckResult, default_engine
 from .const import SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSIONS
 from .zones import ZoneMap
+from .diagnostics import (
+    DEFAULT_WINDOW,
+    BlockingCall,
+    Churn,
+    DiagnosticRun,
+    Reach,
+    attribute_churn,
+    clamp_window,
+    declared_targets,
+    parse_blocking_calls,
+)
 from .derive import (
     Autonomy,
     Derived,
@@ -42,6 +53,15 @@ from .validate import is_valid, validate
 
 __all__ = [
     "Autonomy",
+    "BlockingCall",
+    "Churn",
+    "DEFAULT_WINDOW",
+    "DiagnosticRun",
+    "Reach",
+    "attribute_churn",
+    "clamp_window",
+    "declared_targets",
+    "parse_blocking_calls",
     "CODES",
     "CheckEngine",
     "CheckReport",
@@ -81,4 +101,4 @@ __all__ = [
     "validate",
 ]
 
-__version__ = "1.15.2"
+__version__ = "1.16.0"

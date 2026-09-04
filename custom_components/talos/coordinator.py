@@ -69,7 +69,7 @@ from .core import (
     merge_observed,
 )
 from .http_transport import HassHttpTransport
-from .core import apply_mesh_roles
+from .core import DiagnosticRun, apply_mesh_roles
 from .mqtt_source import collect_mqtt, collect_zigbee
 from .native_source import NativeSource
 
@@ -99,6 +99,10 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         self._zones = ZoneMap()
 
         self._setup_state: tuple[Any, ...] | None = None
+        # The last diagnostic run. Never persisted: it is a measurement taken
+        # at a moment, and the moment is part of what it says.
+        self.last_diagnostics: DiagnosticRun | None = None
+        self.diagnostics_running: bool = False
 
         minutes = int(entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
         super().__init__(

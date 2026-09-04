@@ -32,6 +32,8 @@ from .const import (
     TEXT_OPTIONS,
 )
 from .coordinator import TalosCoordinator
+from .core import DiagnosticRun
+from .diagnostics_run import run_diagnostics
 from .mqtt_source import (
     NO_CLIENT_IDS,
     collect_via_api,
@@ -39,6 +41,7 @@ from .mqtt_source import (
     read_sys_blocking,
 )
 from .core import subnets, suggestions
+from .core import DEFAULT_WINDOW
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
 
@@ -54,6 +57,8 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_derived)
     websocket_api.async_register_command(hass, ws_suggest)
     websocket_api.async_register_command(hass, ws_set_mqtt)
+    websocket_api.async_register_command(hass, ws_diagnostics_run)
+    websocket_api.async_register_command(hass, ws_diagnostics_last)
     websocket_api.async_register_command(hass, ws_refresh)
     websocket_api.async_register_command(hass, ws_set_options)
 
@@ -388,6 +393,81 @@ async def ws_set_mqtt(
             "sys_readable": bool(working) and (working.get("clients", 0) > 0),
         },
     )
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): f"{DOMAIN}/diagnostics/run",
+        vol.Optional("window", default=DEFAULT_WINDOW): vol.Coerce(int),
+    }
+)
+@websocket_api.async_response
+async def ws_diagnostics_run(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Start one diagnostic run and answer when it is done.
+
+    User-started and one-shot by design. Two runs at once would measure each
+    other, so a second request while one is in flight is refused rather than
+    queued: the caller gets the one already running when it finishes.
+    """
+    coordinator = _coordinator(hass)
+    if coordinator is None or coordinator.data is None:
+        _not_ready(connection, msg["id"])
+        return
+    if coordinator.diagnostics_running:
+        connection.send_error(msg["id"], "busy", "a diagnostic run is already in progress")
+        return
+
+    coordinator.diagnostics_running = True
+    try:
+        run = await run_diagnostics(hass, coordinator.data.scan, msg["window"])
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.exception("Talos: diagnostic run failed")
+        connection.send_error(msg["id"], "failed", f"the diagnostic run failed: {err}")
+        return
+    finally:
+        coordinator.diagnostics_running = False
+
+    coordinator.last_diagnostics = run
+    connection.send_result(msg["id"], _diagnostics_payload(coordinator, run))
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/diagnostics/last"})
+@callback
+def ws_diagnostics_last(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    coordinator = _coordinator(hass)
+    if coordinator is None:
+        _not_ready(connection, msg["id"])
+        return
+    run = coordinator.last_diagnostics
+    connection.send_result(
+        msg["id"],
+        {
+            "running": coordinator.diagnostics_running,
+            "run": _diagnostics_payload(coordinator, run) if run else None,
+        },
+    )
+
+
+def _diagnostics_payload(coordinator: TalosCoordinator, run: DiagnosticRun) -> dict[str, Any]:
+    """The run plus the names the panel needs, since ids mean nothing on
+    screen and re-deriving titles client side would duplicate the mapping."""
+    scan = coordinator.data.scan if coordinator.data else None
+    titles = (
+        {integration.id: integration.title for integration in scan.integrations} if scan else {}
+    )
+    domains = (
+        {integration.id: integration.domain for integration in scan.integrations} if scan else {}
+    )
+    return {
+        **run.to_dict(),
+        "labels": {"titles": titles, "domains": domains},
+    }
 
 
 def _entry_broker(coordinator: TalosCoordinator) -> str:

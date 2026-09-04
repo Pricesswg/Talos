@@ -11,17 +11,26 @@ from __future__ import annotations
 
 try:  # repository checkout, or an installed talos-core
     from talos_core import (  # noqa: F401
+        DEFAULT_WINDOW,
+        BlockingCall,
+        Churn,
         Correlation,
         Derived,
+        DiagnosticRun,
         MqttClient,
         MqttFacts,
         ZigbeeFacts,
         RetentionPolicy,
+        Reach,
         Scan,
         TalosStore,
         UnverifiedCheck,
         ZoneMap,
+        attribute_churn,
+        clamp_window,
+        declared_targets,
         derive,
+        parse_blocking_calls,
         validate,
     )
     from talos_core.observed import (  # noqa: F401
@@ -53,17 +62,26 @@ try:  # repository checkout, or an installed talos-core
 except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     from .vendor.talos_core import (  # type: ignore[no-redef]  # noqa: F401
         CheckEngine,
+        DEFAULT_WINDOW,
+        BlockingCall,
+        Churn,
         Correlation,
         Derived,
+        DiagnosticRun,
         MqttClient,
         MqttFacts,
         ZigbeeFacts,
         RetentionPolicy,
+        Reach,
         Scan,
         TalosStore,
         UnverifiedCheck,
         ZoneMap,
+        attribute_churn,
+        clamp_window,
+        declared_targets,
         derive,
+        parse_blocking_calls,
         validate,
     )
     from .vendor.talos_core.observed import (  # type: ignore[no-redef]  # noqa: F401
@@ -98,6 +116,15 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
 
 __all__ = [
     "AdGuardCollector",
+    "BlockingCall",
+    "Churn",
+    "DEFAULT_WINDOW",
+    "DiagnosticRun",
+    "Reach",
+    "attribute_churn",
+    "clamp_window",
+    "declared_targets",
+    "parse_blocking_calls",
     "CheckEngine",
     "Correlation",
     "Derived",
