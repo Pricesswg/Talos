@@ -211,9 +211,13 @@ keeps `unknown`.
 entry that names an `rtsp://` stream is declaring that its video and its credentials cross the network
 in the clear; `rtsps://` says the opposite. Only the scheme, the host and the port are taken: a stream
 URL is the one field in a config entry that reliably carries a password, so the URL itself, the path
-and anything before the `@` never reach the document. An integration that negotiates its stream URL at
-connection time, ONVIF among them, declares nothing to read, and there the check says it could not run
-rather than that everything is fine.
+and anything before the `@` never reach the document. Where nothing on the install carries video the check passes: there is no stream to be in the clear.
+Whether something carries video is decided by domain, against a table of camera and NVR integrations,
+and not by the streaming role, which also covers audio: Sonos, Spotify or a DLNA renderer have no RTSP
+stream to be in the clear, and naming them as uninspectable for one would be wrong. A video
+integration that negotiates its stream URL at connection time, ONVIF and Reolink among them, declares
+nothing to read, and there the check says it could not run and names the integration, rather than
+claiming a stream it cannot see is encrypted.
 
 Two checks that used to sit in the rule file are gone. Z-Wave S2 needed the security class, which
 lives only inside another integration's driver object, so the check would have broken on somebody
@@ -263,12 +267,16 @@ from. That address is worth more than the subscription ever was: a client id is 
 chose for itself, an address joins against the devices in the scan, so a client that matches nothing
 by name can still be attributed to the device it connected from.
 
-The three routes are tried in that order, best first: the EMQX API when a key is configured, then
-Talos's own account, then Home Assistant's session. Configuring one replaces the routes below it
-while it works, and hands over to them when it does not: an API key that stops being valid falls back
-to the subscription rather than taking it down too, because configuring something must never leave
-Talos with less than it had before. The panel names the route that actually answered, what it got,
-and, when it fell back, which route was meant to answer and why it did not.
+Every configured route runs, and the clients are the union. The EMQX API and Talos's own account see
+different things, the API the address each client connected from, the subscription what the broker
+publishes, and one is not asked to stand in for the other: with both configured both are read, a
+client is joined by id, its address comes from whichever route had one, and a client the name
+matching could not place is tried again by that address against the devices in the scan. Home
+Assistant's own session is the route of last resort, used only when nothing else is configured,
+because it needs nothing and on most brokers answers with nothing. The panel shows each route's own
+outcome, and a Test now button runs them all on demand and reports each one verbatim, so a key that
+was rejected reads as exactly that even when the subscription made up for it. The same outcomes go
+to the Home Assistant log at INFO, one line per route.
 
 None of these credentials cause a reload. They are read again on every scan, so saving them updates
 the entry and runs one scan, rather than tearing down the store, the coordinator and every entity the

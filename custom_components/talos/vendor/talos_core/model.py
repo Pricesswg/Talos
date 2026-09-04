@@ -334,6 +334,28 @@ class ZigbeeFacts:
 
 
 @dataclass(frozen=True, slots=True)
+class MqttRoute:
+    """What one way of asking the broker answered."""
+
+    name: str
+    ok: bool
+    clients: int = 0
+    error: str | None = None
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any], path: str) -> MqttRoute:
+        return cls(
+            name=_req(raw, "name", path),
+            ok=bool(raw.get("ok")),
+            clients=int(raw.get("clients") or 0),
+            error=raw.get("error"),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "ok": self.ok, "clients": self.clients, "error": self.error}
+
+
+@dataclass(frozen=True, slots=True)
 class MqttFacts:
     """What the broker reported about itself, read-only over $SYS.
 
@@ -349,6 +371,11 @@ class MqttFacts:
     # answered would describe an intention, not a result.
     route: str | None = None
     fallback_from: str | None = None
+    # Every route that was tried, with its own outcome. When two are
+    # configured both run and the clients are the union: the API brings the
+    # addresses, the subscription brings what the broker publishes, and
+    # neither is asked to stand in for the other.
+    routes: tuple[MqttRoute, ...] = ()
     clients: tuple[MqttClient, ...] = ()
 
     @property
@@ -362,6 +389,10 @@ class MqttFacts:
             error=raw.get("error"),
             route=raw.get("route"),
             fallback_from=raw.get("fallback_from"),
+            routes=tuple(
+                MqttRoute.from_dict(r, f"{path}.routes[{i}]")
+                for i, r in enumerate(raw.get("routes") or [])
+            ),
             clients=tuple(
                 MqttClient.from_dict(r, f"{path}.clients[{i}]")
                 for i, r in enumerate(raw.get("clients") or [])
@@ -374,6 +405,7 @@ class MqttFacts:
             "error": self.error,
             "route": self.route,
             "fallback_from": self.fallback_from,
+            "routes": [route.to_dict() for route in self.routes],
             "clients": [client.to_dict() for client in self.clients],
         }
 

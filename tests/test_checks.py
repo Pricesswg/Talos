@@ -354,3 +354,40 @@ class TestMissingPreconditionsAreNamed(unittest.TestCase):
         for name in PRECONDITION_REASONS:
             with self.subTest(precondition=name):
                 self.assertEqual(source.count(f'"precondition.{name}"'), 2, "one per language")
+
+
+class TestCleartextStreamCoverage(unittest.TestCase):
+    """Green where nothing carries video, named where something does and
+    declares no URL, and audio is not video."""
+
+    @staticmethod
+    def report_for(*domains: str):
+        from talos_core.sources.mapping import RegistryPayload, build_scan
+
+        payload = RegistryPayload(
+            config_entries=[
+                {"entry_id": f"e_{d}", "domain": d, "title": d.title(), "state": "loaded", "endpoint": None}
+                for d in domains
+            ],
+            devices=[], entities=[], areas=[],
+            manifests=[{"domain": d, "iot_class": "local_polling", "is_built_in": True} for d in domains],
+        )
+        scan = build_scan(payload, generated_at="2026-09-01T00:00:00+00:00", collector="native")
+        return derive(scan).checks
+
+    def test_nothing_carrying_video_is_a_pass(self) -> None:
+        report = self.report_for("mqtt", "hue")
+        self.assertIn("chk.rtsp_cleartext", {r.id for r in report.passed})
+
+    def test_a_camera_that_declares_no_url_is_named_not_passed(self) -> None:
+        report = self.report_for("mqtt", "reolink")
+        skipped = {c.id: c for c in report.unverified}
+        self.assertIn("chk.rtsp_cleartext", skipped)
+        self.assertEqual(skipped["chk.rtsp_cleartext"].subjects, ["e_reolink"])
+        self.assertEqual(skipped["chk.rtsp_cleartext"].missing, ["entry_streams"])
+
+    def test_audio_is_not_video(self) -> None:
+        """Sonos and Spotify stream, and have no RTSP stream to be in the
+        clear. Naming them as uninspectable for one would be wrong."""
+        report = self.report_for("spotify", "sonos", "dlna_dmr")
+        self.assertIn("chk.rtsp_cleartext", {r.id for r in report.passed})

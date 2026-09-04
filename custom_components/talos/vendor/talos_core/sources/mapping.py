@@ -82,6 +82,19 @@ DOMAIN_TRANSPORT_HINTS: dict[str, str] = {
 # ONVIF camera sits on Wi-Fi like a plug does, but what crosses the wire is
 # not comparable, and the ports it uses are the ones a posture check cares
 # about.
+# The integrations that carry video, which is what a cleartext RTSP check
+# is about. `streaming` as a role also covers audio, and Sonos or Spotify
+# have no RTSP stream to be in the clear: naming them as uninspectable for
+# one would be wrong, so the check draws on this list and not on the role.
+VIDEO_DOMAINS: frozenset[str] = frozenset(
+    {
+        "onvif", "generic", "camera", "reolink", "amcrest", "hikvision", "dahua",
+        "frigate", "motioneye", "unifiprotect", "ring", "nest", "go2rtc", "ffmpeg",
+        "stream", "arlo", "wyze", "eufy", "tapo", "blink", "doorbird", "axis",
+        "foscam", "synology_dsm", "agent_dvr", "zoneminder", "mjpeg",
+    }
+)
+
 INTEGRATION_ROLE_BY_DOMAIN: dict[str, str] = {
     # Buses and coordinators
     "mqtt": "aggregator",

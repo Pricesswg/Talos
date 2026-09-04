@@ -605,6 +605,7 @@ const I18N = {
     "diag.addons.rate": "{rx} in entrata · {tx} in uscita",
     "diag.addons.noPie": "Nessun dato per questa torta.",
 
+    "check.blind": "Non ho potuto ispezionare",
     "check.missing": "Cosa manca",
     "check.about": "Cosa controllerebbe",
     "precondition.observed_evidence":
@@ -622,7 +623,7 @@ const I18N = {
     "precondition.zigbee_bridge":
       "Nessun coordinator Zigbee ha riportato il proprio stato: serve Zigbee2MQTT, che pubblica i topic bridge ritenuti su MQTT. ZHA e altri coordinator non li pubblicano, e questo controllo con loro non può girare.",
     "precondition.entry_streams":
-      "Nessuna config entry dichiara uno stream video. Le integrazioni che negoziano l'URL alla connessione (ONVIF, Reolink) non hanno nulla di leggibile: il controllo copre solo le telecamere configurate a mano con un URL rtsp://.",
+      "Le integrazioni video elencate qui sotto non dichiarano l'URL dello stream: lo negoziano alla connessione (ONVIF, Reolink) e non lasciano nulla di leggibile, quindi se il loro flusso viaggia in chiaro non lo posso dire. Dove niente trasmette video il controllo passa. Per averlo verde anche qui serve una telecamera configurata a mano con un URL rtsp:// o rtsps://.",
 
     "map.popup.close": "Chiudi",
     "map.popup.isolate": "Isola questa integrazione",
@@ -655,6 +656,15 @@ const I18N = {
     "map.field.children": "Dispositivi collegati",
     "map.hint":
       "Trascina i nodi: si riassestano da soli. Rotella per lo zoom. Clicca un nodo per i dettagli e per vedere da dove passano i suoi dati.",
+
+    "mqtt.routes": "Esito per strada",
+    "mqtt.route.ok": "{n} client",
+    "mqtt.route.fail": "nessuna risposta",
+    "mqtt.test": "Prova ora",
+    "mqtt.testing.now": "Provo tutte le strade configurate",
+    "mqtt.testing.now.sub": "Stesso codice della scansione, eseguito adesso. L'esito di ogni strada è riportato testualmente.",
+    "mqtt.test.done": "Prova eseguita",
+    "mqtt.test.none": "Nessuna strada ha risposto",
 
     "severity.high": "alta",
     "severity.medium": "media",
@@ -1185,6 +1195,7 @@ const I18N = {
     "diag.addons.rate": "{rx} in · {tx} out",
     "diag.addons.noPie": "No data for this pie.",
 
+    "check.blind": "Could not inspect",
     "check.missing": "What is missing",
     "check.about": "What it would check",
     "precondition.observed_evidence":
@@ -1202,7 +1213,7 @@ const I18N = {
     "precondition.zigbee_bridge":
       "No Zigbee coordinator reported its state: it takes Zigbee2MQTT, which publishes its retained bridge topics over MQTT. ZHA and other coordinators do not, and this check cannot run with them.",
     "precondition.entry_streams":
-      "No config entry declares a video stream. Integrations that negotiate the URL at connection time (ONVIF, Reolink) leave nothing to read: the check covers only cameras configured by hand with an rtsp:// URL.",
+      "The video integrations listed below declare no stream URL: they negotiate it at connection time (ONVIF, Reolink) and leave nothing to read, so whether their stream is in the clear cannot be said. Where nothing carries video the check passes. To have it green here too takes a camera configured by hand with an rtsp:// or rtsps:// URL.",
 
     "map.popup.close": "Close",
     "map.popup.isolate": "Isolate this integration",
@@ -1235,6 +1246,15 @@ const I18N = {
     "map.field.children": "Attached devices",
     "map.hint":
       "Drag nodes: they settle on their own. Wheel to zoom. Click a node for its details and to see where its data passes.",
+
+    "mqtt.routes": "Outcome per route",
+    "mqtt.route.ok": "{n} clients",
+    "mqtt.route.fail": "no answer",
+    "mqtt.test": "Test now",
+    "mqtt.testing.now": "Trying every configured route",
+    "mqtt.testing.now.sub": "The same code the scan runs, executed now. Each route's outcome is reported verbatim.",
+    "mqtt.test.done": "Test complete",
+    "mqtt.test.none": "No route answered",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -2088,6 +2108,8 @@ class TalosPanel extends HTMLElement {
     if (mqttSave) mqttSave.addEventListener("click", () => this.saveMqtt(false));
     const mqttClear = host.querySelector("[data-action='mqtt-clear']");
     if (mqttClear) mqttClear.addEventListener("click", () => this.saveMqtt(true));
+    const mqttTest = host.querySelector("[data-action='mqtt-test']");
+    if (mqttTest) mqttTest.addEventListener("click", () => this.testMqtt());
 
     this.wireInventory(host);
 
@@ -2513,6 +2535,30 @@ class TalosPanel extends HTMLElement {
     ].join(" · ");
   }
 
+  /** Rows for the assets a skipped check could not look at. The entry
+   *  carries ids and no kind, so each id is resolved by lookup. */
+  blindRows(ids) {
+    const d = this._data;
+    return ids
+      .map((id) => {
+        const integration = d.labels.integrations[id];
+        if (integration) {
+          const meta = [integration.domain, integration.iot_class, integration.endpoint]
+            .filter(Boolean)
+            .join(" · ");
+          return `<div class="exp__row"><b>${esc(integration.title || id)}</b><span class="mono">${esc(meta)}</span></div>`;
+        }
+        const device = d.labels.devices[id];
+        if (device) {
+          return `<div class="exp__row"><b>${esc(device.name || id)}</b><span class="mono">${esc(
+            [device.transport ? this.t(`transport.${device.transport}`) : "", device.ip].filter(Boolean).join(" · ")
+          )}</span></div>`;
+        }
+        return `<div class="exp__row"><b class="mono">${esc(id)}</b></div>`;
+      })
+      .join("");
+  }
+
   /** Who a single device was seen resolving, and how insistently. */
   contactedBy(deviceId) {
     const byVendor = new Map();
@@ -2583,8 +2629,15 @@ class TalosPanel extends HTMLElement {
       const missing = (check.missing || []).map(
         (name) => `<p>· ${esc(this.t(`precondition.${name}`))}</p>`
       );
+      const blind = this.blindRows(check.subjects || []);
       const body = missing.length
         ? `<div class="exp__lab">${esc(this.t("check.missing"))}</div>${missing.join("")}
+           ${
+             blind
+               ? `<div class="exp__lab">${esc(this.t("check.blind"))}</div>
+                  <div class="exp__rows">${blind}</div>`
+               : ""
+           }
            <div class="exp__lab">${esc(this.t("check.about"))}</div>
            <p>${esc(this.checkText(check, "detail"))}</p>`
         : `<div class="exp__lab">${esc(this.t("check.why"))}</div>
@@ -5044,7 +5097,12 @@ class TalosPanel extends HTMLElement {
       </div>
       <dl class="kv" style="margin-top:10px">
         <dt>${esc(this.t("mqtt.route"))}</dt>
-        <dd>${esc(this.t(`mqtt.route.${source.route || mqtt.route || "session"}`))}${
+        <dd>${esc(
+          String(source.route || mqtt.route || "session")
+            .split("+")
+            .map((name) => this.t(`mqtt.route.${name}`))
+            .join(" + ")
+        )}${
           mqtt.fallback_from
             ? ` · ${this.t("mqtt.fallback", {
                 route: this.t(`mqtt.route.${mqtt.fallback_from}`),
@@ -5053,15 +5111,24 @@ class TalosPanel extends HTMLElement {
         }</dd>
         <dt>${esc(this.t("mqtt.lastRun"))}</dt>
         <dd class="mono">${esc(this.when((this._status || {}).generated_at))}</dd>
-        ${
-          // A route that fell back still answered, so the box above is green.
-          // Why the preferred one did not is the part worth acting on.
-          mqtt.fallback_from && mqtt.error
-            ? `<dt>${esc(this.t(`mqtt.route.${mqtt.fallback_from}`))}</dt>
-               <dd>${esc(this.t("mqtt.fallback.why", { reason: mqtt.error }))}</dd>`
-            : ""
-        }
-      </dl>`;
+        ${(mqtt.routes || [])
+          .map(
+            (route) => `<dt>${esc(this.t(`mqtt.route.${route.name}`))}</dt>
+              <dd>${
+                route.ok
+                  ? esc(this.t("mqtt.route.ok", { n: this.num(route.clients) }))
+                  : `<span style="color:var(--alert)">${esc(this.t("mqtt.route.fail"))}${
+                      route.error ? `: ${esc(route.error)}` : ""
+                    }</span>`
+              }</dd>`
+          )
+          .join("")}
+      </dl>
+      <div class="actions">
+        <button class="btn btn--ghost" data-action="mqtt-test" ${this._mqttSaving ? "disabled" : ""}>${esc(
+          this.t("mqtt.test")
+        )}</button>
+      </div>`;
   }
 
   /** Write the broker account, testing it on the way in.
@@ -5148,6 +5215,30 @@ class TalosPanel extends HTMLElement {
     } else {
       this.setBusy("ok", this.t("mqtt.okNoSys"), this.t("mqtt.okNoSys.sub"));
     }
+  }
+
+  /** Run every configured MQTT route now and show each outcome verbatim. */
+  async testMqtt() {
+    if (this._mqttSaving) return;
+    this._mqttSaving = true;
+    this.setBusy("busy", this.t("mqtt.testing.now"), this.t("mqtt.testing.now.sub"));
+    let facts = null;
+    try {
+      facts = await this._hass.callWS({ type: "talos/mqtt/test" });
+    } catch (err) {
+      this._mqttSaving = false;
+      this.setBusy("error", this.t("mqtt.failed"), err && err.message ? err.message : String(err));
+      return;
+    }
+    this._mqttSaving = false;
+    // Newer than the stored status: show it until the next scan replaces it.
+    this._mqttResult = facts;
+    if (this._status) this._status.mqtt = { ...(this._status.mqtt || {}), ...facts, mqtt_api_url: facts.api_url || (this._status.mqtt || {}).mqtt_api_url };
+    const lines = (facts.routes || [])
+      .map((r) => `${this.t(`mqtt.route.${r.name}`)}: ${r.ok ? this.t("mqtt.route.ok", { n: this.num(r.clients) }) : `${this.t("mqtt.route.fail")}${r.error ? ` (${r.error})` : ""}`}`)
+      .join(" · ");
+    this.setBusy(facts.available ? "ok" : "error", facts.available ? this.t("mqtt.test.done") : this.t("mqtt.test.none"), lines);
+    this.render();
   }
 
   /** Poll until the integration answers again, then reload the whole panel. */

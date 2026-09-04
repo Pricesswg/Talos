@@ -49,9 +49,11 @@ PRECONDITION_REASONS: dict[str, str] = {
         " trustworthy in this scan"
     ),
     "entry_streams": (
-        "no config entry named a media stream: an integration that negotiates"
-        " the stream URL at connection time, ONVIF among them, declares nothing"
-        " to read, so whether it is in the clear is unknown rather than fine"
+        "a streaming integration is present and declares no stream URL: one"
+        " that negotiates it at connection time, ONVIF and Reolink among them,"
+        " leaves nothing to read, so whether its stream is in the clear is"
+        " unknown rather than fine. Where nothing carries video the check"
+        " passes instead: there is no stream to be in the clear"
     ),
     "zigbee_bridge": (
         "no Zigbee coordinator reported its state: without it, whether the"
@@ -197,6 +199,7 @@ class CheckEngine:
                             + ". This is not a pass."
                         ),
                         missing=list(missing),
+                        subjects=context.blind_subjects(missing)[1],
                     )
                 )
                 continue
@@ -259,6 +262,31 @@ class _Context:
                 found.add(conduit.source.id)
         return found
 
+    def streaming_integrations(self) -> tuple[str, ...]:
+        """Config entries that carry video and declared no stream URL.
+
+        By domain, so a document from an older export with no role on it
+        answers the same way: Reolink is Reolink either way.
+        """
+        from .sources.mapping import VIDEO_DOMAINS
+
+        # Video only. The streaming role also covers audio, and an audio
+        # player has no RTSP stream to be in the clear.
+        return tuple(
+            sorted(
+                integration.id
+                for integration in self.scan.integrations
+                if integration.domain in VIDEO_DOMAINS
+            )
+        )
+
+    def blind_subjects(self, missing: list[str]) -> tuple[str, list[str]]:
+        """What a skipped check could not speak about, when that is nameable.
+        A precondition that names nothing leaves the list empty."""
+        if "entry_streams" in missing:
+            return "integration", list(self.streaming_integrations())
+        return "unknown", []
+
     def precondition(self, name: str) -> bool:
         if name == "observed_evidence":
             return self.has_observation
@@ -267,11 +295,17 @@ class _Context:
         if name == "dhcp_leases":
             return "unv.dhcp_leases_unavailable" not in self.unverified_ids
         if name == "entry_streams":
-            return any(
+            if any(
                 conduit.evidence == "declared"
                 and str(conduit.protocol or "").lower() in STREAM_PROTOCOLS
                 for conduit in self.scan.conduits
-            )
+            ):
+                return True
+            # Nothing declared a stream. If nothing here carries video either,
+            # that is a pass: there is no stream to be in the clear. If a
+            # streaming integration is present and silent, it is unknown, and
+            # the integration is named rather than passed over.
+            return not self.streaming_integrations()
         if name == "zigbee_bridge":
             return bool(self.scan.zigbee and self.scan.zigbee.available)
         if name == "mqtt_clients":

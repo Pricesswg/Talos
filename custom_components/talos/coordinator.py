@@ -326,8 +326,15 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
             scan.zigbee, roles = await collect_zigbee(self.hass)
             if roles:
                 apply_mesh_roles(scan.devices, roles, self._device_identifiers())
-            if scan.mqtt.error:
-                _LOGGER.debug("Talos: MQTT facts unavailable: %s", scan.mqtt.error)
+            # One line per route at INFO, so the log answers "did the key
+            # work" without opening the panel.
+            for route in scan.mqtt.routes:
+                _LOGGER.info(
+                    "Talos: MQTT route %s: %s%s",
+                    route.name,
+                    f"{route.clients} clients" if route.ok else "no answer",
+                    f" ({route.error})" if route.error else "",
+                )
 
         derived = await self.hass.async_add_executor_job(derive, scan, self._engine)
 

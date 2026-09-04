@@ -260,9 +260,12 @@ class TestRouteCascade(unittest.TestCase):
         self.assertEqual(facts.fallback_from, "api")
         self.assertIn("rejected the key", facts.error)
 
-    def test_a_working_api_is_not_second_guessed(self) -> None:
+    def test_both_configured_routes_run_and_each_reports_itself(self) -> None:
+        """With a key and an account both configured, both are read. The API
+        answers, the account does not, and the result says so per route
+        rather than hiding the one that failed behind the one that worked."""
         async def working(hass, scan, api):
-            return MqttFacts(available=True, route="api", clients=(MqttClient("esp-1"),))
+            return MqttFacts(available=True, route="api", clients=(MqttClient("esp-1", address="10.0.0.9"),))
 
         original = self.source.collect_via_api
         self.source.collect_via_api = working
@@ -274,8 +277,33 @@ class TestRouteCascade(unittest.TestCase):
             )
         finally:
             self.source.collect_via_api = original
+        self.assertTrue(facts.available)
         self.assertEqual(facts.route, "api")
-        self.assertIsNone(facts.fallback_from)
+        self.assertEqual([(r.name, r.ok) for r in facts.routes], [("api", True), ("account", False)])
+        self.assertEqual([c.client_id for c in facts.clients], ["esp-1"])
+        # The account's own reason travels with it.
+        self.assertEqual(facts.fallback_from, "account")
+
+    def test_both_routes_answering_are_one_list(self) -> None:
+        """The API brings the address, the subscription brings the id: one
+        client, joined by id, with the address kept."""
+        async def working(hass, scan, api):
+            return MqttFacts(available=True, route="api", clients=(MqttClient("zigbee2mqtt", address="10.0.0.9"),))
+
+        original = self.source.collect_via_api
+        self.source.collect_via_api = working
+        try:
+            facts = self.collect(
+                self.hass_with({"zigbee2mqtt", "only-on-sys"}),
+                credentials={"host": "10.0.0.4"},
+                api={"url": "https://emqx:18083"},
+            )
+        finally:
+            self.source.collect_via_api = original
+        self.assertEqual(facts.route, "api+account")
+        by_id = {c.client_id: c for c in facts.clients}
+        self.assertEqual(set(by_id), {"zigbee2mqtt", "only-on-sys"})
+        self.assertEqual(by_id["zigbee2mqtt"].address, "10.0.0.9")
         self.assertIsNone(facts.error)
 
     def test_when_nothing_answers_the_configured_route_is_the_one_reported(self) -> None:

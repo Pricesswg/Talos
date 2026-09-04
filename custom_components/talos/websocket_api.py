@@ -36,6 +36,7 @@ from .core import DiagnosticRun
 from .diagnostics_run import run_diagnostics
 from .mqtt_source import (
     NO_CLIENT_IDS,
+    collect_mqtt,
     collect_via_api,
     normalise_api_url,
     read_sys_blocking,
@@ -57,6 +58,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_derived)
     websocket_api.async_register_command(hass, ws_suggest)
     websocket_api.async_register_command(hass, ws_set_mqtt)
+    websocket_api.async_register_command(hass, ws_mqtt_test)
     websocket_api.async_register_command(hass, ws_diagnostics_run)
     websocket_api.async_register_command(hass, ws_diagnostics_last)
     websocket_api.async_register_command(hass, ws_refresh)
@@ -468,6 +470,36 @@ def _diagnostics_payload(coordinator: TalosCoordinator, run: DiagnosticRun) -> d
         **run.to_dict(),
         "labels": {"titles": titles, "domains": domains},
     }
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/mqtt/test"})
+@websocket_api.async_response
+async def ws_mqtt_test(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Run every configured MQTT route now and hand back each outcome, verbatim.
+
+    For the case where the panel says a route did not answer and the reason
+    has to be read rather than guessed: the same code the scan runs, on
+    demand, with nothing hidden.
+    """
+    coordinator = _coordinator(hass)
+    if coordinator is None or coordinator.data is None:
+        _not_ready(connection, msg["id"])
+        return
+    scan = coordinator.data.scan
+    api = coordinator._mqtt_api()  # noqa: SLF001
+    credentials = coordinator._mqtt_credentials(scan)  # noqa: SLF001
+    facts = await collect_mqtt(hass, scan, credentials, api=api)
+    connection.send_result(
+        msg["id"],
+        {
+            **facts.to_dict(),
+            "api_url": (api or {}).get("url"),
+            "broker": (credentials or {}).get("host"),
+        },
+    )
 
 
 def _entry_broker(coordinator: TalosCoordinator) -> str:

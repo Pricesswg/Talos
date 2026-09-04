@@ -22,7 +22,7 @@ import ssl
 from dataclasses import replace
 from typing import Any
 
-from .core import MqttFacts, Scan, ZigbeeFacts, match_clients
+from .core import MqttClient, MqttFacts, MqttRoute, Scan, ZigbeeFacts, match_clients
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -386,6 +386,63 @@ async def collect_via_api(
     return MqttFacts(available=True, route="api", clients=emqx_to_clients(rows, scan))
 
 
+def merge_routes(results: list[tuple[str, MqttFacts]], scan: Scan) -> MqttFacts:
+    """Every route that answered, as one list of clients.
+
+    Clients are joined by id. The address comes from whichever route had
+    one, the API as a rule, and a client the name matching could not place
+    is tried again by that address against the devices in the scan. The
+    result names the routes that answered and carries each route's own
+    outcome, so a key that was rejected is reported as exactly that even
+    when the subscription made up for it.
+    """
+    routes = tuple(
+        MqttRoute(name=name, ok=facts.available, clients=len(facts.clients), error=facts.error)
+        for name, facts in results
+    )
+    answered = [name for name, facts in results if facts.available]
+    if not answered:
+        first = results[0][1] if results else MqttFacts(available=False, error="no MQTT source available")
+        return MqttFacts(available=False, route=first.route or (results[0][0] if results else None),
+                         error=first.error, routes=routes)
+
+    merged: dict[str, MqttClient] = {}
+    for _name, facts in results:
+        if not facts.available:
+            continue
+        for client in facts.clients:
+            current = merged.get(client.client_id)
+            if current is None:
+                merged[client.client_id] = client
+                continue
+            merged[client.client_id] = MqttClient(
+                client_id=client.client_id,
+                address=current.address or client.address,
+                matched=current.matched or client.matched,
+            )
+    device_by_ip = {device.ip: device.name for device in scan.devices if device.ip}
+    clients = tuple(
+        sorted(
+            (
+                MqttClient(c.client_id, c.address, c.matched or (device_by_ip.get(c.address) if c.address else None))
+                for c in merged.values()
+            ),
+            key=lambda c: c.client_id,
+        )
+    )
+    failed = next((f for _n, f in results if not f.available), None)
+    return MqttFacts(
+        available=True,
+        route="+".join(answered),
+        # Kept for the panel's older wording: the first route that did not
+        # answer while another did.
+        fallback_from=next((n for n, f in results if not f.available), None),
+        error=failed.error if failed else None,
+        routes=routes,
+        clients=clients,
+    )
+
+
 async def collect_mqtt(
     hass: Any,
     scan: Scan,
@@ -393,44 +450,27 @@ async def collect_mqtt(
     seconds: float = LISTEN_SECONDS,
     api: dict[str, Any] | None = None,
 ) -> MqttFacts:
-    """Best route first, and the next one when the best fails.
+    """Every configured route, and the union of what they answered.
 
-    The EMQX API is preferred where a key is configured: on EMQX 5 it is the
-    only route that can answer at all, and it is the only one anywhere that
-    returns the address each client connected from. Then Talos's own account,
-    which gets past a broker that reserves $SYS. Then the session Home
-    Assistant already holds, which needs nothing.
-
-    A configured route that fails hands over to the next rather than ending
-    the search. Configuring something must never leave Talos with less than it
-    had before, and the failure is carried on the result so the panel can say
-    which route answered and which one was meant to.
+    The EMQX API when a key is configured, Talos's own account when one is,
+    both when both are: they see different things, the API the addresses,
+    the subscription what the broker publishes, and one is not asked to
+    stand in for the other. The session Home Assistant already holds is
+    the route of last resort, used only when nothing else is configured,
+    because it needs nothing and on most brokers answers with nothing.
     """
     attempts: list[tuple[str, Any]] = []
     if api and api.get("url"):
         attempts.append(("api", lambda: collect_via_api(hass, scan, api)))
     if credentials and credentials.get("host"):
-        attempts.append(
-            ("account", lambda: collect_via_credentials(hass, scan, credentials, seconds))
-        )
-    attempts.append(("session", lambda: collect_via_home_assistant(hass, scan, seconds)))
+        attempts.append(("account", lambda: collect_via_credentials(hass, scan, credentials, seconds)))
+    if not attempts:
+        attempts.append(("session", lambda: collect_via_home_assistant(hass, scan, seconds)))
 
-    first_failure: MqttFacts | None = None
-    for _name, run in attempts:
-        facts = await run()
-        if facts.available:
-            if first_failure is not None:
-                return replace(
-                    facts,
-                    fallback_from=first_failure.route,
-                    error=first_failure.error,
-                )
-            return facts
-        if first_failure is None:
-            first_failure = facts
-    # Nothing answered. The first failure is the one worth reporting: it is
-    # the route the user configured and expected to work.
-    return first_failure or MqttFacts(available=False, error="no MQTT source available")
+    results: list[tuple[str, MqttFacts]] = []
+    for name, run in attempts:
+        results.append((name, await run()))
+    return merge_routes(results, scan)
 
 
 def callback_safe(func: Any) -> Any:
