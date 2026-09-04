@@ -591,6 +591,22 @@ const I18N = {
     "diag.reach.ms": "{n} ms",
     "diag.notes": "Cosa non è stato misurato",
 
+    "diag.addons": "Add-on e risorse di sistema",
+    "diag.addons.lead":
+      "Cosa consuma ogni container, chiesto al Supervisor. CPU e memoria sono lette a fine finestra. La rete è una velocità: il Supervisor dà i byte come contatori cumulativi dall'avvio, che non dicono niente sull'adesso, quindi campiono all'inizio e alla fine e divido per i secondi. Home Assistant Core è in lista come termine di paragone.",
+    "diag.addons.none": "Nessun add-on misurato.",
+    "diag.addons.cpu": "CPU",
+    "diag.addons.memory": "Memoria",
+    "diag.addons.network": "Rete",
+    "diag.addons.cpuNote": "Quota della macchina, normalizzata su {n} core.",
+    "diag.addons.memoryNote": "Quota di {total} di RAM dell'host.",
+    "diag.addons.networkNote":
+      "Ripartizione fra chi è stato misurato: per la rete non esiste un totale, nessuno sa quanto reggerebbe il collegamento.",
+    "diag.addons.other": "altro / libero",
+    "diag.addons.stopped": "fermo",
+    "diag.addons.rate": "{rx} in entrata · {tx} in uscita",
+    "diag.addons.noPie": "Nessun dato per questa torta.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -1106,6 +1122,22 @@ const I18N = {
     "diag.reach.ms": "{n} ms",
     "diag.notes": "What was not measured",
 
+    "diag.addons": "Add-ons and system resources",
+    "diag.addons.lead":
+      "What each container uses, asked of the Supervisor. CPU and memory are read at the end of the window. Network is a rate: the Supervisor gives bytes as counters growing since the container started, which say nothing about now, so a sample is taken at each end of the window and divided by the seconds. Home Assistant Core is listed as the yardstick.",
+    "diag.addons.none": "No add-on measured.",
+    "diag.addons.cpu": "CPU",
+    "diag.addons.memory": "Memory",
+    "diag.addons.network": "Network",
+    "diag.addons.cpuNote": "Share of the machine, normalised over {n} cores.",
+    "diag.addons.memoryNote": "Share of {total} of host RAM.",
+    "diag.addons.networkNote":
+      "Split among what was measured: network has no whole, nobody knows what the link could carry.",
+    "diag.addons.other": "other / free",
+    "diag.addons.stopped": "stopped",
+    "diag.addons.rate": "{rx} in · {tx} out",
+    "diag.addons.noPie": "No data for this pie.",
+
     "severity.high": "high",
     "severity.medium": "medium",
     "severity.low": "low",
@@ -1296,6 +1328,17 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .guide h4 { margin: 14px 0 5px; font-size: 13px; font-weight: 600; color: var(--ink); }
 .guide h4:first-child { margin-top: 0; }
 .guide p { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); max-width: 84ch; }
+
+.pies { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.pie { display: flex; gap: 14px; align-items: flex-start; }
+.pie svg { width: 112px; height: 112px; flex: none; }
+.pie__title { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); margin: 0 0 6px; }
+.pie__legend { font-size: 12.5px; color: var(--ink-soft); }
+.pie__legend div { display: flex; gap: 8px; align-items: baseline; padding: 2px 0; }
+.pie__legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.pie__legend b { font-weight: 500; color: var(--ink); }
+.pie__legend span { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.pie__note { font-size: 11.5px; color: var(--ink-mute); margin: 6px 0 0; }
 
 .exp {
   border: 1px solid var(--border);
@@ -1576,6 +1619,13 @@ const LEGEND_KINDS = [
   ["vendor", "--k-vendor"],
   ["tunnel", "--k-tunnel"],
   ["unknown", "--k-unknown"],
+];
+
+// Wedge colours. Categorical: they answer "which add-on", nothing more, so
+// they borrow the transport palette, which was chosen to be told apart.
+const WEDGE_COLOURS = [
+  "--t-wifi", "--t-zigbee", "--t-ethernet", "--t-matter", "--t-thread",
+  "--t-ble", "--t-zwave", "--k-vendor", "--k-tunnel", "--t-ip",
 ];
 
 const KIND_COLOUR = {
@@ -3950,6 +4000,8 @@ class TalosPanel extends HTMLElement {
         }
       </div>
 
+      ${this.addonSection(run)}
+
       ${
         (run.notes || []).length
           ? `<div class="note">
@@ -3957,6 +4009,119 @@ class TalosPanel extends HTMLElement {
               ${run.notes.map((note) => `<p>· ${esc(note)}</p>`).join("")}
             </div>`
           : ""
+      }
+    </div>`;
+  }
+
+  /** A donut from a list of {name, percent} slices. Plain SVG arcs, so it
+   *  needs nothing this file does not already have. */
+  pie(slices, title, note) {
+    const rows = (slices || []).filter((s) => s.percent > 0);
+    if (!rows.length) {
+      return `<div class="pie"><div><p class="pie__title">${esc(title)}</p>
+        <p class="pie__note">${esc(this.t("diag.addons.noPie"))}</p></div></div>`;
+    }
+    const R = 50, r = 30, cx = 56, cy = 56;
+    let angle = -Math.PI / 2;
+    const arcs = rows.map((slice, index) => {
+      const sweep = (Math.min(slice.percent, 100) / 100) * Math.PI * 2;
+      const colour = slice.slug === "other"
+        ? "var(--sunken)"
+        : `var(${WEDGE_COLOURS[index % WEDGE_COLOURS.length]})`;
+      // A single full wedge would draw as nothing: two half arcs instead.
+      const parts = sweep >= Math.PI * 2 - 1e-6 ? [Math.PI, Math.PI] : [sweep];
+      let d = "";
+      let start = angle;
+      parts.forEach((part) => {
+        const end = start + part;
+        const large = part > Math.PI ? 1 : 0;
+        const x0 = cx + R * Math.cos(start), y0 = cy + R * Math.sin(start);
+        const x1 = cx + R * Math.cos(end), y1 = cy + R * Math.sin(end);
+        const xi0 = cx + r * Math.cos(end), yi0 = cy + r * Math.sin(end);
+        const xi1 = cx + r * Math.cos(start), yi1 = cy + r * Math.sin(start);
+        d += `M${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}` +
+             `L${xi0.toFixed(2)} ${yi0.toFixed(2)}A${r} ${r} 0 ${large} 0 ${xi1.toFixed(2)} ${yi1.toFixed(2)}Z`;
+        start = end;
+      });
+      angle += sweep;
+      return { d, colour, slice };
+    });
+    return `<div class="pie">
+      <svg viewBox="0 0 112 112" role="img" aria-label="${esc(title)}">
+        ${arcs.map((a) => `<path d="${a.d}" fill="${a.colour}" stroke="var(--surface)" stroke-width="1"/>`).join("")}
+      </svg>
+      <div>
+        <p class="pie__title">${esc(title)}</p>
+        <div class="pie__legend">
+          ${arcs
+            .map(
+              (a) => `<div><i style="background:${a.colour}"></i><b>${esc(
+                a.slice.slug === "other" ? this.t("diag.addons.other") : a.slice.name
+              )}</b><span>${this.num(Math.round(a.slice.percent * 10) / 10)}%</span></div>`
+            )
+            .join("")}
+        </div>
+        ${note ? `<p class="pie__note">${esc(note)}</p>` : ""}
+      </div>
+    </div>`;
+  }
+
+  bytes(value) {
+    if (value == null) return "-";
+    const units = ["B", "kB", "MB", "GB"];
+    let n = Number(value), i = 0;
+    while (n >= 1000 && i < units.length - 1) { n /= 1000; i += 1; }
+    return `${this.num(Math.round(n * 10) / 10)} ${units[i]}`;
+  }
+
+  addonSection(run) {
+    const rows = run.addons || [];
+    const shares = run.shares || {};
+    const list = rows
+      .map((row) => {
+        const stopped = row.state !== "started";
+        const meta = stopped
+          ? this.t("diag.addons.stopped")
+          : [
+              row.cpu_percent != null ? `CPU ${this.num(row.cpu_percent)}%` : "",
+              row.memory_bytes != null
+                ? `${this.bytes(row.memory_bytes)}${row.memory_percent != null ? ` (${this.num(row.memory_percent)}%)` : ""}`
+                : "",
+              row.rx_bytes_per_s != null || row.tx_bytes_per_s != null
+                ? this.t("diag.addons.rate", {
+                    rx: `${this.bytes(row.rx_bytes_per_s || 0)}/s`,
+                    tx: `${this.bytes(row.tx_bytes_per_s || 0)}/s`,
+                  })
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" · ");
+        return `<div class="exp__row"><b>${esc(row.name)}</b><span class="mono">${esc(meta)}</span></div>`;
+      })
+      .join("");
+
+    return `<div>
+      <h2 class="sec">${esc(this.t("diag.addons"))}</h2>
+      <p class="page-sub" style="margin-bottom:10px">${esc(this.t("diag.addons.lead"))}</p>
+      ${
+        rows.length
+          ? `<div class="panel-card">
+              <div class="pies">
+                ${this.pie(
+                  shares.cpu,
+                  this.t("diag.addons.cpu"),
+                  run.cpu_count ? this.t("diag.addons.cpuNote", { n: run.cpu_count }) : ""
+                )}
+                ${this.pie(
+                  shares.memory,
+                  this.t("diag.addons.memory"),
+                  run.memory_total ? this.t("diag.addons.memoryNote", { total: this.bytes(run.memory_total) }) : ""
+                )}
+                ${this.pie(shares.network, this.t("diag.addons.network"), this.t("diag.addons.networkNote"))}
+              </div>
+              <div class="exp__rows" style="margin-top:14px">${list}</div>
+            </div>`
+          : `<p class="status">${esc(this.t("diag.addons.none"))}</p>`
       }
     </div>`;
   }

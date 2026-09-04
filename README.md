@@ -320,9 +320,28 @@ Three measures, each attributable to a config entry:
   broker answers and knocking on doors on the network, and this stays on the right side of it. An
   endpoint that names no port is skipped rather than guessed at.
 
+- **Add-ons and system resources.** Where the Supervisor is there to ask, on Home Assistant OS or a
+  Supervised install, every started add-on is asked for its CPU, memory and network, with Home
+  Assistant Core listed alongside as the yardstick. CPU and memory are read at the end of the window.
+  Network is a rate: the Supervisor hands out bytes as counters growing since the container started,
+  and a counter says nothing about now, so a sample is taken at each end of the window and the
+  difference is divided by the seconds. A counter that went backwards, which a restart does, yields
+  no rate rather than a negative one. A stopped add-on is listed with no numbers, so the picture is
+  complete rather than only its noisy part. The Supervisor token goes in the request header and
+  nowhere else: it never reaches a result, a log line or the panel.
+
+  Three pies show the shares. CPU and memory have a whole to be a share of, so each gets a remainder
+  wedge for what nothing measured is using: idle CPU, and memory held by the host and by whatever is
+  not a container. The Supervisor's CPU figure is relative to one core, so on four cores an add-on
+  can report 250 and the wedges would not close; dividing by the core count the container sees makes
+  it a share of the machine. Memory is taken against the container limit, which for an uncapped
+  add-on is the host's RAM. Network has no whole, nobody knows what the link could carry, so that
+  pie is the split among what was measured, and the label says so.
+
 What could not be measured is listed under the results with the reason, in the same spirit as the
 scan's unverified list: a section that is empty and a section that was not looked at are different
-things. Two runs cannot overlap, because they would measure each other.
+things. On a Container or Core install the add-on section is one such note. Two runs cannot overlap,
+because they would measure each other.
 
 ## The two views
 

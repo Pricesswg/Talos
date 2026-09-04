@@ -200,7 +200,11 @@ class TestRunner(unittest.TestCase):
         self.assertIsNotNone(reachable[0].latency_ms)
         self.assertEqual(len(unreachable), 1)
         self.assertTrue(unreachable[0].error)
-        self.assertEqual(run.notes, [])
+        # This machine has no Supervisor, and the run says so. That is the
+        # only thing it could not measure, so it is the only note.
+        self.assertEqual(len(run.notes), 1)
+        self.assertIn("Supervisor", run.notes[0])
+        self.assertEqual(run.addons, [])
 
     def test_a_missing_log_is_a_note_not_a_crash(self) -> None:
         async def go() -> Any:
@@ -286,3 +290,190 @@ def _install_fake_home_assistant() -> list[str]:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAddonUsage(unittest.TestCase):
+    """The Supervisor's numbers, and the one piece of arithmetic that turns
+    two byte counters into a rate."""
+
+    def test_the_supervisor_envelope_is_unwrapped(self) -> None:
+        from talos_core.diagnostics import parse_addon_stats
+
+        parsed = parse_addon_stats(
+            {"result": "ok", "data": {"cpu_percent": 1.5, "memory_usage": 100, "network_rx": 7, "blk_read": 9}}
+        )
+        self.assertEqual(parsed, {"cpu_percent": 1.5, "memory_usage": 100, "network_rx": 7})
+
+    def test_anything_else_yields_no_numbers(self) -> None:
+        from talos_core.diagnostics import parse_addon_stats
+
+        for payload in ("no", None, [], {"data": "x"}, {"data": {"cpu_percent": True}}):
+            with self.subTest(payload=payload):
+                self.assertEqual(parse_addon_stats(payload), {})
+
+    def test_network_is_a_rate_over_the_window(self) -> None:
+        from talos_core.diagnostics import addon_usage
+
+        row = addon_usage("a", "A", "started", {"network_rx": 1000, "network_tx": 0}, {"network_rx": 7000, "network_tx": 600}, 60)
+        self.assertEqual(row.rx_bytes_per_s, 100.0)
+        self.assertEqual(row.tx_bytes_per_s, 10.0)
+
+    def test_a_counter_that_went_backwards_yields_no_rate(self) -> None:
+        """A restart resets the counter; a negative rate would be a lie."""
+        from talos_core.diagnostics import addon_usage
+
+        row = addon_usage("a", "A", "started", {"network_rx": 9000}, {"network_rx": 100}, 60)
+        self.assertIsNone(row.rx_bytes_per_s)
+
+    def test_cpu_and_memory_come_from_the_second_sample(self) -> None:
+        from talos_core.diagnostics import addon_usage
+
+        row = addon_usage("a", "A", "started", {"cpu_percent": 1, "memory_usage": 10}, {"cpu_percent": 9, "memory_usage": 90}, 60)
+        self.assertEqual((row.cpu_percent, row.memory_bytes), (9, 90))
+
+
+class TestResourceShares(unittest.TestCase):
+    def rows(self) -> list[Any]:
+        from talos_core.diagnostics import AddonUsage
+
+        return [
+            AddonUsage("emqx", "EMQX", "started", cpu_percent=120, memory_bytes=600 * 2**20, rx_bytes_per_s=1000, tx_bytes_per_s=200),
+            AddonUsage("z2m", "Zigbee2MQTT", "started", cpu_percent=30, memory_bytes=200 * 2**20, rx_bytes_per_s=50),
+            AddonUsage("off", "Stopped one", "stopped"),
+        ]
+
+    def test_cpu_is_a_share_of_the_machine_and_closes_to_a_hundred(self) -> None:
+        """The Supervisor's figure is per core, so on four cores 120 is 30%."""
+        from talos_core.diagnostics import resource_shares
+
+        cpu = resource_shares(self.rows(), cpu_count=4, memory_total=4 * 2**30)["cpu"]
+        self.assertEqual([(s.name, s.percent) for s in cpu], [("EMQX", 30.0), ("Zigbee2MQTT", 7.5), ("other", 62.5)])
+        self.assertAlmostEqual(sum(s.percent for s in cpu), 100.0)
+
+    def test_memory_is_a_share_of_the_host_with_the_rest_as_free(self) -> None:
+        from talos_core.diagnostics import resource_shares
+
+        memory = resource_shares(self.rows(), cpu_count=4, memory_total=4 * 2**30)["memory"]
+        self.assertEqual(memory[-1].slug, "other")
+        self.assertAlmostEqual(sum(s.percent for s in memory), 100.0)
+
+    def test_network_has_no_whole_so_no_remainder(self) -> None:
+        from talos_core.diagnostics import resource_shares
+
+        network = resource_shares(self.rows(), cpu_count=4, memory_total=4 * 2**30)["network"]
+        self.assertEqual([s.slug for s in network], ["emqx", "z2m"])
+        self.assertAlmostEqual(sum(s.percent for s in network), 100.0)
+
+    def test_a_stopped_addon_is_in_no_pie(self) -> None:
+        from talos_core.diagnostics import resource_shares
+
+        shares = resource_shares(self.rows(), cpu_count=4, memory_total=4 * 2**30)
+        for key, slices in shares.items():
+            with self.subTest(pie=key):
+                self.assertNotIn("off", [s.slug for s in slices])
+
+    def test_without_a_whole_there_is_no_cpu_or_memory_pie(self) -> None:
+        from talos_core.diagnostics import resource_shares
+
+        shares = resource_shares(self.rows(), cpu_count=None, memory_total=None)
+        self.assertEqual((shares["cpu"], shares["memory"]), ([], []))
+        self.assertTrue(shares["network"])
+
+
+class TestAddonRunner(unittest.TestCase):
+    """The Supervisor side, answered by a fake in place of the HTTP seam."""
+
+    def setUp(self) -> None:
+        self.runner = _load_runner()
+        self._real_wait = self.runner._wait
+        self._real_get = self.runner._supervisor_get
+        self._real_has = self.runner._has_supervisor
+
+        async def _instant(_seconds: float) -> None:
+            return None
+
+        self.runner._wait = _instant
+        self.calls: list[str] = []
+        self.sample = 0
+
+        async def _fake_get(hass: Any, path: str) -> Any:
+            self.calls.append(path)
+            if path == "/addons":
+                return {"result": "ok", "data": {"addons": [
+                    {"slug": "a0d7b954_emqx", "name": "EMQX", "state": "started"},
+                    {"slug": "core_mosquitto", "name": "Mosquitto broker", "state": "stopped"},
+                ]}}
+            # Second sample after the wait: counters have grown.
+            grown = 6000 if self.calls.count(path) > 1 else 0
+            if path == "/core/stats":
+                return {"data": {"cpu_percent": 12.0, "memory_usage": 300 * 2**20, "memory_limit": 4 * 2**30, "memory_percent": 7.3, "network_rx": 1000 + grown, "network_tx": 500}}
+            if path == "/addons/a0d7b954_emqx/stats":
+                return {"data": {"cpu_percent": 40.0, "memory_usage": 600 * 2**20, "memory_limit": 4 * 2**30, "memory_percent": 14.6, "network_rx": 100 + grown * 10, "network_tx": 100 + grown}}
+            raise RuntimeError(f"unexpected {path}")
+
+        self.runner._supervisor_get = _fake_get
+        self.runner._has_supervisor = lambda: True
+        self._installed = _install_fake_home_assistant()
+
+    def tearDown(self) -> None:
+        self.runner._wait = self._real_wait
+        self.runner._supervisor_get = self._real_get
+        self.runner._has_supervisor = self._real_has
+        for name in self._installed:
+            sys.modules.pop(name, None)
+
+    def test_two_samples_become_rates_and_stopped_addons_stay_listed(self) -> None:
+        async def go() -> Any:
+            with tempfile.TemporaryDirectory() as folder:
+                Path(folder, "home-assistant.log").write_text("", encoding="utf-8")
+                hass = FakeHass(folder, changes=[])
+                return await self.runner.run_diagnostics(hass, scan_with_endpoints(), window=60)
+
+        run = asyncio.run(go())
+        by_slug = {row.slug: row for row in run.addons}
+        # Every started container was sampled twice, the stopped one never.
+        self.assertEqual(self.calls.count("/addons/a0d7b954_emqx/stats"), 2)
+        self.assertEqual(self.calls.count("/core/stats"), 2)
+        self.assertNotIn("/addons/core_mosquitto/stats", self.calls)
+
+        emqx = by_slug["a0d7b954_emqx"]
+        self.assertEqual(emqx.rx_bytes_per_s, 1000.0)
+        self.assertEqual(emqx.tx_bytes_per_s, 100.0)
+        self.assertEqual(emqx.cpu_percent, 40.0)
+        self.assertEqual(by_slug["core_mosquitto"].state, "stopped")
+        self.assertIsNone(by_slug["core_mosquitto"].cpu_percent)
+        # Core is the yardstick, and always there.
+        self.assertIn("core", by_slug)
+        # Busiest by network first.
+        self.assertEqual(run.addons[0].slug, "a0d7b954_emqx")
+        self.assertEqual(run.memory_total, 4 * 2**30)
+        self.assertIsNotNone(run.cpu_count)
+        self.assertTrue(run.to_dict()["shares"]["network"])
+
+    def test_no_supervisor_is_a_note_not_a_crash(self) -> None:
+        self.runner._has_supervisor = lambda: False
+
+        async def go() -> Any:
+            with tempfile.TemporaryDirectory() as folder:
+                Path(folder, "home-assistant.log").write_text("", encoding="utf-8")
+                return await self.runner.run_diagnostics(FakeHass(folder, changes=[]), scan_with_endpoints(), window=60)
+
+        run = asyncio.run(go())
+        self.assertEqual(run.addons, [])
+        self.assertTrue(any("Supervisor" in note for note in run.notes))
+        self.assertEqual(self.calls, [])
+
+    def test_a_supervisor_that_will_not_list_is_a_note(self) -> None:
+        async def _refuse(hass: Any, path: str) -> Any:
+            raise RuntimeError("/addons: HTTP 401")
+
+        self.runner._supervisor_get = _refuse
+
+        async def go() -> Any:
+            with tempfile.TemporaryDirectory() as folder:
+                Path(folder, "home-assistant.log").write_text("", encoding="utf-8")
+                return await self.runner.run_diagnostics(FakeHass(folder, changes=[]), scan_with_endpoints(), window=60)
+
+        run = asyncio.run(go())
+        self.assertEqual(run.addons, [])
+        self.assertTrue(any("401" in note for note in run.notes))

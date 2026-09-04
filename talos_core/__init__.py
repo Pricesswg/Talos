@@ -12,14 +12,20 @@ from .const import SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSIONS
 from .zones import ZoneMap
 from .diagnostics import (
     DEFAULT_WINDOW,
+    AddonUsage,
     BlockingCall,
+    Slice,
     Churn,
     DiagnosticRun,
     Reach,
+    addon_usage,
     attribute_churn,
     clamp_window,
     declared_targets,
+    parse_addon_stats,
     parse_blocking_calls,
+    rank_addons,
+    resource_shares,
 )
 from .derive import (
     Autonomy,
@@ -52,16 +58,22 @@ from .model import (
 from .validate import is_valid, validate
 
 __all__ = [
+    "AddonUsage",
     "Autonomy",
     "BlockingCall",
     "Churn",
     "DEFAULT_WINDOW",
     "DiagnosticRun",
     "Reach",
+    "Slice",
+    "addon_usage",
     "attribute_churn",
     "clamp_window",
     "declared_targets",
+    "parse_addon_stats",
     "parse_blocking_calls",
+    "rank_addons",
+    "resource_shares",
     "CODES",
     "CheckEngine",
     "CheckReport",
@@ -101,4 +113,4 @@ __all__ = [
     "validate",
 ]
 
-__version__ = "1.16.0"
+__version__ = "1.17.0"

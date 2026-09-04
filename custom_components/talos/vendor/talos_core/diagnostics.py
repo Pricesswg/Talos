@@ -104,6 +104,177 @@ class Reach:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class AddonUsage:
+    """One add-on's share of the machine, over the window.
+
+    CPU and memory are what the Supervisor reports at the moment of the
+    second sample. Network is a rate: the Supervisor hands out byte counters
+    that grow since the container started, and a counter says nothing about
+    now, so the two samples at either end of the window are subtracted and
+    divided by the seconds between them. That is the only way "who is using
+    the bandwidth" can be answered honestly from what the Supervisor gives.
+    """
+
+    slug: str
+    name: str
+    state: str
+    cpu_percent: float | None = None
+    memory_bytes: int | None = None
+    memory_limit: int | None = None
+    memory_percent: float | None = None
+    rx_bytes_per_s: float | None = None
+    tx_bytes_per_s: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "slug": self.slug,
+            "name": self.name,
+            "state": self.state,
+            "cpu_percent": _round(self.cpu_percent),
+            "memory_bytes": self.memory_bytes,
+            "memory_limit": self.memory_limit,
+            "memory_percent": _round(self.memory_percent),
+            "rx_bytes_per_s": _round(self.rx_bytes_per_s),
+            "tx_bytes_per_s": _round(self.tx_bytes_per_s),
+        }
+
+
+def _round(value: float | None) -> float | None:
+    return None if value is None else round(value, 1)
+
+
+def parse_addon_stats(payload: Any) -> dict[str, Any]:
+    """The numbers from one `/addons/<slug>/stats` answer, or nothing.
+
+    The Supervisor wraps its answer in `{"result": "ok", "data": {...}}` and
+    the numbers are in `data`; a bare dict is accepted too. Anything else is
+    an answer to a question that was not asked, and yields no numbers rather
+    than a guess.
+    """
+    data = payload.get("data") if isinstance(payload, dict) and "data" in payload else payload
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key in ("cpu_percent", "memory_usage", "memory_limit", "memory_percent", "network_rx", "network_tx"):
+        value = data.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            out[key] = value
+    return out
+
+
+def addon_usage(
+    slug: str,
+    name: str,
+    state: str,
+    first: dict[str, Any],
+    second: dict[str, Any],
+    seconds: float,
+) -> AddonUsage:
+    """Combine the two samples into one row. Rates come from the difference;
+    a counter that went down, which a restart does, yields no rate rather
+    than a negative one."""
+    seconds = max(float(seconds), 1.0)
+
+    def rate(key: str) -> float | None:
+        before, after = first.get(key), second.get(key)
+        if before is None or after is None or after < before:
+            return None
+        return (after - before) / seconds
+
+    return AddonUsage(
+        slug=slug,
+        name=name,
+        state=state,
+        cpu_percent=second.get("cpu_percent"),
+        memory_bytes=second.get("memory_usage"),
+        memory_limit=second.get("memory_limit"),
+        memory_percent=second.get("memory_percent"),
+        rx_bytes_per_s=rate("network_rx"),
+        tx_bytes_per_s=rate("network_tx"),
+    )
+
+
+def rank_addons(rows: Iterable[AddonUsage]) -> list[AddonUsage]:
+    """Busiest first: by network, then CPU, then memory. A stopped add-on
+    has no numbers and goes last, still listed so the picture is complete."""
+
+    def key(row: AddonUsage) -> tuple[float, float, float, str]:
+        network = (row.rx_bytes_per_s or 0) + (row.tx_bytes_per_s or 0)
+        return (-network, -(row.cpu_percent or 0), -(row.memory_bytes or 0), row.name)
+
+    return sorted(rows, key=key)
+
+
+@dataclass(frozen=True, slots=True)
+class Slice:
+    """One wedge of a pie: who, how much, and the share of the whole."""
+
+    slug: str
+    name: str
+    value: float
+    percent: float
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"slug": self.slug, "name": self.name, "value": round(self.value, 1), "percent": round(self.percent, 1)}
+
+
+def resource_shares(
+    rows: Iterable[AddonUsage],
+    cpu_count: int | None,
+    memory_total: int | None,
+) -> dict[str, list[Slice]]:
+    """The three pies.
+
+    CPU and memory have a whole to be a share of, so each gets a remainder
+    wedge, `other`, for what nothing measured is using: idle CPU, and memory
+    held by the host and by whatever is not a container. The Supervisor's
+    CPU figure is relative to one core, so on four cores an add-on can report
+    250 and the wedges would not close; dividing by the core count makes it
+    a share of the machine. Network has no whole. Nobody knows what the link
+    could carry, so that pie is the split among what was measured, and the
+    label says so.
+    """
+    rows = [row for row in rows if row.state == "started"]
+
+    cpu: list[Slice] = []
+    if cpu_count and cpu_count > 0:
+        capacity = 100.0 * cpu_count
+        used = 0.0
+        for row in rows:
+            if row.cpu_percent is None:
+                continue
+            share = min(row.cpu_percent, capacity) / capacity * 100
+            cpu.append(Slice(row.slug, row.name, row.cpu_percent, share))
+            used += share
+        cpu.sort(key=lambda s: -s.percent)
+        if used < 100:
+            cpu.append(Slice("other", "other", 0.0, 100 - used))
+
+    memory: list[Slice] = []
+    if memory_total and memory_total > 0:
+        used_bytes = 0
+        for row in rows:
+            if row.memory_bytes is None:
+                continue
+            memory.append(Slice(row.slug, row.name, float(row.memory_bytes), row.memory_bytes / memory_total * 100))
+            used_bytes += row.memory_bytes
+        memory.sort(key=lambda s: -s.percent)
+        if used_bytes < memory_total:
+            memory.append(Slice("other", "other", float(memory_total - used_bytes), (memory_total - used_bytes) / memory_total * 100))
+
+    network: list[Slice] = []
+    total_rate = sum((row.rx_bytes_per_s or 0) + (row.tx_bytes_per_s or 0) for row in rows)
+    if total_rate > 0:
+        for row in rows:
+            rate = (row.rx_bytes_per_s or 0) + (row.tx_bytes_per_s or 0)
+            if rate > 0:
+                network.append(Slice(row.slug, row.name, rate, rate / total_rate * 100))
+        network.sort(key=lambda s: -s.percent)
+
+    return {"cpu": cpu, "memory": memory, "network": network}
+
+
 @dataclass(slots=True)
 class DiagnosticRun:
     started_at: str
@@ -114,6 +285,13 @@ class DiagnosticRun:
     churn: list[Churn] = field(default_factory=list)
     blocking: list[BlockingCall] = field(default_factory=list)
     reachability: list[Reach] = field(default_factory=list)
+    # Per add-on, where the Supervisor is there to ask. Home Assistant Core
+    # itself is included as a row so the add-ons have something to be
+    # compared against.
+    addons: list[AddonUsage] = field(default_factory=list)
+    # The wholes the shares are of. None when there was no way to know.
+    cpu_count: int | None = None
+    memory_total: int | None = None
     # What could not be measured and why, in the same spirit as the scan's
     # unverified list: an empty section and a section that was not looked at
     # are different things.
@@ -129,6 +307,13 @@ class DiagnosticRun:
             "churn": [item.to_dict() for item in self.churn],
             "blocking": [item.to_dict() for item in self.blocking],
             "reachability": [item.to_dict() for item in self.reachability],
+            "addons": [item.to_dict() for item in self.addons],
+            "cpu_count": self.cpu_count,
+            "memory_total": self.memory_total,
+            "shares": {
+                key: [item.to_dict() for item in slices]
+                for key, slices in resource_shares(self.addons, self.cpu_count, self.memory_total).items()
+            },
             "notes": list(self.notes),
         }
 
