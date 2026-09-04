@@ -350,6 +350,38 @@ scan's unverified list: a section that is empty and a section that was not looke
 things. On a Container or Core install the add-on section is one such note. Two runs cannot overlap,
 because they would measure each other.
 
+### The map
+
+The map is a force layout in the manner of Obsidian's graph view, drawn by the panel with no library.
+The radial layout is the starting position; from there the nodes settle under springs and repulsion,
+and once at rest they keep breathing, a whisper of seeded noise, so the picture stays alive without
+ever being a different picture. Rest lengths shorten with depth: a device sits close to its hub or
+integration, an integration close to its transport, a transport further from the centre. Each
+integration becomes a tight tuft with a halo of devices, and the trunks stay long, which is the shape
+the screenshot of Obsidian has and the shape a house has.
+
+Determinism is kept as far as a simulation allows. The seed is the same radial picture every time,
+the noise comes from a generator with a fixed seed, and the settle runs a fixed number of steps, so
+the same house gives the same shape, only moving. Repulsion is found through a uniform grid the size
+of its reach, so a tick on six hundred nodes costs a fraction of a frame rather than a frame. The loop
+pauses while the tab is hidden and while a node is being dragged, and under `prefers-reduced-motion`
+it settles and stops.
+
+A node carries its name and nothing else; a second line under every dot was what made the picture
+hard to read, and the names have a halo the colour of the surface so they stay legible across an
+edge. The transports, the publishing systems and the integrations with five or more devices are always
+named: they are the tufts, they are few, and they are what orients you. An integration with a device
+or two, which on a large install is most of them, is named the way a device is. A device's name shows only when it can be read, the way
+Obsidian reveals them: the nearest dozen to the pointer, the focused node and its neighbours, and
+whatever the search matched. Four hundred names at once are a wall whatever the halo does for each,
+and that wall was the complaint. Everything else is a click away: the popup shows the device's transport, integration, origin,
+mesh role, area, address, model and entity count, or the integration's domain, class, role, state and
+declared endpoint, plus the conduits it is the source of. Clicking also lights the path the data
+takes: the node and its neighbours stay, the rest fades, and the edges touching it carry a running
+dash from the leaf towards the hub, which is the direction the data goes. Escape or a click on empty
+space clears it. Dragging a node pins it to the pointer and lets the rest settle around it; letting
+go frees it.
+
 ## The two views
 
 **Basic** answers two things: what stops working without internet, and which devices talk outside.

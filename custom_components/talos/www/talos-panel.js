@@ -206,8 +206,6 @@ const I18N = {
     "transport.unknown": "Non determinato",
     "map.search": "Cerca un dispositivo o un'integrazione",
     "map.reset": "Reimposta la vista",
-    "map.hint":
-      "Rotella per lo zoom, trascina per spostarti. Clicca un'integrazione per aprirne i dispositivi.",
     "map.legend.core": "Home Assistant",
     "map.legend.transport": "Trasporto",
     "map.legend.integration": "Integrazione",
@@ -626,6 +624,38 @@ const I18N = {
     "precondition.entry_streams":
       "Nessuna config entry dichiara uno stream video. Le integrazioni che negoziano l'URL alla connessione (ONVIF, Reolink) non hanno nulla di leggibile: il controllo copre solo le telecamere configurate a mano con un URL rtsp://.",
 
+    "map.popup.close": "Chiudi",
+    "map.popup.isolate": "Isola questa integrazione",
+    "map.popup.unisolate": "Mostra tutto",
+    "map.popup.links": "Collegamenti",
+    "map.popup.conduits": "{n} condotti",
+    "map.popup.noConduits": "Nessun condotto registrato",
+    "map.popup.kind.core": "Home Assistant",
+    "map.popup.kind.transport": "Trasporto",
+    "map.popup.kind.integration": "Integrazione",
+    "map.popup.kind.origin": "Sistema che pubblica",
+    "map.popup.kind.device": "Dispositivo",
+    "map.popup.kind.more": "Nota",
+    "map.field.transport": "Trasporto",
+    "map.field.integration": "Integrazione",
+    "map.field.origin": "Origine",
+    "map.field.mesh": "Ruolo nella mesh",
+    "map.field.area": "Area",
+    "map.field.ip": "Indirizzo",
+    "map.field.mac": "MAC",
+    "map.field.model": "Modello",
+    "map.field.entities": "Entità",
+    "map.field.domain": "Dominio",
+    "map.field.class": "iot_class",
+    "map.field.role": "Ruolo",
+    "map.field.state": "Stato",
+    "map.field.endpoint": "Indirizzo dichiarato",
+    "map.field.devices": "Dispositivi",
+    "map.field.hub": "Dietro a",
+    "map.field.children": "Dispositivi collegati",
+    "map.hint":
+      "Trascina i nodi: si riassestano da soli. Rotella per lo zoom. Clicca un nodo per i dettagli e per vedere da dove passano i suoi dati.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -833,8 +863,6 @@ const I18N = {
     "transport.unknown": "Undetermined",
     "map.search": "Search a device or an integration",
     "map.reset": "Reset the view",
-    "map.hint":
-      "Wheel to zoom, drag to pan. Click an integration to open its devices.",
     "map.legend.core": "Home Assistant",
     "map.legend.transport": "Transport",
     "map.legend.integration": "Integration",
@@ -1175,6 +1203,38 @@ const I18N = {
       "No Zigbee coordinator reported its state: it takes Zigbee2MQTT, which publishes its retained bridge topics over MQTT. ZHA and other coordinators do not, and this check cannot run with them.",
     "precondition.entry_streams":
       "No config entry declares a video stream. Integrations that negotiate the URL at connection time (ONVIF, Reolink) leave nothing to read: the check covers only cameras configured by hand with an rtsp:// URL.",
+
+    "map.popup.close": "Close",
+    "map.popup.isolate": "Isolate this integration",
+    "map.popup.unisolate": "Show everything",
+    "map.popup.links": "Links",
+    "map.popup.conduits": "{n} conduits",
+    "map.popup.noConduits": "No conduit recorded",
+    "map.popup.kind.core": "Home Assistant",
+    "map.popup.kind.transport": "Transport",
+    "map.popup.kind.integration": "Integration",
+    "map.popup.kind.origin": "Publishing system",
+    "map.popup.kind.device": "Device",
+    "map.popup.kind.more": "Note",
+    "map.field.transport": "Transport",
+    "map.field.integration": "Integration",
+    "map.field.origin": "Origin",
+    "map.field.mesh": "Mesh role",
+    "map.field.area": "Area",
+    "map.field.ip": "Address",
+    "map.field.mac": "MAC",
+    "map.field.model": "Model",
+    "map.field.entities": "Entities",
+    "map.field.domain": "Domain",
+    "map.field.class": "iot_class",
+    "map.field.role": "Role",
+    "map.field.state": "State",
+    "map.field.endpoint": "Declared address",
+    "map.field.devices": "Devices",
+    "map.field.hub": "Behind",
+    "map.field.children": "Attached devices",
+    "map.hint":
+      "Drag nodes: they settle on their own. Wheel to zoom. Click a node for its details and to see where its data passes.",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -1538,17 +1598,64 @@ table.data tr.is-key td { background: var(--alert-soft); }
 .mapwrap { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; }
 svg.map { display: block; width: 100%; height: clamp(560px, 76vh, 920px); cursor: grab; touch-action: none; }
 svg.map.dragging { cursor: grabbing; }
-svg.map text { font-family: var(--font-sans); fill: var(--ink); pointer-events: none; }
-svg.map .lbl { font-size: 12px; }
-svg.map .lbl--device, svg.map .sub--device { display: none; }
-svg.map[data-zoom="mid"] .lbl--device { display: inline; }
-svg.map[data-zoom="near"] .lbl--device, svg.map[data-zoom="near"] .sub--device { display: inline; }
-svg.map .node--match .lbl--device, svg.map .node--match .sub--device { display: inline; }
+/* Labels: the name and nothing else, with a halo the colour of the surface
+   so a name stays legible where it crosses an edge or another label. The
+   details live in the popup; a second line under every dot was what made
+   the picture hard to read. */
+svg.map text {
+  font-family: var(--font-sans); fill: var(--ink); pointer-events: none;
+  paint-order: stroke fill; stroke: var(--surface); stroke-width: 3.5px; stroke-linejoin: round;
+}
+svg.map .lbl { font-size: 12.5px; font-weight: 500; }
+/* A leaf's name shows when the pointer is near it, when it is the focus or
+   a neighbour of the focus, or when the search matched it. Never by zoom
+   alone: four hundred names at once are a wall whatever the halo does for
+   each one, and that wall was the complaint. */
+svg.map .lbl--device { font-size: 11.5px; font-weight: 400; display: none; }
+svg.map .node--match .lbl--device, svg.map .is-focus .lbl--device,
+svg.map .is-near .lbl--device, svg.map .is-hover .lbl--device { display: inline; }
+svg.map .is-hover .node__mark { stroke: var(--ink-mute); stroke-width: 1.5px; }
 svg.map .lbl--core { font-size: 15px; font-weight: 600; }
-svg.map .lbl--transport { font-size: 13.5px; font-weight: 500; }
-svg.map .sub { font-size: 10px; fill: var(--ink-mute); font-family: var(--font-mono); }
-svg.map .link { fill: none; stroke-opacity: .45; }
-svg.map .link--bridge { stroke-opacity: .8; stroke-dasharray: 7 5; }
+svg.map .lbl--transport { font-size: 13.5px; font-weight: 600; }
+svg.map .link { fill: none; stroke-opacity: .38; transition: stroke-opacity .2s; }
+svg.map .link--bridge { stroke-opacity: .7; stroke-dasharray: 7 5; }
+
+/* Focus: the clicked node and its neighbours stay, the rest fades, and the
+   edges that touch it carry a running dash from the leaf towards the hub,
+   which is the direction the data goes. The path is drawn child to parent
+   so a negative offset is that direction. */
+svg.map.has-focus .node:not(.is-focus):not(.is-near) { opacity: .14; }
+svg.map.has-focus .link:not(.flow) { stroke-opacity: .07; }
+/* Listed with the intro selector too, so it wins on specificity while the
+   reveal class is still on the svg: at equal specificity the later rule
+   won, and the later rule was the intro. */
+svg.map .link.flow, svg.map.animate .link.flow {
+  stroke-opacity: 1; stroke-dasharray: 5 9;
+  animation: talos-flow 1.1s linear infinite;
+}
+@keyframes talos-flow { to { stroke-dashoffset: -14; } }
+svg.map .is-focus .node__mark { stroke: var(--ink); stroke-width: 2.5px; }
+svg.map .is-focus .lbl, svg.map .is-near .lbl { font-weight: 600; }
+
+.mappopup {
+  position: absolute; z-index: 6; width: min(340px, calc(100% - 24px));
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: 0 10px 30px rgba(0,0,0,.28); padding: 12px 14px 12px;
+  font-size: 12.5px; color: var(--ink-soft);
+}
+.mappopup__head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; }
+.mappopup__title { font-weight: 600; font-size: 14px; color: var(--ink); flex: 1; }
+.mappopup__kind { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); }
+.mappopup__close { border: none; background: none; color: var(--ink-mute); font-size: 18px; line-height: 1; cursor: pointer; padding: 0 2px; }
+.mappopup dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 0; }
+.mappopup dt { color: var(--ink-mute); }
+.mappopup dd { margin: 0; color: var(--ink); font-family: var(--font-mono); font-size: 12px; word-break: break-word; }
+.mappopup__links { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
+.mappopup__links b { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); margin-bottom: 4px; font-weight: 500; }
+.mappopup__links div { display: flex; gap: 8px; padding: 2px 0; }
+.mappopup__links div i { width: 8px; height: 8px; border-radius: 50%; flex: none; margin-top: 5px; }
+.mappopup__links span { margin-left: auto; color: var(--ink-mute); font-family: var(--font-mono); }
+.mappopup .btn { margin-top: 10px; width: 100%; }
 
 /* The reveal walks outwards, one ring at a time, so the structure builds
    rather than appearing all at once. Only on a structural redraw: a drag
@@ -1571,6 +1678,7 @@ svg.map.animate .link {
 svg.map.animate .link--bridge { stroke-dasharray: 7 5; animation: talos-node-in 420ms ease-out backwards; }
 @media (prefers-reduced-motion: reduce) {
   svg.map.animate .node, svg.map.animate .node__mark, svg.map.animate .link { animation: none; }
+  svg.map .link.flow { animation: none; stroke-dasharray: none; }
 }
 svg.map .node { cursor: grab; }
 svg.map.dragging .node { cursor: grabbing; }
@@ -1694,6 +1802,8 @@ const GUIDE_STEPS = [1, 2, 3, 4, 5, 6];
  * grouped one that shows it. */
 const GROUP_THRESHOLD = 10;
 const MAX_ROWS = 10;
+// Devices an integration needs before its name is always on the map.
+const MAJOR_INTEGRATION = 5;
 // Rows kept for what is inside the house, so a local branch always ends at
 // the hub or broker it actually reaches.
 const LOCAL_ROWS = 4;
@@ -1721,7 +1831,7 @@ class TalosPanel extends HTMLElement {
     this._mapQuery = "";
     this._detail = 2;
     this._scope = null;
-    this._pinned = new Map();
+    this._reheat = 0;
     this._view = { k: 1, x: 0, y: 0 };
     // Reading storage can throw in a private window or with site data blocked.
     try {
@@ -1943,6 +2053,7 @@ class TalosPanel extends HTMLElement {
       return;
     }
 
+    this.stopMap();
     host.innerHTML =
       this.toolbar() +
       `<div class="wrap">` +
@@ -2010,7 +2121,6 @@ class TalosPanel extends HTMLElement {
         this._view = { k: 1, x: 0, y: 0 };
         this._mapBox = null;
         this._scope = null;
-        this._pinned.clear();
         this.render();
       };
       host.querySelectorAll("[data-scope]").forEach((button) => {
@@ -2025,7 +2135,6 @@ class TalosPanel extends HTMLElement {
                 };
           this._view = { k: 1, x: 0, y: 0 };
           this._mapBox = null;
-          this._pinned.clear();
           this.render();
         });
       });
@@ -2043,7 +2152,6 @@ class TalosPanel extends HTMLElement {
           this._mapQuery = "";
           this._detail = 2;
           this._scope = null;
-          this._pinned.clear();
           this.render();
         });
       }
@@ -3468,6 +3576,7 @@ class TalosPanel extends HTMLElement {
             const angle = bMid - bSpan / 2 + step * (position + 0.5);
             nodes.push({
               id: `d:${device.id}`, kind: "device", angle,
+              ref: device.id,
               x: CX + Math.cos(angle) * R_DEVICE * stretch,
               y: CY + Math.sin(angle) * R_DEVICE,
               rx: R_DEVICE * stretch, ry: R_DEVICE, pad: 13,
@@ -3507,58 +3616,209 @@ class TalosPanel extends HTMLElement {
       });
     });
 
-    // A dragged node keeps where it was put, and the rest settle around it.
-    nodes.forEach((node) => {
-      const pin = this._pinned.get(node.id);
-      if (pin) {
-        node.x = pin.x;
-        node.y = pin.y;
-        node.fixed = true;
-      }
-    });
-    this.relax(nodes);
-
     return { nodes, links, query, hits: nodes.filter((n) => n.hit).length };
   }
 
-  /** Push overlapping nodes apart, then slide them back onto their ring.
+  /* ── force layout ────────────────────────────────────────────────────────
+   * The radial layout above is the starting position; from there the nodes
+   * settle under springs and repulsion, the way Obsidian's graph does. Rest
+   * lengths shorten with depth, so a leaf hugs its aggregator and the
+   * aggregator sits close to its primary node: each integration becomes a
+   * tight tuft with a halo of devices, and the trunks stay long.
    *
-   * Deterministic, not a simulation: it runs a fixed number of passes from a
-   * fixed starting layout, so the picture settles the same way every time.
-   * Pinned and central nodes never move. */
-  relax(nodes, iterations = 12) {
-    const movable = nodes.filter((node) => !node.fixed && node.kind !== "core" && node.rx);
-    if (!movable.length) return;
+   * Determinism is kept as far as a simulation allows: the seed is the same
+   * radial picture every time, the sway is driven by a seeded generator, and
+   * the settle runs a fixed schedule. The same house still gives the same
+   * shape, only breathing.
+   */
 
-    for (let pass = 0; pass < iterations; pass += 1) {
-      for (let i = 0; i < nodes.length; i += 1) {
-        for (let j = i + 1; j < nodes.length; j += 1) {
-          const a = nodes[i];
-          const b = nodes[j];
-          const minimum = (a.pad || 14) + (b.pad || 14);
-          let dx = b.x - a.x;
-          let dy = b.y - a.y;
-          const distance = Math.hypot(dx, dy) || 0.001;
-          if (distance >= minimum) continue;
-          const push = (minimum - distance) / 2;
-          dx /= distance;
-          dy /= distance;
-          if (!a.fixed && a.kind !== "core") {
-            a.x -= dx * push;
-            a.y -= dy * push;
-          }
-          if (!b.fixed && b.kind !== "core") {
-            b.x += dx * push;
-            b.y += dy * push;
+  mapSeeded(seed = 1789) {
+    // mulberry32: small, fast, and the same sequence every load.
+    let a = seed >>> 0;
+    return () => {
+      a = (a + 0x6d2b79f5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  mapTier(node) {
+    return node.kind === "core" ? 0
+      : node.kind === "transport" ? 1
+      : node.kind === "integration" ? 2
+      : node.kind === "origin" ? 3 : 4;
+  }
+
+  mapRadius(node) {
+    return node.kind === "core" ? 26
+      : node.kind === "transport" ? 15
+      : node.kind === "integration" ? 10
+      : node.kind === "origin" ? 8 : 6;
+  }
+
+  /** Build the simulation state from a layout. Called once per structural
+   *  redraw; the ticker mutates it in place. */
+  mapSimulation(nodes, links) {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const random = this.mapSeeded();
+    nodes.forEach((node) => {
+      node.vx = 0;
+      node.vy = 0;
+      node.r = this.mapRadius(node);
+      node.tier = this.mapTier(node);
+      node.fx = node.kind === "core" ? 0 : null;
+      node.fy = node.kind === "core" ? 0 : null;
+      // A hair of noise so two devices on the same spoke do not start on
+      // top of one another and shove each other straight outwards.
+      node.x += (random() - 0.5) * 6;
+      node.y += (random() - 0.5) * 6;
+    });
+    const springs = links
+      .map((link) => {
+        const a = byId.get(link.from);
+        const b = byId.get(link.to);
+        if (!a || !b) return null;
+        const child = a.tier >= b.tier ? a : b;
+        const parent = child === a ? b : a;
+        // Rest length and stiffness by the child's tier: leaves are short
+        // and stiff, trunks long and soft.
+        const rest = link.bridge ? 230
+          : child.tier === 1 ? 200
+          : child.tier === 2 ? 125
+          : child.tier === 3 ? 62 : 40;
+        const strength = link.bridge ? 0.02
+          : child.tier === 1 ? 0.1
+          : child.tier === 2 ? 0.18
+          : child.tier === 3 ? 0.3 : 0.38;
+        return { a: child, b: parent, rest, strength };
+      })
+      .filter(Boolean);
+    return { nodes, springs, random, alpha: 1, settled: false };
+  }
+
+  /** One step. Alpha scales every displacement, so the same forces settle
+   *  the graph quickly at first and barely stir it once at rest. */
+  mapTick(sim, alpha) {
+    const { nodes, springs, random } = sim;
+    const n = nodes.length;
+    // Pixels per tick. A node that needs to go further gets there over
+    // several ticks, which is what a settle is.
+    const MAX_SPEED = 28;
+
+    // Springs.
+    springs.forEach(({ a, b, rest, strength }) => {
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      const distance = Math.hypot(dx, dy) || 0.001;
+      // The leash: past one and a half rest lengths the pull doubles, so a
+      // leaf shoved away from its aggregator is hauled straight back.
+      const leash = distance > rest * 1.5 ? 2 : 1;
+      // Never more than half the gap in one tick: the stability bound of
+      // an explicit step, and the difference between settling and diverging.
+      const fraction = Math.max(-0.5, Math.min(0.5, ((distance - rest) / distance) * strength * leash * alpha));
+      const force = fraction;
+      dx *= force;
+      dy *= force;
+      a.vx += dx;
+      a.vy += dy;
+      b.vx -= dx * 0.45;
+      b.vy -= dy * 0.45;
+    });
+
+    // Repulsion. The reach is capped at REACH, so only pairs within it
+    // matter, and a uniform grid with cells of that size finds them without
+    // visiting every pair: each node looks at its own cell and the eight
+    // around it. On six hundred nodes that is the difference between a tick
+    // that costs a frame and one that costs a fraction of it.
+    const REACH = 150;
+    const REACH2 = REACH * REACH;
+    const cells = new Map();
+    const key = (cx, cy) => cx * 100003 + cy;
+    nodes.forEach((node) => {
+      node._cx = Math.floor(node.x / REACH);
+      node._cy = Math.floor(node.y / REACH);
+      const k = key(node._cx, node._cy);
+      const bucket = cells.get(k);
+      if (bucket) bucket.push(node);
+      else cells.set(k, [node]);
+    });
+    // Two leaves only mind each other up close; everything else keeps the
+    // full reach. That is what lets a tuft form: siblings pack, tufts part.
+    const LEAF_REACH2 = 55 * 55;
+    const repel = (a, b) => {
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d2 = dx * dx + dy * dy;
+      const bothLeaves = a.tier === 4 && b.tier === 4;
+      if (d2 > (bothLeaves ? LEAF_REACH2 : REACH2) || d2 === 0) return;
+      const distance = Math.sqrt(d2);
+      // Big nodes push harder; overlapping ones push hardest. Softer than
+      // the springs by design: the springs say where a node belongs, the
+      // repulsion only keeps it from sitting on a neighbour.
+      const minimum = a.r + b.r + 6;
+      const base = (a.r + b.r) * 4;
+      let force = (base / d2) * alpha;
+      if (distance < minimum) force += ((minimum - distance) / distance) * 0.5;
+      const fx = dx * force;
+      const fy = dy * force;
+      a.vx -= fx;
+      a.vy -= fy;
+      b.vx += fx;
+      b.vy += fy;
+    };
+    for (let i = 0; i < n; i += 1) {
+      const a = nodes[i];
+      for (let ox = -1; ox <= 1; ox += 1) {
+        for (let oy = -1; oy <= 1; oy += 1) {
+          const bucket = cells.get(key(a._cx + ox, a._cy + oy));
+          if (!bucket) continue;
+          for (let j = 0; j < bucket.length; j += 1) {
+            const b = bucket[j];
+            // Each unordered pair once: by index, so a cell is not doubled.
+            if (b === a || (ox === 0 && oy === 0 ? bucket.indexOf(b) < bucket.indexOf(a) : false)) continue;
+            if (ox === 0 && oy === 0) {
+              repel(a, b);
+            } else if (ox > 0 || (ox === 0 && oy > 0)) {
+              // Neighbouring cells: visit each cell pair from one side only.
+              repel(a, b);
+            }
           }
         }
       }
-      movable.forEach((node) => {
-        const angle = Math.atan2(node.y / node.ry, node.x / node.rx);
-        node.x = Math.cos(angle) * node.rx;
-        node.y = Math.sin(angle) * node.ry;
-      });
     }
+
+    // Gravity to the centre, so a freed branch drifts back rather than away.
+    nodes.forEach((node) => {
+      node.vx -= node.x * 0.004 * alpha;
+      node.vy -= node.y * 0.004 * alpha;
+      if (sim.settled && !this._reducedMotion) {
+        // The breathing: a whisper of seeded noise once at rest.
+        node.vx += (random() - 0.5) * 0.35;
+        node.vy += (random() - 0.5) * 0.35;
+      }
+    });
+
+    // Integrate with damping; pinned nodes go where they were put.
+    nodes.forEach((node) => {
+      if (node.fx != null) {
+        node.x = node.fx;
+        node.y = node.fy;
+        node.vx = 0;
+        node.vy = 0;
+        return;
+      }
+      node.vx *= 0.6;
+      node.vy *= 0.6;
+      const speed = Math.hypot(node.vx, node.vy);
+      if (speed > MAX_SPEED) {
+        node.vx *= MAX_SPEED / speed;
+        node.vy *= MAX_SPEED / speed;
+      }
+      node.x += node.vx;
+      node.y += node.vy;
+    });
   }
 
   drawMap(svg, animate = false) {
@@ -3568,18 +3828,18 @@ class TalosPanel extends HTMLElement {
       Object.entries(attrs || {}).forEach(([key, value]) => node.setAttribute(key, value));
       return node;
     };
+    this.stopMap();
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     svg.classList.toggle("animate", Boolean(animate));
-
     svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    this._reducedMotion =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const view = this._view || (this._view = { k: 1, x: 0, y: 0 });
     const root = el("g", {});
     svg.appendChild(root);
     const applyView = () => {
       root.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
-      // Label density follows the zoom, the way a map reveals street names.
-      // A class swap, so panning stays cheap.
       svg.dataset.zoom = view.k >= 2.2 ? "near" : view.k >= 1.4 ? "mid" : "far";
     };
     applyView();
@@ -3589,13 +3849,24 @@ class TalosPanel extends HTMLElement {
     const { nodes, links, query } = this.mapLayout(stretch);
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const dimmed = Boolean(query);
+    const sim = this.mapSimulation(nodes, links);
+    this._sim = sim;
+    this._mapById = byId;
+    this._mapLinks = links;
 
-    // Fit the box to what is actually drawn, so a collapsed map is not a
-    // small dot in a large empty square. Once the user has panned or zoomed,
-    // the box stays put: refitting under their hands would be maddening.
-    const untouched = view.k === 1 && view.x === 0 && view.y === 0 && !this._pinned.size;
+    // Neighbours, for the focus highlight.
+    const near = new Map();
+    links.forEach((link) => {
+      if (!near.has(link.from)) near.set(link.from, new Set());
+      if (!near.has(link.to)) near.set(link.to, new Set());
+      near.get(link.from).add(link.to);
+      near.get(link.to).add(link.from);
+    });
+    this._mapNear = near;
+
+    const untouched = view.k === 1 && view.x === 0 && view.y === 0;
     if (untouched || !this._mapBox) {
-      const pad = 200;
+      const pad = 160;
       const xs = nodes.map((node) => node.x);
       const ys = nodes.map((node) => node.y);
       const minX = Math.min(...xs) - pad;
@@ -3604,48 +3875,42 @@ class TalosPanel extends HTMLElement {
     }
     svg.setAttribute("viewBox", this._mapBox.join(" "));
 
+    // Build the DOM once. Every frame afterwards only moves what is here.
     const linkLayer = el("g", {});
     root.appendChild(linkLayer);
+    const paths = [];
     links.forEach((link) => {
       const from = byId.get(link.from);
       const to = byId.get(link.to);
       if (!from || !to) return;
-      // Curved towards the centre so the branches read as branches.
-      // A bridge arcs the other way, so it reads as a shortcut across the
-      // tree rather than another branch of it.
-      const bow = link.bridge ? 1.35 : 0.72;
+      // Drawn child to parent, so the flow animation runs towards the hub.
+      const child = this.mapTier(from) >= this.mapTier(to) ? from : to;
+      const parent = child === from ? to : from;
       const path = el("path", {
         class: link.bridge ? "link link--bridge" : "link",
-        d: `M${from.x},${from.y} Q${((from.x + to.x) / 2) * bow},${((from.y + to.y) / 2) * bow} ${to.x},${to.y}`,
         stroke: link.colour,
         "stroke-width": link.width,
-        pathLength: "1",
       });
-      path.style.animationDelay = `${link.bridge ? 380 : 90}ms`;
+      path.dataset.from = child.id;
+      path.dataset.to = parent.id;
       if (dimmed && !(to.hit || from.hit)) path.classList.add("dim");
       linkLayer.appendChild(path);
+      paths.push({ path, child, parent, bridge: Boolean(link.bridge) });
     });
 
+    const groups = [];
     nodes.forEach((node) => {
       const group = el("g", { class: "node", "data-id": node.id });
       if (dimmed && !node.hit) group.classList.add("dim");
       if (node.hit) group.classList.add("node--match");
 
+      let mark = null;
       if (node.kind === "core") {
-        group.appendChild(el("rect", {
-          x: node.x - 22, y: node.y - 22, width: 44, height: 44, rx: 12,
-          fill: node.colour,
-        }));
-      } else if (node.kind === "more") {
-        // Nothing but the label: it is a note, not a thing on the network.
-      } else {
-        const radius =
-          node.kind === "transport" ? 13
-          : node.kind === "integration" ? 8
-          : node.kind === "origin" ? 6 : 4.5;
-        const mark = el("circle", {
+        mark = el("rect", { class: "node__mark", width: 44, height: 44, rx: 12, fill: node.colour });
+      } else if (node.kind !== "more") {
+        mark = el("circle", {
           class: "node__mark",
-          cx: node.x, cy: node.y, r: radius,
+          r: node.r,
           fill:
             node.kind === "origin" || (node.kind === "device" && node.isHub)
               ? "var(--surface)"
@@ -3655,79 +3920,281 @@ class TalosPanel extends HTMLElement {
             node.kind === "origin" ? 2 : node.kind === "device" && node.isHub ? 2.5 : 0,
         });
         if (node.kind === "origin") mark.setAttribute("stroke-dasharray", "3 2");
-        group.appendChild(mark);
-        if (node.kind === "integration" && node.open) {
-          group.appendChild(el("circle", {
-            cx: node.x, cy: node.y, r: radius + 4,
-            fill: "none", stroke: node.colour, "stroke-width": 1, "stroke-opacity": .5,
-          }));
-        }
       }
+      if (mark) group.appendChild(mark);
 
-      // Labels sit horizontally under the node. Radial text reads badly on
-      // the left half and is worse to scan than a straight line of names.
+      // The name, and only the name. Everything else is a click away.
       const below = node.kind === "core" ? 40
-        : node.kind === "transport" ? 26
-        : node.kind === "integration" ? 20
-        : node.kind === "origin" ? 17 : 13;
-      const isDevice = node.kind === "device" || node.kind === "more";
-
+        : node.kind === "transport" ? 27
+        : node.kind === "integration" ? 21
+        : node.kind === "origin" ? 18 : 15;
+      // Always named: the core, the transports, the publishing systems and
+      // the integrations big enough to be a tuft. A small integration is
+      // named the way a leaf is, on approach, focus or match.
+      // By size alone: at the deepest detail every branch is open, and an
+      // expanded integration with two devices is still not a tuft.
+      const minor =
+        node.kind === "device" || node.kind === "more" ||
+        (node.kind === "integration" && (node.count || 0) < MAJOR_INTEGRATION);
       const label = el("text", {
         class:
           (node.kind === "core"
             ? "lbl lbl--core"
             : node.kind === "transport"
               ? "lbl lbl--transport"
-              : "lbl") + (isDevice ? " lbl--device" : ""),
-        x: node.x,
-        y: node.y + below,
+              : "lbl") + (minor ? " lbl--device" : ""),
         "text-anchor": "middle",
       });
       const text = String(node.label || "");
-      label.textContent = text.length > 24 ? `${text.slice(0, 23)}…` : text;
+      label.textContent = text.length > 26 ? `${text.slice(0, 25)}…` : text;
       group.appendChild(label);
 
-      if (node.sub && node.kind !== "core") {
-        const sub = el("text", {
-          class: "sub" + (isDevice ? " sub--device" : ""),
-          x: node.x,
-          y: node.y + below + 12,
-          "text-anchor": "middle",
-        });
-        sub.textContent = node.kind === "integration" ? `${node.sub} · ${node.count}` : node.sub;
-        group.appendChild(sub);
-      }
+      const hit = el("circle", { class: "hit", r: Math.max(14, node.r + 6) });
+      group.appendChild(hit);
+      group.style.animationDelay = `${node.tier * 110}ms`;
 
-      const depth =
-        node.kind === "core" ? 0
-        : node.kind === "transport" ? 1
-        : node.kind === "integration" ? 2
-        : node.kind === "origin" ? 3 : 4;
-      group.style.animationDelay = `${depth * 110}ms`;
-
-      if (node.kind === "integration") {
-        // A generous invisible target: the dot itself is 8px.
-        const hit = el("circle", { class: "hit", cx: node.x, cy: node.y, r: 16 });
-        group.appendChild(hit);
-        group.addEventListener("click", (event) => {
-          if (this._dragMoved) return; // a drag, not a click
-          event.stopPropagation();
-          const current = this._scope;
-          this._scope =
-            current && current.kind === "integration" && current.id === node.ref
-              ? null
-              : { kind: "integration", id: node.ref };
-          this._view = { k: 1, x: 0, y: 0 };
-          this._mapBox = null;
-          this._pinned.clear();
-          this.render();
-        });
-      }
+      group.addEventListener("click", (event) => {
+        if (this._dragMoved) return;
+        event.stopPropagation();
+        this.focusMapNode(svg, node.id === this._focus ? null : node.id);
+      });
 
       root.appendChild(group);
+      groups.push({ group, mark, label, hit, node, below });
     });
 
+    // Move what is drawn to where the simulation put it.
+    const place = () => {
+      paths.forEach(({ path, child, parent, bridge }) => {
+        const mx = (child.x + parent.x) / 2;
+        const my = (child.y + parent.y) / 2;
+        // A gentle bow so parallel spokes do not stack into one line.
+        const bow = bridge ? 0.25 : 0.08;
+        const cx = mx + (parent.y - child.y) * bow;
+        const cy = my - (parent.x - child.x) * bow;
+        path.setAttribute("d", `M${child.x.toFixed(1)},${child.y.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${parent.x.toFixed(1)},${parent.y.toFixed(1)}`);
+      });
+      groups.forEach(({ mark, label, hit, node, below }) => {
+        if (mark) {
+          if (node.kind === "core") {
+            mark.setAttribute("x", node.x - 22);
+            mark.setAttribute("y", node.y - 22);
+          } else {
+            mark.setAttribute("cx", node.x);
+            mark.setAttribute("cy", node.y);
+          }
+        }
+        label.setAttribute("x", node.x);
+        label.setAttribute("y", node.y + below);
+        hit.setAttribute("cx", node.x);
+        hit.setAttribute("cy", node.y);
+      });
+      if (this._focus) this.placeMapPopup(svg);
+    };
+    this._placeMap = place;
+    place();
+
+    // Settle fast, then breathe. Paused while hidden and while dragging.
+    const SETTLE = 110;
+    let ticks = 0;
+    const loop = () => {
+      this._mapFrame = 0;
+      if (!svg.isConnected) return;
+      if (document.hidden) {
+        this._mapFrame = requestAnimationFrame(loop);
+        return;
+      }
+      if (!sim.settled) {
+        sim.alpha *= 0.965;
+        ticks += 1;
+        this.mapTick(sim, Math.max(sim.alpha, 0.05));
+        if (ticks >= SETTLE) sim.settled = true;
+        place();
+      } else if (this._dragging || this._reheat > 0) {
+        this.mapTick(sim, 0.35);
+        if (!this._dragging) this._reheat -= 1;
+        place();
+      } else if (!this._reducedMotion) {
+        // At rest: a light tick every third frame is all the sway needs.
+        if (ticks % 3 === 0) {
+          this.mapTick(sim, 0.06);
+          place();
+        }
+        ticks += 1;
+      } else {
+        return; // reduced motion: settle and stop.
+      }
+      this._mapFrame = requestAnimationFrame(loop);
+    };
+    this._mapFrame = requestAnimationFrame(loop);
+
+    // The reveal has played by then; keeping the class would keep every
+    // link on the intro animation and a re-added one would replay it.
+    if (animate) window.setTimeout(() => svg.classList.remove("animate"), 900);
+
+    if (this._focus && byId.has(this._focus)) this.focusMapNode(svg, this._focus, true);
     this.attachMapControls(svg, view, applyView);
+  }
+
+  stopMap() {
+    if (this._mapFrame) cancelAnimationFrame(this._mapFrame);
+    this._mapFrame = 0;
+  }
+
+  /** Focus a node: neighbours stay, the rest fades, the touching edges flow,
+   *  and the popup opens beside it. Null clears all of it. */
+  focusMapNode(svg, id, silent = false) {
+    this._focus = id;
+    svg.classList.toggle("has-focus", Boolean(id));
+    const near = id ? this._mapNear.get(id) || new Set() : new Set();
+    svg.querySelectorAll("g.node").forEach((group) => {
+      const nodeId = group.dataset.id;
+      group.classList.toggle("is-focus", nodeId === id);
+      group.classList.toggle("is-near", Boolean(id) && near.has(nodeId));
+    });
+    svg.querySelectorAll("path.link").forEach((path) => {
+      path.classList.toggle("flow", Boolean(id) && (path.dataset.from === id || path.dataset.to === id));
+    });
+    const wrap = svg.closest(".mapwrap");
+    const old = wrap && wrap.querySelector(".mappopup");
+    if (old) old.remove();
+    if (!id || !wrap) return;
+    const popup = document.createElement("div");
+    popup.className = "mappopup";
+    popup.innerHTML = this.mapPopup(id);
+    wrap.appendChild(popup);
+    popup.querySelector("[data-action='popup-close']").addEventListener("click", () => this.focusMapNode(svg, null));
+    const isolate = popup.querySelector("[data-action='popup-isolate']");
+    if (isolate) {
+      isolate.addEventListener("click", () => {
+        const entryId = isolate.dataset.entry;
+        const current = this._scope;
+        this._scope =
+          current && current.kind === "integration" && current.id === entryId
+            ? null
+            : { kind: "integration", id: entryId };
+        this._view = { k: 1, x: 0, y: 0 };
+        this._mapBox = null;
+        this._focus = null;
+        this.render();
+      });
+    }
+    this.placeMapPopup(svg);
+    if (!silent) this._reheat = 0;
+  }
+
+  /** Keep the popup beside its node as the node sways or the view moves. */
+  placeMapPopup(svg) {
+    const wrap = svg.closest(".mapwrap");
+    const popup = wrap && wrap.querySelector(".mappopup");
+    const node = this._mapById && this._mapById.get(this._focus);
+    if (!popup || !node) return;
+    const root = svg.firstChild;
+    const point = svg.createSVGPoint();
+    point.x = node.x;
+    point.y = node.y;
+    const matrix = root && root.getScreenCTM();
+    if (!matrix) return;
+    const screen = point.matrixTransform(matrix);
+    const box = wrap.getBoundingClientRect();
+    const svgBox = svg.getBoundingClientRect();
+    let left = screen.x - box.left + 18;
+    let top = screen.y - box.top - 12;
+    // Flip to the left of the node when it would run off the right edge, and
+    // clamp vertically inside the map.
+    if (left + popup.offsetWidth > box.width - 8) left = screen.x - box.left - popup.offsetWidth - 18;
+    top = Math.max(svgBox.top - box.top + 8, Math.min(top, box.height - popup.offsetHeight - 8));
+    popup.style.left = `${Math.max(8, left)}px`;
+    popup.style.top = `${top}px`;
+  }
+
+  /** Everything known about one node, as the popup shows it. */
+  mapPopup(id) {
+    const d = this._data;
+    const node = this._mapById.get(id);
+    if (node.ref == null) node.ref = String(id).replace(/^[a-z]+:/, "");
+    const rows = [];
+    const row = (label, value) => {
+      if (value == null || value === "") return;
+      rows.push(`<dt>${esc(label)}</dt><dd>${esc(String(value))}</dd>`);
+    };
+    let title = node.label;
+    let kind = this.t(`map.popup.kind.${node.kind}`);
+    let isolate = "";
+
+    if (node.kind === "device") {
+      const device = d.labels.devices[node.ref] || {};
+      const integration = d.labels.integrations[device.integration_id] || {};
+      title = device.name || node.label;
+      row(this.t("map.field.transport"), this.t(`transport.${device.transport || "unknown"}`));
+      row(this.t("map.field.integration"), integration.title);
+      row(this.t("map.field.origin"), device.origin);
+      row(this.t("map.field.mesh"), this.t(`mesh.${device.mesh_role || "unknown"}`));
+      row(this.t("map.field.area"), device.area);
+      row(this.t("map.field.ip"), device.ip);
+      row(this.t("map.field.model"), [device.manufacturer, device.model].filter(Boolean).join(" "));
+      row(this.t("map.field.entities"), device.entity_count || 0);
+      const hub = device.via_device_id && d.labels.devices[device.via_device_id];
+      row(this.t("map.field.hub"), hub ? hub.name : null);
+      const children = Object.values(d.labels.devices).filter((x) => x.via_device_id === node.ref).length;
+      if (children) row(this.t("map.field.children"), children);
+    } else if (node.kind === "integration") {
+      const integration = d.labels.integrations[node.ref] || {};
+      title = integration.title || node.label;
+      row(this.t("map.field.domain"), integration.domain);
+      row(this.t("map.field.class"), integration.iot_class);
+      row(this.t("map.field.role"), this.t(`role.${integration.role || "unknown"}`) || null);
+      row(this.t("map.field.state"), integration.state);
+      row(this.t("map.field.endpoint"), integration.endpoint);
+      row(this.t("map.field.devices"), node.count);
+      const active = this._scope && this._scope.kind === "integration" && this._scope.id === node.ref;
+      isolate = `<button class="btn btn--ghost" data-action="popup-isolate" data-entry="${esc(node.ref)}">${esc(
+        this.t(active ? "map.popup.unisolate" : "map.popup.isolate")
+      )}</button>`;
+    } else if (node.kind === "transport") {
+      row(this.t("map.field.devices"), node.sub);
+    } else if (node.kind === "origin") {
+      row(this.t("map.field.devices"), node.sub);
+    }
+
+    // The conduits this node is the source of, grouped by destination kind.
+    let links = "";
+    const sourceId = node.kind === "device" ? node.ref : node.kind === "integration" ? node.ref : null;
+    if (sourceId) {
+      const mine = (d.conduits || []).filter((c) => c.source.id === sourceId);
+      if (mine.length) {
+        const byDest = new Map();
+        mine.forEach((c) => {
+          const dest = this.destination(c.destination_id);
+          const key = c.destination_id;
+          const cur = byDest.get(key) || { dest, n: 0, evidence: c.evidence, protocol: c.protocol };
+          cur.n += c.query_count || 1;
+          byDest.set(key, cur);
+        });
+        const top = [...byDest.values()].sort((a, b) => b.n - a.n).slice(0, 6);
+        links = `<div class="mappopup__links"><b>${esc(this.t("map.popup.links"))} · ${esc(
+          this.t("map.popup.conduits", { n: mine.length })
+        )}</b>${top
+          .map(
+            (item) => `<div><i style="background:${this.kindColour(item.dest.kind)}"></i>${esc(
+              item.dest.fqdn
+            )}<span>${esc([item.protocol, this.t(`evidence.${item.evidence}`)].filter(Boolean).join(" · "))}</span></div>`
+          )
+          .join("")}</div>`;
+      } else {
+        links = `<div class="mappopup__links"><b>${esc(this.t("map.popup.links"))}</b><div>${esc(
+          this.t("map.popup.noConduits")
+        )}</div></div>`;
+      }
+    }
+
+    return `<div class="mappopup__head">
+        <div><div class="mappopup__kind">${esc(kind)}</div><div class="mappopup__title">${esc(title)}</div></div>
+        <button class="mappopup__close" data-action="popup-close" title="${esc(this.t("map.popup.close"))}">×</button>
+      </div>
+      ${rows.length ? `<dl>${rows.join("")}</dl>` : ""}
+      ${links}
+      ${isolate}`;
   }
 
   attachMapControls(svg, view, applyView) {
@@ -3748,7 +4215,6 @@ class TalosPanel extends HTMLElement {
       event.preventDefault();
       const factor = Math.exp(-event.deltaY * 0.0015);
       const next = Math.min(6, Math.max(0.35, view.k * factor));
-      // Zoom towards the pointer rather than the origin.
       const rect = svg.getBoundingClientRect();
       const px = event.clientX - rect.left - rect.width / 2;
       const py = event.clientY - rect.top - rect.height / 2;
@@ -3756,51 +4222,95 @@ class TalosPanel extends HTMLElement {
       view.y = py - ((py - view.y) * next) / view.k;
       view.k = next;
       applyView();
+      if (this._focus) this.placeMapPopup(svg);
     }, { passive: false });
 
     let panning = null;
-    let dragging = null;
-    let frame = 0;
 
     svg.addEventListener("pointerdown", (event) => {
       const target = event.target.closest && event.target.closest("g.node");
       this._dragMoved = false;
       if (target && target.dataset.id) {
-        // Grab the node itself; the rest of the graph settles around it.
-        dragging = { id: target.dataset.id };
-        svg.setPointerCapture(event.pointerId);
-        return;
+        const node = this._mapById.get(target.dataset.id);
+        if (node && node.kind !== "core") {
+          // Pin it to the pointer; the neighbours follow under the springs.
+          this._dragging = node;
+          node.fx = node.x;
+          node.fy = node.y;
+          svg.setPointerCapture(event.pointerId);
+          return;
+        }
       }
       panning = { x: event.clientX - view.x, y: event.clientY - view.y };
       svg.classList.add("dragging");
       svg.setPointerCapture(event.pointerId);
     });
 
-    svg.addEventListener("pointermove", (event) => {
-      if (dragging) {
+    // Leaf names near the pointer, the way Obsidian reveals them: the
+    // nearest few within a hand's reach, and no more, so the ones shown can
+    // be read. Throttled to a frame; the distance test is a cheap scan.
+    let hoverFrame = 0;
+    const HOVER_REACH = 70;
+    const HOVER_MAX = 12;
+    const revealNear = (event) => {
+      // Cancel and reschedule rather than latch: the latest event wins, and
+      // a frame that never fires, a hidden tab, cannot block every reveal
+      // that follows it.
+      if (hoverFrame) cancelAnimationFrame(hoverFrame);
+      hoverFrame = requestAnimationFrame(() => {
+        hoverFrame = 0;
         const point = toGraph(event);
-        this._pinned.set(dragging.id, { x: point.x, y: point.y });
+        const reach = HOVER_REACH / Math.max(view.k, 0.35);
+        const near = [];
+        this._sim.nodes.forEach((node) => {
+          if (node.kind !== "device") return;
+          const distance = Math.hypot(node.x - point.x, node.y - point.y);
+          if (distance <= reach) near.push([distance, node.id]);
+        });
+        near.sort((a, b) => a[0] - b[0]);
+        const keep = new Set(near.slice(0, HOVER_MAX).map(([, id]) => id));
+        svg.querySelectorAll("g.node.is-hover").forEach((group) => {
+          if (!keep.has(group.dataset.id)) group.classList.remove("is-hover");
+        });
+        keep.forEach((id) => {
+          const group = svg.querySelector(`g.node[data-id="${id}"]`);
+          if (group) group.classList.add("is-hover");
+        });
+      });
+    };
+    this._revealNear = revealNear;
+
+    svg.addEventListener("pointermove", (event) => {
+      if (this._dragging) {
+        const point = toGraph(event);
+        this._dragging.fx = point.x;
+        this._dragging.fy = point.y;
         this._dragMoved = true;
-        // One redraw per frame: relaxation runs on every one of them.
-        if (!frame) {
-          frame = requestAnimationFrame(() => {
-            frame = 0;
-            this._redrawMap();
-          });
-        }
         return;
       }
-      if (!panning) return;
-      view.x = event.clientX - panning.x;
-      view.y = event.clientY - panning.y;
-      applyView();
+      if (panning) {
+        view.x = event.clientX - panning.x;
+        view.y = event.clientY - panning.y;
+        applyView();
+        if (this._focus) this.placeMapPopup(svg);
+        return;
+      }
+      revealNear(event);
+    });
+    svg.addEventListener("pointerleave", () => {
+      svg.querySelectorAll("g.node.is-hover").forEach((group) => group.classList.remove("is-hover"));
     });
 
     const stop = () => {
+      if (this._dragging) {
+        // Let go: it settles back under its springs, like the rest.
+        this._dragging.fx = null;
+        this._dragging.fy = null;
+        this._dragging = null;
+        this._reheat = 45;
+      }
       panning = null;
-      dragging = null;
       svg.classList.remove("dragging");
-      // Let the click that follows a real drag through only if it was a tap.
       setTimeout(() => {
         this._dragMoved = false;
       }, 0);
@@ -3808,6 +4318,21 @@ class TalosPanel extends HTMLElement {
     svg.addEventListener("pointerup", stop);
     svg.addEventListener("pointercancel", stop);
     svg.addEventListener("pointerleave", stop);
+
+    // Click on empty space clears the focus; Escape too.
+    svg.addEventListener("click", (event) => {
+      if (this._dragMoved) return;
+      if (!(event.target.closest && event.target.closest("g.node"))) this.focusMapNode(svg, null);
+    });
+    if (!this._escWired) {
+      this._escWired = true;
+      window.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && this._focus) {
+          const map = this.shadowRoot.querySelector("svg.map");
+          if (map) this.focusMapNode(map, null);
+        }
+      });
+    }
   }
 
   transportGroup(group, total) {

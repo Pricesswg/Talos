@@ -149,8 +149,24 @@ class TestTranslations(unittest.TestCase):
                 "mesh",
                 "legend",
                 "precondition",
+                "map.popup.kind",
             },
         )
+
+    def test_every_map_node_kind_has_a_popup_label(self) -> None:
+        """The popup names the kind of node by a dynamic key, so a kind the
+        layout can emit without a string would render the key.
+
+        Read from the layout method alone: `kind:` elsewhere in the file is
+        the vocabulary of destinations and sources, not of map nodes."""
+        start = SOURCE.index("  mapLayout(")
+        end = SOURCE.index("  mapSeeded(")
+        kinds = set(re.findall(r'kind: "(\w+)"', SOURCE[start:end]))
+        self.assertEqual(kinds, {"core", "transport", "integration", "origin", "device", "more"})
+        for kind in kinds:
+            with self.subTest(kind=kind):
+                self.assertIn(f"map.popup.kind.{kind}", self.it)
+                self.assertIn(f"map.popup.kind.{kind}", self.en)
 
     def test_every_legend_kind_has_a_label_and_a_colour(self) -> None:
         """The legend is driven by a constant, so a kind added there without a
