@@ -250,9 +250,9 @@ const I18N = {
 
     "base.checks": "Controlli eseguiti",
     "base.checks.lead":
-      "Talos dichiara un elenco fisso di controlli. Alcuni sono eseguibili con i dati che raccoglie, altri richiedono sorgenti che non ha e restano dichiarati ma non implementati: compaiono fra i non eseguibili con il loro motivo, mai fra i superati.",
+      "Verde è superato. Rosso o ambra è un rilievo, col suo colore di severità. Blu è verificato in parte: ha girato, non ha trovato niente fra ciò che vedeva, e nomina ciò che non ha potuto ispezionare. Grigio è non eseguibile, che non è un esito: dice cosa manca per farlo girare.",
     "base.checks.total":
-      "{total} controlli dichiarati: {passed} superati, {failed} con rilievi, {notrun} non eseguibili. Oltre a questi, {notes} limiti della raccolta, che non sono controlli e non concorrono ad alcun esito.",
+      "{total} controlli dichiarati: {passed} superati, {partial} verificati in parte, {failed} con rilievi, {notrun} non eseguibili. Oltre a questi, {notes} limiti della raccolta, che non sono controlli e non concorrono ad alcun esito.",
     "checks.group.notes": "Limiti della raccolta",
     "adv.inventory": "Integrazioni",
     "adv.inventory.lead":
@@ -273,6 +273,11 @@ const I18N = {
     "base.checks.tally.failed": "con rilievi",
     "base.checks.tally.unverified": "non eseguibili",
     "checks.group.failed": "Con rilievi",
+    "checks.group.partial": "Verificati in parte",
+    "base.checks.tally.partial": "verificati in parte",
+    "check.partial": "parziale",
+    "check.partialBody":
+      "Il controllo ha girato e fra quello che poteva vedere non ha trovato niente. Quello che non ha potuto ispezionare è elencato qui sotto: non è un superato, è un superato con un buco dichiarato.",
     "checks.group.passed": "Superati",
     "checks.group.unverified": "Non eseguibili",
     "check.subjects": "Elementi interessati",
@@ -917,9 +922,9 @@ const I18N = {
 
     "base.checks": "Checks run",
     "base.checks.lead":
-      "Talos declares a fixed list of checks. Some run on the data it collects, the rest need sources it does not have and stay declared but not implemented: they appear among the ones that could not run, with their reason, never among the passes.",
+      "Green is passed. Red or amber is a finding, in its severity colour. Blue is verified in part: it ran, found nothing among what it could see, and names what it could not inspect. Grey is could not run, which is not an outcome: it says what is missing for it to run.",
     "base.checks.total":
-      "{total} declared checks: {passed} passed, {failed} with findings, {notrun} could not run. On top of those, {notes} collection limits, which are not checks and settle nothing.",
+      "{total} declared checks: {passed} passed, {partial} verified in part, {failed} with findings, {notrun} could not run. On top of those, {notes} collection limits, which are not checks and settle nothing.",
     "checks.group.notes": "Collection limits",
     "adv.inventory": "Integrations",
     "adv.inventory.lead":
@@ -940,6 +945,11 @@ const I18N = {
     "base.checks.tally.failed": "with findings",
     "base.checks.tally.unverified": "could not run",
     "checks.group.failed": "With findings",
+    "checks.group.partial": "Verified in part",
+    "base.checks.tally.partial": "verified in part",
+    "check.partial": "partial",
+    "check.partialBody":
+      "The check ran and found nothing among what it could see. What it could not inspect is listed below: not a pass, a pass with a declared hole in it.",
     "checks.group.passed": "Passed",
     "checks.group.unverified": "Could not run",
     "check.subjects": "Affected",
@@ -2614,6 +2624,26 @@ class TalosPanel extends HTMLElement {
       )
       .join("");
 
+    // Ran, saw part of what it needed, found nothing there. Blue: neither the
+    // green that would claim all was seen nor the grey that would claim none.
+    const partial = (checks.partial || [])
+      .map((result) =>
+        this.expander({
+          tone: "info",
+          title: esc(this.checkText(result, "title")),
+          chips: [
+            `<span class="chip">${esc(this.t("check.partial"))}</span>`,
+            `<span class="chip">${this.num((result.uninspected || []).length)}</span>`,
+          ],
+          body: `<p>${esc(this.t("check.partialBody"))}</p>
+            <div class="exp__lab">${esc(this.t("check.blind"))}</div>
+            <div class="exp__rows">${this.blindRows(result.uninspected || [])}</div>
+            <div class="exp__lab">${esc(this.t("check.about"))}</div>
+            <p>${esc(this.checkText(result, "detail"))}</p>`,
+        })
+      )
+      .join("");
+
     // A check the engine declared but could not run, versus a note about
     // where the collection itself does not reach. Both are "not an outcome",
     // only the first belongs to the tally of declared checks.
@@ -2662,6 +2692,9 @@ class TalosPanel extends HTMLElement {
         <span><i style="background:var(--alert)"></i><b>${this.num(checks.failed.length)}</b> ${esc(
           this.t("base.checks.tally.failed")
         )}</span>
+        <span><i style="background:var(--accent)"></i><b>${this.num((checks.partial || []).length)}</b> ${esc(
+          this.t("base.checks.tally.partial")
+        )}</span>
         <span><i style="background:var(--ink-mute)"></i><b>${this.num(
           notRun.length
         )}</b> ${esc(this.t("base.checks.tally.unverified"))}</span>
@@ -2669,14 +2702,16 @@ class TalosPanel extends HTMLElement {
       </div>
       <p class="hint" style="margin:0 0 14px">${esc(
         this.t("base.checks.total", {
-          total: this.num(checks.passed.length + checks.failed.length + notRun.length),
+          total: this.num(checks.passed.length + (checks.partial || []).length + checks.failed.length + notRun.length),
           passed: this.num(checks.passed.length),
+          partial: this.num((checks.partial || []).length),
           failed: this.num(checks.failed.length),
           notrun: this.num(notRun.length),
           notes: this.num(notes.length),
         })
       )}</p>
       ${group(this.t("checks.group.failed"), "var(--alert)", failed, checks.failed.length)}
+      ${group(this.t("checks.group.partial"), "var(--accent)", partial, (checks.partial || []).length)}
       ${group(this.t("checks.group.passed"), "var(--k-local)", passed, checks.passed.length)}
       ${
         includeUnverified

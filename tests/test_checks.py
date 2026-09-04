@@ -74,11 +74,16 @@ class TestEngineOnTheReferenceHouse(unittest.TestCase):
 
     def test_unimplemented_checks_are_declared_not_omitted(self) -> None:
         declared = {check.id for check in self.report.unverified}
-        # Both are implemented; on this fixture neither has what it needs, and
-        # a check that cannot run must say so rather than pass.
-        for check_id in ("chk.mqtt_unknown_client", "chk.rtsp_cleartext"):
+        # Implemented, and on this fixture without what it needs: a check that
+        # cannot run must say so rather than pass.
+        for check_id in ("chk.mqtt_unknown_client",):
             with self.subTest(check=check_id):
                 self.assertIn(check_id, declared)
+
+    def test_the_reference_house_reports_rtsp_as_partial(self) -> None:
+        partial = {r.id for r in self.report.partial}
+        self.assertIn("chk.rtsp_cleartext", partial)
+        self.assertNotIn("chk.rtsp_cleartext", {r.id for r in self.report.passed})
 
     def test_counts_add_up_and_stay_separate(self) -> None:
         counts = self.report.counts
@@ -379,12 +384,27 @@ class TestCleartextStreamCoverage(unittest.TestCase):
         report = self.report_for("mqtt", "hue")
         self.assertIn("chk.rtsp_cleartext", {r.id for r in report.passed})
 
-    def test_a_camera_that_declares_no_url_is_named_not_passed(self) -> None:
+    def test_a_camera_that_declares_no_url_makes_the_check_partial(self) -> None:
+        """Not grey: the check ran on what declared a stream and found none in
+        the clear. Not green: it names the camera it could not inspect."""
         report = self.report_for("mqtt", "reolink")
-        skipped = {c.id: c for c in report.unverified}
-        self.assertIn("chk.rtsp_cleartext", skipped)
-        self.assertEqual(skipped["chk.rtsp_cleartext"].subjects, ["e_reolink"])
-        self.assertEqual(skipped["chk.rtsp_cleartext"].missing, ["entry_streams"])
+        self.assertNotIn("chk.rtsp_cleartext", {c.id for c in report.unverified})
+        self.assertNotIn("chk.rtsp_cleartext", {r.id for r in report.passed})
+        partial = {r.id: r for r in report.partial}
+        self.assertIn("chk.rtsp_cleartext", partial)
+        self.assertEqual(partial["chk.rtsp_cleartext"].uninspected, ("e_reolink",))
+        self.assertEqual(partial["chk.rtsp_cleartext"].uninspected_kind, "integration")
+        # And the report's own arithmetic keeps it out of the passes.
+        counts = report.counts
+        self.assertEqual(counts["partial"], 1)
+        self.assertNotIn("chk.rtsp_cleartext", [r.id for r in report.passed])
+        self.assertIn("partial", report.to_dict())
+
+    def test_a_pass_with_everything_seen_is_not_partial(self) -> None:
+        report = self.report_for("mqtt", "hue")
+        result = next(r for r in report.passed if r.id == "chk.rtsp_cleartext")
+        self.assertFalse(result.partial)
+        self.assertEqual(result.uninspected, ())
 
     def test_audio_is_not_video(self) -> None:
         """Sonos and Spotify stream, and have no RTSP stream to be in the

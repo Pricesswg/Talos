@@ -158,6 +158,14 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
     else:
         parts.append('<div class="find ok"><div class="t">No findings</div>'
                      '<div class="d">No runnable check produced a finding.</div></div>')
+    if checks.partial:
+        parts.append(f"<h2>Verified in part · {len(checks.partial)}</h2>")
+        for result in checks.partial:
+            names = [name_of(result.uninspected_kind, s) for s in result.uninspected][:12]
+            parts.append(f"""<div class="find low">
+  <div class="t">{_e(result.title)} <span class="chip">partial · {len(result.uninspected)} not inspected</span></div>
+  <div class="d">Nothing found among what could be seen. Not inspected: <span class="mono">{_e(", ".join(names))}</span></div>
+</div>""")
     for result in checks.passed:
         parts.append(f'<div class="find ok"><div class="t">{_e(result.title)} '
                      f'<span class="chip">passed</span></div></div>')

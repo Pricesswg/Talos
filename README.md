@@ -216,8 +216,11 @@ Whether something carries video is decided by domain, against a table of camera 
 and not by the streaming role, which also covers audio: Sonos, Spotify or a DLNA renderer have no RTSP
 stream to be in the clear, and naming them as uninspectable for one would be wrong. A video
 integration that negotiates its stream URL at connection time, ONVIF and Reolink among them, declares
-nothing to read, and there the check says it could not run and names the integration, rather than
-claiming a stream it cannot see is encrypted.
+nothing to read. There the check is **verified in part**: it ran on what declared a stream and found
+none in the clear, and it names the integrations it could not inspect. That is a fourth outcome, and
+it has its own colour, blue, because green would claim everything was seen and grey would claim
+nothing was looked at, and neither is what happened. A partial result is counted on its own, never
+among the passes.
 
 Two checks that used to sit in the rule file are gone. Z-Wave S2 needed the security class, which
 lives only inside another integration's driver object, so the check would have broken on somebody

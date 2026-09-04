@@ -170,7 +170,10 @@
         "encrypted": false
       },
       "detail": "These camera entries name an RTSP stream, and RTSP carries its credentials and its video in the clear. Anyone able to see the traffic on the segment the camera sits on can read both. This is what the entry declares, not a capture: the address was read from the configuration, and nothing was connected to or looked at.",
-      "remediation": "Put the camera on the IoT VLAN so the traffic never crosses the network your computers are on. Where the camera offers RTSPS or an HTTPS stream, use that instead. Where it does not, and most cheap cameras do not, segmentation is the whole of the answer."
+      "remediation": "Put the camera on the IoT VLAN so the traffic never crosses the network your computers are on. Where the camera offers RTSPS or an HTTPS stream, use that instead. Where it does not, and most cheap cameras do not, segmentation is the whole of the answer.",
+      "partial_on": [
+        "entry_streams"
+      ]
     }
   ]
 }

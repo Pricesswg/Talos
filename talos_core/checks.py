@@ -83,6 +83,15 @@ class CheckResult:
     subjects: tuple[str, ...]
     detail: str
     remediation: str
+    # What the check ran without seeing. A result with nothing found and a
+    # non-empty list here is partial: green would claim more than was seen,
+    # grey would claim nothing was looked at, and neither is what happened.
+    uninspected_kind: str = "unknown"
+    uninspected: tuple[str, ...] = ()
+
+    @property
+    def partial(self) -> bool:
+        return self.passed and bool(self.uninspected)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -90,6 +99,9 @@ class CheckResult:
             "title": self.title,
             "severity": self.severity,
             "passed": self.passed,
+            "partial": self.partial,
+            "uninspected_kind": self.uninspected_kind,
+            "uninspected": list(self.uninspected),
             "subject_kind": self.subject_kind,
             "subjects": list(self.subjects),
             "detail": self.detail,
@@ -116,7 +128,13 @@ class CheckReport:
 
     @property
     def passed(self) -> tuple[CheckResult, ...]:
-        return tuple(result for result in self.results if result.passed)
+        """Ran, saw everything it needed to, found nothing. A partial result
+        is kept out: it is not a pass, it is a pass with a hole in it."""
+        return tuple(result for result in self.results if result.passed and not result.partial)
+
+    @property
+    def partial(self) -> tuple[CheckResult, ...]:
+        return tuple(result for result in self.results if result.partial)
 
     def failed_by_severity(self, severity: str) -> tuple[CheckResult, ...]:
         return tuple(result for result in self.failed if result.severity == severity)
@@ -128,6 +146,7 @@ class CheckReport:
             "failed_medium": len(self.failed_by_severity("medium")),
             "failed_low": len(self.failed_by_severity("low")),
             "passed": len(self.passed),
+            "partial": len(self.partial),
             "unverified": len(self.unverified),
         }
 
@@ -136,6 +155,7 @@ class CheckReport:
             "counts": self.counts,
             "failed": [result.to_dict() for result in self.failed],
             "passed": [result.to_dict() for result in self.passed],
+            "partial": [result.to_dict() for result in self.partial],
             "unverified": [check.to_dict() for check in self.unverified],
         }
 
@@ -185,6 +205,11 @@ class CheckEngine:
                 for name in (rule.get("requires") or ())
                 if not context.precondition(name)
             ]
+            # A precondition the rule lists under partial_on does not stop
+            # the check: it runs on what it can see, and what it could not
+            # see is carried on the result by name.
+            soft = set(rule.get("partial_on") or ())
+            missing = [name for name in missing if name not in soft]
             if missing:
                 unverified.append(
                     UnverifiedCheck(
@@ -211,6 +236,8 @@ class CheckEngine:
                     title=rule.get("title") or rule["id"],
                     severity=rule.get("severity") or "low",
                     passed=not subjects,
+                    uninspected_kind=context.blind_subjects(list(soft))[0] if soft else "unknown",
+                    uninspected=tuple(context.blind_subjects(list(soft))[1]) if soft else (),
                     subject_kind=subject_kind,
                     subjects=tuple(subjects),
                     detail=rule.get("detail") or "",
@@ -272,11 +299,17 @@ class _Context:
 
         # Video only. The streaming role also covers audio, and an audio
         # player has no RTSP stream to be in the clear.
+        declared = {
+            conduit.source.id
+            for conduit in self.scan.conduits
+            if conduit.evidence == "declared"
+            and str(conduit.protocol or "").lower() in STREAM_PROTOCOLS
+        }
         return tuple(
             sorted(
                 integration.id
                 for integration in self.scan.integrations
-                if integration.domain in VIDEO_DOMAINS
+                if integration.domain in VIDEO_DOMAINS and integration.id not in declared
             )
         )
 
