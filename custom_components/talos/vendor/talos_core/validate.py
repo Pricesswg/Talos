@@ -369,6 +369,18 @@ def _check_unverified(out: list[Finding], raw: dict[str, Any]) -> None:
                         "subject must be a string",
                     )
                 )
+        # The unmet preconditions, by name. Optional: a collector's note has
+        # none. When present it is a list of names, and a name is a string.
+        missing = _field(out, path, entry, "missing", _LIST, required=False)
+        for m_index, name in enumerate(missing or []):
+            if not isinstance(name, str):
+                out.append(
+                    Finding(
+                        E_SCHEMA_TYPE,
+                        f"{path}.missing[{m_index}]",
+                        "precondition name must be a string",
+                    )
+                )
         _register_id(out, seen, entry_id, path, entry)
 
 

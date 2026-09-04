@@ -148,6 +148,7 @@ class TestTranslations(unittest.TestCase):
                 "mqtt.route",
                 "mesh",
                 "legend",
+                "precondition",
             },
         )
 

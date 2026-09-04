@@ -423,6 +423,11 @@ class UnverifiedCheck:
     # What the check could not speak about: IPs, device ids, domains. Kept
     # structured so a posture check can act on them instead of parsing prose.
     subjects: list[str] = field(default_factory=list)
+    # The preconditions that were not met, by name. The prose in `detail`
+    # says the same thing in English for the CLI; this is what the panel
+    # translates into "what is missing and where to supply it", because a
+    # reason of "missing data" that does not say which data is no reason.
+    missing: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any], path: str) -> UnverifiedCheck:
@@ -432,6 +437,7 @@ class UnverifiedCheck:
             reason=_req(raw, "reason", path),
             detail=raw.get("detail") or "",
             subjects=list(raw.get("subjects") or []),
+            missing=list(raw.get("missing") or []),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -441,6 +447,7 @@ class UnverifiedCheck:
             "reason": self.reason,
             "detail": self.detail,
             "subjects": list(self.subjects),
+            "missing": list(self.missing),
         }
 
 

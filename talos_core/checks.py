@@ -196,6 +196,7 @@ class CheckEngine:
                             )
                             + ". This is not a pass."
                         ),
+                        missing=list(missing),
                     )
                 )
                 continue

@@ -295,3 +295,62 @@ class TestAnonymousBroker(unittest.TestCase):
         report = self.report_for()
         self.assertIn("chk.mqtt_anonymous", {r.id for r in report.unverified})
         self.assertNotIn("chk.mqtt_anonymous", {r.id for r in report.passed})
+
+
+class TestMissingPreconditionsAreNamed(unittest.TestCase):
+    """A reason of "missing data" that does not say which data is no reason.
+    The names travel as data, so the panel can say what to supply and where."""
+
+    def test_a_skipped_check_names_what_it_lacked(self) -> None:
+        raw = load()
+        raw["conduits"] = []
+        raw["destinations"] = []
+        report = derive(Scan.from_dict(raw)).checks
+        skipped = {check.id: check for check in report.unverified}
+        self.assertEqual(skipped["chk.local_with_egress"].missing, ["observed_evidence"])
+        # The reference house has zones configured, so only the observations
+        # are missing here. The two-precondition case is built below, where
+        # nothing about the fixture is assumed.
+        self.assertEqual(skipped["chk.device_on_trusted_lan"].missing, ["observed_evidence"])
+
+    def test_every_unmet_precondition_is_named_in_rule_order(self) -> None:
+        """A fresh registry has no zones and no observations, so the trusted
+        LAN check lacks both, and both must be named, in the order the rule
+        lists them, not only the first one found."""
+        from talos_core.sources.mapping import RegistryPayload, build_scan
+
+        payload = RegistryPayload(
+            config_entries=[{"entry_id": "e1", "domain": "hue", "state": "loaded", "endpoint": None}],
+            devices=[{"id": "d1", "name": "Lamp", "config_entries": ["e1"],
+                      "primary_config_entry": "e1", "identifiers": [["hue", "1"]],
+                      "connections": [["mac", "aa:bb:cc:dd:ee:01"]]}],
+            entities=[],
+            areas=[],
+            manifests=[{"domain": "hue", "iot_class": "local_push", "is_built_in": True}],
+        )
+        scan = build_scan(payload, generated_at="2026-09-01T00:00:00+00:00", collector="native")
+        skipped = {check.id: check for check in derive(scan).checks.unverified}
+        self.assertEqual(
+            skipped["chk.device_on_trusted_lan"].missing,
+            ["zones_configured", "observed_evidence"],
+        )
+
+    def test_the_names_survive_the_document(self) -> None:
+        from talos_core import UnverifiedCheck
+
+        check = UnverifiedCheck(id="chk.x", title="x", reason="missing_data", missing=["dhcp_leases"])
+        self.assertEqual(UnverifiedCheck.from_dict(check.to_dict(), "$").missing, ["dhcp_leases"])
+        # A note from a collector carries none, and that reads as an empty list.
+        self.assertEqual(UnverifiedCheck.from_dict({"id": "unv.x", "title": "x", "reason": "method_limit"}, "$").missing, [])
+
+    def test_every_precondition_the_engine_knows_can_be_named(self) -> None:
+        """The panel translates by name, so a precondition added to the engine
+        without a string would render a key to the user."""
+        from talos_core.checks import PRECONDITION_REASONS
+
+        source = (
+            Path(__file__).resolve().parent.parent / "custom_components" / "talos" / "www" / "talos-panel.js"
+        ).read_text(encoding="utf-8")
+        for name in PRECONDITION_REASONS:
+            with self.subTest(precondition=name):
+                self.assertEqual(source.count(f'"precondition.{name}"'), 2, "one per language")

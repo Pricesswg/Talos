@@ -607,6 +607,25 @@ const I18N = {
     "diag.addons.rate": "{rx} in entrata · {tx} in uscita",
     "diag.addons.noPie": "Nessun dato per questa torta.",
 
+    "check.missing": "Cosa manca",
+    "check.about": "Cosa controllerebbe",
+    "precondition.observed_evidence":
+      "Nessuna osservazione in questa scansione: serve AdGuard Home configurato e raggiungibile, perché senza query log non c'è niente di osservato. Impostazioni → Connessione ad AdGuard Home.",
+    "precondition.dhcp_leases":
+      "Mancano i lease DHCP: sono l'unico posto dove un MAC e un IP compaiono insieme. Attiva il server DHCP di AdGuard Home, oppure un device tracker basato su router (AsusWRT, UniFi, Fritz) che pubblichi ip e mac.",
+    "precondition.zones_configured":
+      "Nessuna subnet configurata: Talos non sa quale rete sia la LAN di fiducia e quale la VLAN IoT. Impostazioni → Zone di rete, dove trovi anche la subnet rilevata da questa scansione.",
+    "precondition.manifests":
+      "Manifest delle integrazioni non leggibili: iot_class e is_built_in non sono affidabili in questa scansione. Di solito è transitorio, ripeti la scansione; se resta, il log di Home Assistant dice quale integrazione non risponde.",
+    "precondition.entry_endpoints":
+      "Nessuna config entry ha dichiarato a cosa si collega. Da fuori Home Assistant quei dati non sono esposti: succede con la CLI, non con l'integrazione. Se stai guardando il pannello, ripeti la scansione.",
+    "precondition.mqtt_clients":
+      "Il broker non ha fornito la lista dei client. Su EMQX 5 serve la API key; su Mosquitto serve un account con permesso di lettura su $SYS/#. Impostazioni → Account MQTT di sola lettura.",
+    "precondition.zigbee_bridge":
+      "Nessun coordinator Zigbee ha riportato il proprio stato: serve Zigbee2MQTT, che pubblica i topic bridge ritenuti su MQTT. ZHA e altri coordinator non li pubblicano, e questo controllo con loro non può girare.",
+    "precondition.entry_streams":
+      "Nessuna config entry dichiara uno stream video. Le integrazioni che negoziano l'URL alla connessione (ONVIF, Reolink) non hanno nulla di leggibile: il controllo copre solo le telecamere configurate a mano con un URL rtsp://.",
+
     "severity.high": "alta",
     "severity.medium": "media",
     "severity.low": "bassa",
@@ -1137,6 +1156,25 @@ const I18N = {
     "diag.addons.stopped": "stopped",
     "diag.addons.rate": "{rx} in · {tx} out",
     "diag.addons.noPie": "No data for this pie.",
+
+    "check.missing": "What is missing",
+    "check.about": "What it would check",
+    "precondition.observed_evidence":
+      "Nothing was observed in this scan: AdGuard Home has to be configured and reachable, because without a query log there is nothing observed. Settings, AdGuard Home connection.",
+    "precondition.dhcp_leases":
+      "No DHCP leases: they are the only place a MAC and an IP appear together. Enable AdGuard Home's DHCP server, or a router based device tracker (AsusWRT, UniFi, Fritz) that publishes ip and mac.",
+    "precondition.zones_configured":
+      "No subnet configured: Talos does not know which network is the trusted LAN and which the IoT VLAN. Settings, Network zones, where the subnet found in this scan is offered.",
+    "precondition.manifests":
+      "Integration manifests unreadable: iot_class and is_built_in are not trustworthy in this scan. Usually transient, run the scan again; if it stays, the Home Assistant log names the integration that does not answer.",
+    "precondition.entry_endpoints":
+      "No config entry declared where it connects. From outside Home Assistant that data is not exposed: this happens with the CLI, not with the integration. If you are looking at the panel, run the scan again.",
+    "precondition.mqtt_clients":
+      "The broker gave no client list. On EMQX 5 it takes the API key; on Mosquitto an account allowed to read $SYS/#. Settings, Read-only MQTT account.",
+    "precondition.zigbee_bridge":
+      "No Zigbee coordinator reported its state: it takes Zigbee2MQTT, which publishes its retained bridge topics over MQTT. ZHA and other coordinators do not, and this check cannot run with them.",
+    "precondition.entry_streams":
+      "No config entry declares a video stream. Integrations that negotiate the URL at connection time (ONVIF, Reolink) leave nothing to read: the check covers only cameras configured by hand with an rtsp:// URL.",
 
     "severity.high": "high",
     "severity.medium": "medium",
@@ -2428,14 +2466,28 @@ class TalosPanel extends HTMLElement {
     const isDeclaredCheck = (item) => String(item.id || "").startsWith("chk.");
     const notRun = checks.unverified.filter(isDeclaredCheck);
     const notes = checks.unverified.filter((item) => !isDeclaredCheck(item));
-    const card = (check) =>
-      this.expander({
+    // A skipped check leads with what is missing and where to get it, one
+    // line per unmet precondition. The finding's own description follows as
+    // context: it says what the check would look for, which is not why it
+    // did not run, and showing only that was how "missing data" came to mean
+    // nothing.
+    const card = (check) => {
+      const missing = (check.missing || []).map(
+        (name) => `<p>· ${esc(this.t(`precondition.${name}`))}</p>`
+      );
+      const body = missing.length
+        ? `<div class="exp__lab">${esc(this.t("check.missing"))}</div>${missing.join("")}
+           <div class="exp__lab">${esc(this.t("check.about"))}</div>
+           <p>${esc(this.checkText(check, "detail"))}</p>`
+        : `<div class="exp__lab">${esc(this.t("check.why"))}</div>
+           <p>${esc(this.checkText(check, "detail"))}</p>`;
+      return this.expander({
         tone: "muted",
         title: esc(this.checkText(check, "title")),
         chips: [`<span class="chip">${esc(this.t(`reason.${check.reason}`))}</span>`],
-        body: `<div class="exp__lab">${esc(this.t("check.why"))}</div>
-          <p>${esc(this.checkText(check, "detail"))}</p>`,
+        body,
       });
+    };
 
     const group = (label, dot, body, n) =>
       `<div class="exp__lab"><i style="background:${dot}"></i>${esc(label)} · ${n}</div>` +

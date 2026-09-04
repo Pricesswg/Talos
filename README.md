@@ -287,6 +287,13 @@ prints the broker's reason next to the empty list instead of leaving it looking 
 
 ### Unverified is its own category
 
+A check that could not run names the preconditions it lacked, as data and not only as prose: the
+document carries `missing: ["dhcp_leases"]` next to the English sentence, and the panel turns each
+name into what is missing and where to supply it, the settings page, the add-on to enable, the
+tracker that would provide it. A reason of "missing data" that does not say which data is no reason,
+and for a while that is what the panel showed, because it preferred the translated description of the
+finding over the reason it did not run.
+
 A check that could not run is not a pass. If AdGuard is unreachable the "local with egress" quadrant
 comes out empty because nothing was observed, not because nothing is wrong, and reporting that as
 green would be the exact failure this tool exists to avoid. Every check declares its preconditions,
