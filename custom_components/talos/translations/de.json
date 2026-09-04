@@ -1,0 +1,164 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Talos",
+        "description": "Talos zeigt, woher deine Daten kommen und wohin sie gehen.\n\nAdGuard Home ist optional. Auch ohne sagt dir Talos, was aufhört zu funktionieren, wenn das Internet ausfällt, anhand dessen, was Home Assistant über sich selbst deklariert. Welche Geräte nach außen sprechen, kann es dann nicht sagen, und der Bericht sagt das, statt die Stelle leer zu lassen.\n\nFür volle Abdeckung sollte AdGuard auch das DHCP übernehmen: die Leases sind der einzige Ort, an dem MAC und IP zusammen erscheinen, und ohne sie lässt sich eine Beobachtung keinem Gerät zuordnen.",
+        "data": {
+          "adguard_url": "URL von AdGuard Home",
+          "adguard_username": "Benutzername",
+          "adguard_password": "Passwort",
+          "verify_ssl": "SSL-Zertifikat prüfen",
+          "mqtt_host": "Broker-Adresse (optional)",
+          "mqtt_port": "Broker-Port",
+          "mqtt_username": "Broker-Benutzername",
+          "mqtt_password": "Broker-Passwort",
+          "mqtt_tls": "Broker nutzt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Wo AdGuard antwortet, zum Beispiel http://192.168.1.10:3000. Wenn du das AdGuard-Home-Add-on nutzt, nimm seinen internen Hostnamen, http://a0d7b954-adguard:3000, der einen IP-Wechsel überlebt. Nutze 127.0.0.1 nur, wenn Home Assistant im Host-Netzwerk läuft: in einem Container ist diese Adresse der Container selbst. Prüfe sie zuerst im Browser: die Adresse gefolgt von /control/status muss JSON liefern. Leer lassen, um ohne beobachtete Daten zu laufen.",
+          "adguard_username": "Leer lassen, wenn AdGuard keine Authentifizierung hat."
+        }
+      },
+      "reconfigure": {
+        "title": "Talos: Verbindung zu AdGuard Home",
+        "description": "Ändere den Endpunkt von AdGuard Home oder seine Zugangsdaten. Lass die Adresse leer, um zu einem rein deklarierten Bericht ohne die beobachtete Seite zurückzukehren.",
+        "data": {
+          "adguard_url": "URL von AdGuard Home",
+          "adguard_username": "Benutzername",
+          "adguard_password": "Passwort",
+          "verify_ssl": "SSL-Zertifikat prüfen",
+          "mqtt_host": "Broker-Adresse (optional)",
+          "mqtt_port": "Broker-Port",
+          "mqtt_username": "Broker-Benutzername",
+          "mqtt_password": "Broker-Passwort",
+          "mqtt_tls": "Broker nutzt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Wo AdGuard antwortet, zum Beispiel http://192.168.1.10:3000. Wenn du das AdGuard-Home-Add-on nutzt, nimm seinen internen Hostnamen, http://a0d7b954-adguard:3000, der einen IP-Wechsel überlebt. Nutze 127.0.0.1 nur, wenn Home Assistant im Host-Netzwerk läuft: in einem Container ist diese Adresse der Container selbst. Prüfe sie zuerst im Browser: die Adresse gefolgt von /control/status muss JSON liefern. Leer lassen, um ohne beobachtete Daten zu laufen."
+        }
+      },
+      "discovered": {
+        "title": "AdGuard Home gefunden",
+        "description": "Talos hat eine AdGuard-Home-Instanz gefunden, die unter {url} antwortet, und das Formular damit ausgefüllt. Prüfe die Werte und bestätige, oder ändere sie. Lösche die Adresse, um ohne beobachtete Daten zu laufen.",
+        "data": {
+          "adguard_url": "URL von AdGuard Home",
+          "adguard_username": "Benutzername",
+          "adguard_password": "Passwort",
+          "verify_ssl": "SSL-Zertifikat prüfen",
+          "mqtt_host": "Broker-Adresse (optional)",
+          "mqtt_port": "Broker-Port",
+          "mqtt_username": "Broker-Benutzername",
+          "mqtt_password": "Broker-Passwort",
+          "mqtt_tls": "Broker nutzt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Wo AdGuard antwortet, zum Beispiel http://192.168.1.10:3000. Wenn du das AdGuard-Home-Add-on nutzt, nimm seinen internen Hostnamen, http://a0d7b954-adguard:3000, der einen IP-Wechsel überlebt. Nutze 127.0.0.1 nur, wenn Home Assistant im Host-Netzwerk läuft: in einem Container ist diese Adresse der Container selbst. Prüfe sie zuerst im Browser: die Adresse gefolgt von /control/status muss JSON liefern. Leer lassen, um ohne beobachtete Daten zu laufen.",
+          "adguard_username": "Leer lassen, wenn AdGuard keine Authentifizierung hat."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "AdGuard Home hat unter dieser Adresse nicht geantwortet.",
+      "invalid_auth": "AdGuard Home hat diese Zugangsdaten abgelehnt.",
+      "unknown": "Unerwarteter Fehler. Sieh in die Protokolle.",
+      "mqtt_invalid_auth": "Der Broker hat diese Zugangsdaten abgelehnt.",
+      "mqtt_cannot_connect": "Der Broker war unter dieser Adresse nicht erreichbar."
+    },
+    "abort": {
+      "already_configured": "Talos ist bereits eingerichtet. Eine Instanz erfasst das ganze Haus.",
+      "reconfigure_successful": "AdGuard-Verbindung aktualisiert. Talos nutzt sie beim nächsten Scan."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Talos-Einstellungen",
+        "description": "Aufbewahrung ist nicht optional: das Abfrageprotokoll wächst um eine Zeile pro Client-und-Name-Paar, die Grenzen unten werden also bei jedem Scan durchgesetzt. Die Zeilenobergrenze ist das, was die Datenbankdatei tatsächlich begrenzt.",
+        "data": {
+          "scan_interval_minutes": "Scan-Intervall",
+          "retention_days": "Daten aufbewahren für (Tage)",
+          "auto_retention": "Automatische Dimensionierung",
+          "observation_days": "Beobachtungen vergessen nach",
+          "max_observations": "Maximal gespeicherte Beobachtungen",
+          "scan_history": "Aufbewahrte Scan-Momentaufnahmen",
+          "page_size": "Seitengröße des Abfrageprotokolls",
+          "max_pages": "Maximale Seiten pro Scan",
+          "domain_rules_path": "Datei mit zusätzlichen Domainregeln",
+          "zone_trusted_lan": "Subnetz des vertrauenswürdigen LAN",
+          "zone_iot_vlan": "Subnetz des IoT-VLAN",
+          "zone_guest": "Subnetz des Gastnetzes",
+          "check_rules_path": "Datei mit zusätzlichen Prüfungen"
+        },
+        "data_description": {
+          "retention_days": "Die eine Zahl, die zählt. Mit automatischer Dimensionierung werden die drei Grenzen unten daraus und aus der gemessenen Rate der Installation abgeleitet.",
+          "auto_retention": "An: Alter der Beobachtungen, Zeilenobergrenze und aufbewahrte Scan-Dokumente werden abgeleitet. Aus: die drei Grenzen unten gehören dir.",
+          "observation_days": "Ein vor Monaten ersetztes Gerät sollte den heutigen Bericht nicht mehr prägen.",
+          "max_observations": "Die Grenze, die die Datei begrenzt. Die ältesten Beobachtungen fallen zuerst weg.",
+          "scan_history": "Momentaufnahmen sind eine Bequemlichkeit; die Beobachtungen sind der historische Bestand.",
+          "max_pages": "Ein Budget, damit ein Scan nicht minutenlang ein volles Protokoll durchläuft.",
+          "domain_rules_path": "Absoluter Pfad zu einer JSON- oder YAML-Datei. Deine Regeln liegen über der eingebauten Liste und ersetzen sie nie.",
+          "zone_trusted_lan": "Zum Beispiel 192.168.1.0/24. Bis du es setzt, melden sich die Netzwerkzonen-Prüfungen als nicht ausführbar statt als bestanden.",
+          "zone_iot_vlan": "Mehrere Bereiche, durch Kommas getrennt. Eine Adresse, die zu keinem passt, bleibt „unbekannt“: sie wird nie als vertrauenswürdig angenommen.",
+          "check_rules_path": "Absoluter Pfad zu einer JSON- oder YAML-Datei, die die Prüfliste ersetzt. Schweregrad und Abhilfe sind Daten, kein Code."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "local_with_egress": {
+        "name": "Lokale Geräte, die nach Hause telefonieren"
+      },
+      "entities_offline": {
+        "name": "Entitäten, die offline stehenbleiben"
+      },
+      "autonomy": {
+        "name": "Offline-Autonomie"
+      },
+      "devices_talking_out": {
+        "name": "Geräte, die nach außen sprechen"
+      },
+      "unverified_checks": {
+        "name": "Nicht geprüfte Prüfungen"
+      },
+      "correlation": {
+        "name": "Korrelationsabdeckung"
+      },
+      "database_size": {
+        "name": "Datenbankgröße"
+      },
+      "last_scan": {
+        "name": "Letzter Scan"
+      },
+      "findings_high": {
+        "name": "Befunde mit hohem Schweregrad"
+      }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "name": "Blinder Fleck"
+      }
+    }
+  },
+  "services": {
+    "export_report": {
+      "name": "Bericht exportieren",
+      "description": "Schreibt den eigenständigen Bericht des letzten Scans. Das Standardziel ist config/talos/, bewusst nicht config/www/: dieses Verzeichnis wird unter /local/ ohne Authentifizierung ausgeliefert, und dieser Bericht listet Adressen, MACs und die Netzwerktopologie.",
+      "fields": {
+        "path": {
+          "name": "Pfad",
+          "description": "Relativ zum Konfigurationsverzeichnis oder absolut darin. Leer lassen für den Standard."
+        },
+        "format": {
+          "name": "Format",
+          "description": "html für eine lesbare, archivierbare Datei; json für den rohen Scan und die Ableitungen."
+        }
+      }
+    },
+    "refresh": {
+      "name": "Scan erneut ausführen",
+      "description": "Erzwingt eine neue Erfassung, ohne auf das Intervall zu warten."
+    }
+  }
+}

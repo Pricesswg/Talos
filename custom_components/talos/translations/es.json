@@ -1,0 +1,164 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Talos",
+        "description": "Talos traza de dónde vienen tus datos y adónde van.\n\nAdGuard Home es opcional. Sin él, Talos te dice igualmente qué deja de funcionar cuando se cae internet, a partir de lo que Home Assistant declara de sí mismo. No puede decirte qué dispositivos hablan con el exterior, y el informe lo dice en vez de dejarlo en blanco.\n\nPara una cobertura completa, AdGuard debería servir también el DHCP: las concesiones son el único lugar donde una MAC y una IP aparecen juntas, y sin ellas una observación no puede atribuirse a un dispositivo.",
+        "data": {
+          "adguard_url": "URL de AdGuard Home",
+          "adguard_username": "Usuario",
+          "adguard_password": "Contraseña",
+          "verify_ssl": "Verificar el certificado SSL",
+          "mqtt_host": "Dirección del broker (opcional)",
+          "mqtt_port": "Puerto del broker",
+          "mqtt_username": "Usuario del broker",
+          "mqtt_password": "Contraseña del broker",
+          "mqtt_tls": "El broker usa TLS"
+        },
+        "data_description": {
+          "adguard_url": "Dónde responde AdGuard, por ejemplo http://192.168.1.10:3000. Si usas el complemento AdGuard Home, usa su nombre de host interno, http://a0d7b954-adguard:3000, que sobrevive a un cambio de IP. No uses 127.0.0.1 salvo que Home Assistant corra en red de host: dentro de un contenedor esa dirección es el propio contenedor. Compruébalo antes en un navegador: la dirección seguida de /control/status debe devolver JSON. Déjalo vacío para funcionar sin datos observados.",
+          "adguard_username": "Déjalo vacío si AdGuard no tiene autenticación."
+        }
+      },
+      "reconfigure": {
+        "title": "Talos: conexión con AdGuard Home",
+        "description": "Cambia el punto final de AdGuard Home o sus credenciales. Deja la dirección vacía para volver a un informe solo declarado, sin el lado observado.",
+        "data": {
+          "adguard_url": "URL de AdGuard Home",
+          "adguard_username": "Usuario",
+          "adguard_password": "Contraseña",
+          "verify_ssl": "Verificar el certificado SSL",
+          "mqtt_host": "Dirección del broker (opcional)",
+          "mqtt_port": "Puerto del broker",
+          "mqtt_username": "Usuario del broker",
+          "mqtt_password": "Contraseña del broker",
+          "mqtt_tls": "El broker usa TLS"
+        },
+        "data_description": {
+          "adguard_url": "Dónde responde AdGuard, por ejemplo http://192.168.1.10:3000. Si usas el complemento AdGuard Home, usa su nombre de host interno, http://a0d7b954-adguard:3000, que sobrevive a un cambio de IP. No uses 127.0.0.1 salvo que Home Assistant corra en red de host: dentro de un contenedor esa dirección es el propio contenedor. Compruébalo antes en un navegador: la dirección seguida de /control/status debe devolver JSON. Déjalo vacío para funcionar sin datos observados."
+        }
+      },
+      "discovered": {
+        "title": "AdGuard Home encontrado",
+        "description": "Talos encontró una instancia de AdGuard Home respondiendo en {url} y rellenó el formulario con ella. Comprueba los valores y confirma, o cámbialos. Borra la dirección para funcionar sin datos observados.",
+        "data": {
+          "adguard_url": "URL de AdGuard Home",
+          "adguard_username": "Usuario",
+          "adguard_password": "Contraseña",
+          "verify_ssl": "Verificar el certificado SSL",
+          "mqtt_host": "Dirección del broker (opcional)",
+          "mqtt_port": "Puerto del broker",
+          "mqtt_username": "Usuario del broker",
+          "mqtt_password": "Contraseña del broker",
+          "mqtt_tls": "El broker usa TLS"
+        },
+        "data_description": {
+          "adguard_url": "Dónde responde AdGuard, por ejemplo http://192.168.1.10:3000. Si usas el complemento AdGuard Home, usa su nombre de host interno, http://a0d7b954-adguard:3000, que sobrevive a un cambio de IP. No uses 127.0.0.1 salvo que Home Assistant corra en red de host: dentro de un contenedor esa dirección es el propio contenedor. Compruébalo antes en un navegador: la dirección seguida de /control/status debe devolver JSON. Déjalo vacío para funcionar sin datos observados.",
+          "adguard_username": "Déjalo vacío si AdGuard no tiene autenticación."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "AdGuard Home no respondió en esa dirección.",
+      "invalid_auth": "AdGuard Home rechazó esas credenciales.",
+      "unknown": "Error inesperado. Revisa los registros.",
+      "mqtt_invalid_auth": "El broker rechazó esas credenciales.",
+      "mqtt_cannot_connect": "No se pudo alcanzar el broker en esa dirección."
+    },
+    "abort": {
+      "already_configured": "Talos ya está configurado. Una instancia traza toda la casa.",
+      "reconfigure_successful": "Conexión con AdGuard actualizada. Talos la usará en el próximo escaneo."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Ajustes de Talos",
+        "description": "La retención no es opcional: el registro de consultas crece una fila por cada par cliente-nombre, así que los límites de abajo se aplican en cada escaneo. El techo de filas es lo que realmente acota el archivo de la base de datos.",
+        "data": {
+          "scan_interval_minutes": "Intervalo de escaneo",
+          "retention_days": "Conservar los datos durante (días)",
+          "auto_retention": "Dimensionado automático",
+          "observation_days": "Olvidar las observaciones después de",
+          "max_observations": "Observaciones almacenadas como máximo",
+          "scan_history": "Instantáneas de escaneo conservadas",
+          "page_size": "Tamaño de página del registro de consultas",
+          "max_pages": "Páginas máximas por escaneo",
+          "domain_rules_path": "Archivo de reglas de dominio adicionales",
+          "zone_trusted_lan": "Subred de la LAN de confianza",
+          "zone_iot_vlan": "Subred de la VLAN IoT",
+          "zone_guest": "Subred de la red de invitados",
+          "check_rules_path": "Archivo de controles adicionales"
+        },
+        "data_description": {
+          "retention_days": "El único número que importa. Con el dimensionado automático activado, los tres límites de abajo se derivan de él y del ritmo medido de la instalación.",
+          "auto_retention": "Activado: antigüedad de las observaciones, techo de filas y documentos de escaneo conservados se derivan. Desactivado: los tres límites de abajo son tuyos.",
+          "observation_days": "Un dispositivo sustituido hace meses debería dejar de dar forma al informe de hoy.",
+          "max_observations": "El límite que acota el archivo. Las observaciones más antiguas se descartan primero.",
+          "scan_history": "Las instantáneas son una comodidad; las observaciones son el registro histórico.",
+          "max_pages": "Un presupuesto, para que un escaneo no recorra un registro cargado durante minutos.",
+          "domain_rules_path": "Ruta absoluta a un archivo JSON o YAML. Tus reglas se superponen a la lista integrada, sin sustituirla nunca.",
+          "zone_trusted_lan": "Por ejemplo 192.168.1.0/24. Hasta que la definas, los controles de zona de red se declaran no ejecutables en vez de superados.",
+          "zone_iot_vlan": "Varios rangos, separados por comas. Una dirección que no coincide con ninguno queda «desconocida»: nunca se supone de confianza.",
+          "check_rules_path": "Ruta absoluta a un archivo JSON o YAML que sustituye la lista de controles. Gravedad y remedio son datos, no código."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "local_with_egress": {
+        "name": "Dispositivos locales que llaman a casa"
+      },
+      "entities_offline": {
+        "name": "Entidades que se paran sin conexión"
+      },
+      "autonomy": {
+        "name": "Autonomía sin conexión"
+      },
+      "devices_talking_out": {
+        "name": "Dispositivos que hablan hacia fuera"
+      },
+      "unverified_checks": {
+        "name": "Controles sin verificar"
+      },
+      "correlation": {
+        "name": "Cobertura de correlación"
+      },
+      "database_size": {
+        "name": "Tamaño de la base de datos"
+      },
+      "last_scan": {
+        "name": "Último escaneo"
+      },
+      "findings_high": {
+        "name": "Hallazgos de gravedad alta"
+      }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "name": "Punto ciego"
+      }
+    }
+  },
+  "services": {
+    "export_report": {
+      "name": "Exportar el informe",
+      "description": "Escribe el informe autocontenido del último escaneo. El destino por defecto es config/talos/, deliberadamente no config/www/: ese directorio se sirve en /local/ sin autenticación y este informe lista direcciones, MAC y la topología de la red.",
+      "fields": {
+        "path": {
+          "name": "Ruta",
+          "description": "Relativa al directorio de configuración, o absoluta dentro de él. Déjala vacía para el valor por defecto."
+        },
+        "format": {
+          "name": "Formato",
+          "description": "html para un archivo legible y archivable; json para el escaneo en bruto y sus derivaciones."
+        }
+      }
+    },
+    "refresh": {
+      "name": "Volver a ejecutar el escaneo",
+      "description": "Fuerza una nueva recogida sin esperar al intervalo."
+    }
+  }
+}

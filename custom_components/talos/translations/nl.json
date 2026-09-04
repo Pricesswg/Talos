@@ -1,0 +1,164 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Talos",
+        "description": "Talos brengt in kaart waar je gegevens vandaan komen en waar ze heen gaan.\n\nAdGuard Home is optioneel. Zonder vertelt Talos nog steeds wat stopt met werken als het internet wegvalt, op basis van wat Home Assistant over zichzelf verklaart. Welke apparaten naar buiten praten kan het dan niet zeggen, en het rapport zegt dat ook, in plaats van de plek leeg te laten.\n\nVoor volledige dekking zou AdGuard ook DHCP moeten verzorgen: de leases zijn de enige plek waar een MAC en een IP samen voorkomen, en zonder die is een waarneming niet naar een apparaat te herleiden.",
+        "data": {
+          "adguard_url": "URL van AdGuard Home",
+          "adguard_username": "Gebruikersnaam",
+          "adguard_password": "Wachtwoord",
+          "verify_ssl": "SSL-certificaat controleren",
+          "mqtt_host": "Adres van de broker (optioneel)",
+          "mqtt_port": "Poort van de broker",
+          "mqtt_username": "Gebruikersnaam van de broker",
+          "mqtt_password": "Wachtwoord van de broker",
+          "mqtt_tls": "Broker gebruikt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Waar AdGuard antwoordt, bijvoorbeeld http://192.168.1.10:3000. Gebruik je de AdGuard Home add-on, neem dan zijn interne hostnaam, http://a0d7b954-adguard:3000, die een IP-wijziging overleeft. Gebruik 127.0.0.1 alleen als Home Assistant op het hostnetwerk draait: in een container is dat adres de container zelf. Controleer het eerst in een browser: het adres gevolgd door /control/status moet JSON teruggeven. Laat leeg om zonder waargenomen gegevens te draaien.",
+          "adguard_username": "Laat leeg als AdGuard geen authenticatie heeft."
+        }
+      },
+      "reconfigure": {
+        "title": "Talos: verbinding met AdGuard Home",
+        "description": "Wijzig het eindpunt van AdGuard Home of de inloggegevens. Laat het adres leeg om terug te gaan naar een rapport met alleen verklaarde gegevens, zonder de waargenomen kant.",
+        "data": {
+          "adguard_url": "URL van AdGuard Home",
+          "adguard_username": "Gebruikersnaam",
+          "adguard_password": "Wachtwoord",
+          "verify_ssl": "SSL-certificaat controleren",
+          "mqtt_host": "Adres van de broker (optioneel)",
+          "mqtt_port": "Poort van de broker",
+          "mqtt_username": "Gebruikersnaam van de broker",
+          "mqtt_password": "Wachtwoord van de broker",
+          "mqtt_tls": "Broker gebruikt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Waar AdGuard antwoordt, bijvoorbeeld http://192.168.1.10:3000. Gebruik je de AdGuard Home add-on, neem dan zijn interne hostnaam, http://a0d7b954-adguard:3000, die een IP-wijziging overleeft. Gebruik 127.0.0.1 alleen als Home Assistant op het hostnetwerk draait: in een container is dat adres de container zelf. Controleer het eerst in een browser: het adres gevolgd door /control/status moet JSON teruggeven. Laat leeg om zonder waargenomen gegevens te draaien."
+        }
+      },
+      "discovered": {
+        "title": "AdGuard Home gevonden",
+        "description": "Talos vond een AdGuard Home-instantie die antwoordt op {url} en heeft het formulier daarmee ingevuld. Controleer de waarden en bevestig, of wijzig ze. Wis het adres om zonder waargenomen gegevens te draaien.",
+        "data": {
+          "adguard_url": "URL van AdGuard Home",
+          "adguard_username": "Gebruikersnaam",
+          "adguard_password": "Wachtwoord",
+          "verify_ssl": "SSL-certificaat controleren",
+          "mqtt_host": "Adres van de broker (optioneel)",
+          "mqtt_port": "Poort van de broker",
+          "mqtt_username": "Gebruikersnaam van de broker",
+          "mqtt_password": "Wachtwoord van de broker",
+          "mqtt_tls": "Broker gebruikt TLS"
+        },
+        "data_description": {
+          "adguard_url": "Waar AdGuard antwoordt, bijvoorbeeld http://192.168.1.10:3000. Gebruik je de AdGuard Home add-on, neem dan zijn interne hostnaam, http://a0d7b954-adguard:3000, die een IP-wijziging overleeft. Gebruik 127.0.0.1 alleen als Home Assistant op het hostnetwerk draait: in een container is dat adres de container zelf. Controleer het eerst in een browser: het adres gevolgd door /control/status moet JSON teruggeven. Laat leeg om zonder waargenomen gegevens te draaien.",
+          "adguard_username": "Laat leeg als AdGuard geen authenticatie heeft."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "AdGuard Home antwoordde niet op dat adres.",
+      "invalid_auth": "AdGuard Home weigerde die inloggegevens.",
+      "unknown": "Onverwachte fout. Bekijk de logs.",
+      "mqtt_invalid_auth": "De broker weigerde die inloggegevens.",
+      "mqtt_cannot_connect": "De broker was op dat adres niet bereikbaar."
+    },
+    "abort": {
+      "already_configured": "Talos is al ingesteld. Eén instantie brengt het hele huis in kaart.",
+      "reconfigure_successful": "AdGuard-verbinding bijgewerkt. Talos gebruikt die bij de volgende scan."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Talos-instellingen",
+        "description": "Bewaren is niet optioneel: het querylog groeit met één rij per client-en-naam-paar, dus de limieten hieronder worden bij elke scan afgedwongen. Het rijenplafond is wat het databasebestand werkelijk begrenst.",
+        "data": {
+          "scan_interval_minutes": "Scaninterval",
+          "retention_days": "Gegevens bewaren gedurende (dagen)",
+          "auto_retention": "Automatisch dimensioneren",
+          "observation_days": "Waarnemingen vergeten na",
+          "max_observations": "Maximaal opgeslagen waarnemingen",
+          "scan_history": "Bewaarde scanmomentopnamen",
+          "page_size": "Paginagrootte van het querylog",
+          "max_pages": "Maximaal aantal pagina's per scan",
+          "domain_rules_path": "Bestand met extra domeinregels",
+          "zone_trusted_lan": "Subnet van het vertrouwde LAN",
+          "zone_iot_vlan": "Subnet van het IoT-VLAN",
+          "zone_guest": "Subnet van het gastnetwerk",
+          "check_rules_path": "Bestand met extra controles"
+        },
+        "data_description": {
+          "retention_days": "Het ene getal dat telt. Met automatisch dimensioneren aan worden de drie limieten hieronder daaruit en uit het gemeten tempo van de installatie afgeleid.",
+          "auto_retention": "Aan: leeftijd van waarnemingen, rijenplafond en bewaarde scandocumenten worden afgeleid. Uit: de drie limieten hieronder zijn van jou.",
+          "observation_days": "Een apparaat dat maanden geleden is vervangen hoort het rapport van vandaag niet meer te bepalen.",
+          "max_observations": "De limiet die het bestand begrenst. De oudste waarnemingen vallen het eerst weg.",
+          "scan_history": "Momentopnamen zijn een gemak; de waarnemingen zijn het historische archief.",
+          "max_pages": "Een budget, zodat één scan niet minutenlang door een druk log loopt.",
+          "domain_rules_path": "Absoluut pad naar een JSON- of YAML-bestand. Jouw regels komen bovenop de ingebouwde lijst en vervangen die nooit.",
+          "zone_trusted_lan": "Bijvoorbeeld 192.168.1.0/24. Tot je het instelt, melden de netwerkzonecontroles zich als niet uitvoerbaar in plaats van geslaagd.",
+          "zone_iot_vlan": "Meerdere bereiken, gescheiden door komma's. Een adres dat bij geen enkel past blijft 'onbekend': het wordt nooit als vertrouwd aangenomen.",
+          "check_rules_path": "Absoluut pad naar een JSON- of YAML-bestand dat de controlelijst vervangt. Ernst en remedie zijn gegevens, geen code."
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "local_with_egress": {
+        "name": "Lokale apparaten die naar huis bellen"
+      },
+      "entities_offline": {
+        "name": "Entiteiten die offline stoppen"
+      },
+      "autonomy": {
+        "name": "Offline-autonomie"
+      },
+      "devices_talking_out": {
+        "name": "Apparaten die naar buiten praten"
+      },
+      "unverified_checks": {
+        "name": "Niet-geverifieerde controles"
+      },
+      "correlation": {
+        "name": "Correlatiedekking"
+      },
+      "database_size": {
+        "name": "Databasegrootte"
+      },
+      "last_scan": {
+        "name": "Laatste scan"
+      },
+      "findings_high": {
+        "name": "Bevindingen met hoge ernst"
+      }
+    },
+    "binary_sensor": {
+      "blind_spot": {
+        "name": "Blinde vlek"
+      }
+    }
+  },
+  "services": {
+    "export_report": {
+      "name": "Rapport exporteren",
+      "description": "Schrijft het zelfstandige rapport van de laatste scan. Het standaarddoel is config/talos/, bewust niet config/www/: die map wordt onder /local/ zonder authenticatie aangeboden en dit rapport somt adressen, MAC's en netwerktopologie op.",
+      "fields": {
+        "path": {
+          "name": "Pad",
+          "description": "Relatief ten opzichte van de configuratiemap, of absoluut daarbinnen. Laat leeg voor de standaard."
+        },
+        "format": {
+          "name": "Formaat",
+          "description": "html voor een leesbaar, archiveerbaar bestand; json voor de ruwe scan en afleidingen."
+        }
+      }
+    },
+    "refresh": {
+      "name": "Scan opnieuw uitvoeren",
+      "description": "Dwingt een nieuwe verzameling af zonder op het interval te wachten."
+    }
+  }
+}

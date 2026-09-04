@@ -667,10 +667,17 @@ Point at your own file from the integration options, or with `--domains` and `--
 
 ## Translations
 
-The integration UI is available in English and Italian, selectable from Settings, Language. English
-is the source language and the fallback: a new string that has not been translated yet shows up in
-English rather than breaking. The panel carries its own string table with the same two languages, and
-a test fails if the two tables ever drift apart.
+The integration UI is available in English, Italian, French, German, Spanish, Dutch, Polish and
+Portuguese. English is the source language and the fallback: a new string that has not been translated
+yet shows up in English rather than breaking.
+
+The config flow and the entity names follow the Home Assistant language through the usual
+`translations/<lang>.json` files. The panel has its own tables, one per language, in
+`www/i18n/<lang>.json`: it fetches English at start and the active language next to it, and nothing
+else, so a browser never downloads seven tables to read one. The language follows Home Assistant and can
+be overridden from Settings, Language, for that browser only. The check copy in `checks.json` stays the
+canonical English text; every table carries its translation, and a test fails if any table drifts from
+the English keys, drops a placeholder, or ships a language the panel does not offer.
 
 ## Architecture
 

@@ -86,7 +86,9 @@
           "zone_trusted_lan": "Trusted LAN subnet",
           "zone_iot_vlan": "IoT VLAN subnet",
           "zone_guest": "Guest network subnet",
-          "check_rules_path": "Extra posture checks file"
+          "check_rules_path": "Extra posture checks file",
+          "retention_days": "Keep data for (days)",
+          "auto_retention": "Auto sizing"
         },
         "data_description": {
           "observation_days": "A device replaced months ago should stop shaping today's report.",
@@ -96,7 +98,9 @@
           "domain_rules_path": "Absolute path to a JSON or YAML file. Your rules are layered on top of the built-in list, never replacing it.",
           "zone_trusted_lan": "For example 192.168.1.0/24. Until you set it, the network-zone checks report themselves as not runnable rather than passing.",
           "zone_iot_vlan": "Several ranges, comma separated. An address matching none of them stays 'unknown': it is never assumed to be trusted.",
-          "check_rules_path": "Absolute path to a JSON or YAML file replacing the check list. Severity and remediation are data, not code."
+          "check_rules_path": "Absolute path to a JSON or YAML file replacing the check list. Severity and remediation are data, not code.",
+          "retention_days": "The one number that matters. With auto sizing on, the three limits below are derived from it and from the install's measured rate.",
+          "auto_retention": "On: observation age, row ceiling and scan documents kept are derived. Off: the three limits below are yours."
         }
       }
     }

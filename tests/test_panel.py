@@ -61,21 +61,29 @@ def editable_options() -> set[str]:
     return {constants[name] for name in (*numeric, *text, *flags)}
 
 
+I18N_DIR = PANEL.parent / "i18n"
+
+
+def strings(language: str) -> dict[str, str]:
+    """One language table, as the panel fetches it."""
+    return json.loads((I18N_DIR / f"{language}.json").read_text(encoding="utf-8"))
+
+
 def table(language: str) -> set[str]:
-    """Pull one language block out of the I18N object."""
-    start = SOURCE.index(f"\n  {language}: {{")
-    depth = 0
-    for index in range(start, len(SOURCE)):
-        if SOURCE[index] == "{":
-            depth += 1
-        elif SOURCE[index] == "}":
-            depth -= 1
-            if depth == 0:
-                block = SOURCE[start : index + 1]
-                break
-    else:  # pragma: no cover - the file would be unparseable
-        raise AssertionError(f"language block {language} not found")
-    return set(re.findall(r'^\s{4}"([\w.]+)":', block, re.MULTILINE))
+    return set(strings(language))
+
+
+def languages() -> list[str]:
+    """The codes the panel offers, read from its LANGUAGES constant."""
+    block = re.search(r"const LANGUAGES = \{(.*?)\};", SOURCE, re.S)
+    assert block
+    return re.findall(r"^\s+(\w+):", block.group(1), re.M)
+
+
+def ui_keys(keys: set[str]) -> set[str]:
+    # Check copy is authored in checks.json, in English, and stays canonical:
+    # checkText() falls back to the document when a language has no entry.
+    return {key for key in keys if not key.startswith(("chk.", "unv."))}
 
 
 class TestTranslations(unittest.TestCase):
@@ -83,29 +91,60 @@ class TestTranslations(unittest.TestCase):
         self.it = table("it")
         self.en = table("en")
 
-    def test_both_languages_are_complete(self) -> None:
-        self.assertTrue(self.it, "the Italian table is empty")
-        # Check copy is authored in checks.json, in English, and that stays
-        # the canonical text: checkText() falls back to the document itself
-        # when a language has no entry. So an English key here would only
-        # duplicate the document, and its absence renders nothing raw.
-        ui_it = {key for key in self.it if not key.startswith(("chk.", "unv."))}
-        ui_en = {key for key in self.en if not key.startswith(("chk.", "unv."))}
-        self.assertEqual(
-            ui_it ^ ui_en,
-            set(),
-            "these keys exist in one language only and would render raw",
-        )
+    def test_every_language_carries_the_english_keys(self) -> None:
+        self.assertTrue(self.en, "the English table is empty")
+        for code in languages():
+            if code == "en":
+                continue
+            with self.subTest(language=code):
+                self.assertEqual(
+                    ui_keys(table(code)) ^ ui_keys(self.en),
+                    set(),
+                    "these keys exist in one language only and would render raw",
+                )
+
+    def test_every_language_offered_has_a_file_and_vice_versa(self) -> None:
+        offered = set(languages())
+        shipped = {path.stem for path in I18N_DIR.glob("*.json")}
+        self.assertEqual(offered, shipped)
+        self.assertIn("en", offered)
+
+    def test_placeholders_survive_translation(self) -> None:
+        """A {n} the translator dropped would print the number nowhere."""
+        en = strings("en")
+        for code in languages():
+            if code == "en":
+                continue
+            other = strings(code)
+            for key, text in en.items():
+                if key not in other:
+                    continue
+                with self.subTest(language=code, key=key):
+                    self.assertEqual(
+                        set(re.findall(r"\{(\w+)\}", text)),
+                        set(re.findall(r"\{(\w+)\}", other[key])),
+                    )
+
+    def test_no_dashes_in_any_table(self) -> None:
+        for code in languages():
+            for key, text in strings(code).items():
+                with self.subTest(language=code, key=key):
+                    self.assertNotRegex(text, "[\u2013\u2014]")
 
     def test_every_check_is_translated(self) -> None:
         """The whole point of the fallback is that it never has to be used."""
         checks = json.loads(
             (ROOT / "talos_core" / "data" / "checks.json").read_text(encoding="utf-8")
         )["checks"]
-        for check in checks:
-            for field in ("title", "detail", "remediation"):
-                if field in check or (field == "detail" and "unverifiable" in check):
-                    self.assertIn(f"{check['id']}.{field}", self.it, check["id"])
+        for code in languages():
+            if code == "en":
+                continue
+            keys = table(code)
+            for check in checks:
+                for field in ("title", "detail", "remediation"):
+                    if field in check or (field == "detail" and "unverifiable" in check):
+                        with self.subTest(language=code, check=check["id"], field=field):
+                            self.assertIn(f"{check['id']}.{field}", keys)
 
     def test_every_static_key_is_defined(self) -> None:
         used = set(re.findall(r'this\.t\(\s*"([\w.]+)"', SOURCE))
@@ -362,6 +401,12 @@ class TestNoExternalResources(unittest.TestCase):
         # everything else that looks like a URL would be a real dependency.
         self.assertIn(SVG_NAMESPACE, SOURCE)
         body = SOURCE.replace(SVG_NAMESPACE, "")
+        # The one fetch the panel makes is for its own language tables, sibling
+        # files resolved against the script's own URL: not a network dependency.
+        loader = re.search(r"function loadLanguage\(code\) \{.*?\n\}\n", body, re.S)
+        assert loader, "loadLanguage not found"
+        self.assertIn("new URL(`i18n/${code}.json`, import.meta.url)", loader.group(0))
+        body = body.replace(loader.group(0), "")
         for marker in ("http://", "https://", "//cdn", "import(", "fetch("):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, body)

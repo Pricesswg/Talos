@@ -353,12 +353,15 @@ class TestMissingPreconditionsAreNamed(unittest.TestCase):
         without a string would render a key to the user."""
         from talos_core.checks import PRECONDITION_REASONS
 
-        source = (
-            Path(__file__).resolve().parent.parent / "custom_components" / "talos" / "www" / "talos-panel.js"
-        ).read_text(encoding="utf-8")
+        import json
+
+        i18n = Path(__file__).resolve().parent.parent / "custom_components" / "talos" / "www" / "i18n"
+        tables = {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in i18n.glob("*.json")}
+        self.assertIn("en", tables)
         for name in PRECONDITION_REASONS:
-            with self.subTest(precondition=name):
-                self.assertEqual(source.count(f'"precondition.{name}"'), 2, "one per language")
+            for code, table in tables.items():
+                with self.subTest(precondition=name, language=code):
+                    self.assertIn(f"precondition.{name}", table)
 
 
 class TestCleartextStreamCoverage(unittest.TestCase):

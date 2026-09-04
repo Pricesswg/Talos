@@ -86,7 +86,9 @@
           "zone_trusted_lan": "Subnet della LAN di fiducia",
           "zone_iot_vlan": "Subnet della VLAN IoT",
           "zone_guest": "Subnet della rete ospiti",
-          "check_rules_path": "File di controlli aggiuntivi"
+          "check_rules_path": "File di controlli aggiuntivi",
+          "retention_days": "Conserva i dati per (giorni)",
+          "auto_retention": "Dimensionamento automatico"
         },
         "data_description": {
           "observation_days": "Un dispositivo sostituito mesi fa non deve più pesare sul report di oggi.",
@@ -96,7 +98,9 @@
           "domain_rules_path": "Percorso assoluto a un file JSON o YAML. Le tue regole si aggiungono a quelle predefinite, non le sostituiscono.",
           "zone_trusted_lan": "Per esempio 192.168.1.0/24. Finché non la indichi, i controlli sulle zone di rete si dichiarano non eseguibili invece di risultare superati.",
           "zone_iot_vlan": "Più intervalli separati da virgola. Un indirizzo che non ricade in nessuno resta 'sconosciuto': non viene mai dato per fidato.",
-          "check_rules_path": "Percorso assoluto a un file JSON o YAML che sostituisce l'elenco dei controlli. Severità e correzioni sono dati, non codice."
+          "check_rules_path": "Percorso assoluto a un file JSON o YAML che sostituisce l'elenco dei controlli. Severità e correzioni sono dati, non codice.",
+          "retention_days": "L'unico numero che conta. Con il dimensionamento automatico acceso, i tre limiti qui sotto si ricavano da questo e dal ritmo misurato dell'impianto.",
+          "auto_retention": "Acceso: età delle osservazioni, tetto di righe e documenti di scansione sono derivati. Spento: i tre limiti qui sotto li imposti tu."
         }
       }
     }

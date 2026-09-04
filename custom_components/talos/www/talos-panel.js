@@ -14,1360 +14,65 @@
  */
 
 /* ── strings ──────────────────────────────────────────────────────────────
- * Both languages carry the same keys; a test fails if they drift apart. The
- * wording is part of the product: it states facts and their evidence, and
- * never a verdict the data cannot support.
+ * Every language carries the same keys as English; a test fails if they
+ * drift apart. The wording is part of the product: it states facts and their
+ * evidence, and never a verdict the data cannot support.
  */
-const I18N = {
-  it: {
-    "app.subtitle": "ultima scansione {when}",
-    "app.never": "mai",
-    "app.loading": "Caricamento…",
-    "app.refresh": "Ripeti la scansione",
-    "mode.base": "Base",
-    "mode.advanced": "Avanzata",
+const I18N = {};
 
-    "base.title": "Panoramica di sicurezza",
-    "base.lead":
-      "Due misure indipendenti, tenute separate perché richiedono interventi diversi: la continuità del sistema in assenza di connettività, e le comunicazioni dei dispositivi verso destinazioni esterne.",
-    "base.offline.label": "Continuità offline",
-    "base.offline.unit": "/{total} entità",
-    "base.offline.stops": "<strong>{n} entità</strong> cessano di funzionare.",
-    "base.offline.none": "Nessuna entità dipende da servizi cloud.",
-    "base.offline.unclassified": "{n} non classificate.",
-    "base.exposure.label": "Comunicazioni esterne",
-    "base.exposure.unit": "/{total} dispositivi",
-    "base.exposure.local":
-      "<strong>{n}</strong> risultano locali a Home Assistant ma contattano comunque il produttore.",
-    "base.exposure.none": "Nessun dispositivo locale risulta contattare il produttore.",
-    "base.exposure.inherited": "{n} esposti tramite un hub.",
-    "base.unverified.label": "Controlli non eseguibili",
-    "base.unverified.unit": "controlli",
-    "base.unverified.note":
-      "Non superati e non falliti: i dati disponibili non consentono di esprimersi. <strong>Non vanno conteggiati fra gli esiti positivi.</strong>",
-    "base.findings": "Problematiche principali",
-
-    "banner.declared":
-      "<strong>Solo dati dichiarati.</strong> {reason}. Questa scansione contiene ciò che Home Assistant dichiara di sé: nessuna colonna “parlano fuori casa” è stata verificata, quindi le caselle vuote non significano assenza di traffico.",
-    "banner.noAdguard": "AdGuard Home non è configurato",
-
-    "find.contacted": " Contattati: <strong>{list}</strong>.",
-    "find.queries": "{n} query",
-    "find.severity": "severità {level}",
-    "find.offline.title": "Dipendenza da {vendor} in assenza di connettività",
-    "find.offline.body":
-      "In assenza di connettività cessano di funzionare {list}. È il comportamento previsto di questi servizi.",
-    "find.offline.entities": "{n} entità ({vendor})",
-    "find.offline.do":
-      "<b>Nessun intervento necessario.</b> Da valutare solo se una di queste entità concorre a una funzione critica, per esempio un allarme allagamento.",
-    "find.clean.title": "Nessun rilievo di severità alta o media",
-    "find.clean.body":
-      "{passed} controlli superati. <strong>{unverified} non erano eseguibili</strong> e non concorrono all'esito.",
-
-    "adv.title": "Provenienza e destinazione dei dati",
-    "adv.lead":
-      "Ogni riga è etichettata con la sua prova. {declared} viene dal registry di Home Assistant, {observed} dal query log, {inherited} dal comportamento di un hub padre.",
-    "adv.matrix": "Matrice",
-    "adv.matrix.head": "Classe HA / rete",
-    "adv.matrix.silent": "Nessun egress osservato",
-    "adv.matrix.egress": "Egress osservato",
-    "adv.matrix.local": "Locale",
-    "adv.matrix.cloud": "Cloud",
-    "adv.matrix.unclassified": "Non classificati",
-    "adv.matrix.unclassifiedSub": "iot_class assente",
-    "adv.cell.localSilent": "Nessuna richiesta verso l'esterno osservata.",
-    "adv.cell.localEgress":
-      "Comandati localmente, ma osservati risolvere domini del produttore per conto proprio.",
-    "adv.cell.cloudSilent": "Dichiarati cloud ma silenziosi. Da indagare, non è un merito.",
-    "adv.cell.cloudEgress": "Dipendenza dichiarata e confermata.",
-    "adv.cell.unclassified":
-      "Manifest non leggibile: non contati né fra i locali né fra i cloud.",
-    "adv.correlation":
-      "Correlati <strong class=\"mono\">{done}/{total}</strong> dispositivi ({pct}%, metodo <span class=\"mono\">{method}</span>). I non correlati potrebbero avere egress non osservabile: la casella in alto a destra è un <em>minimo</em>, non un totale.",
-    "adv.correlation.infra":
-      " {n} dispositivi hanno contattato solo servizi di orario o aggiornamento: restano nella colonna silenziosa.",
-    "adv.correlation.inherited":
-      " {n} dispositivi risultano esposti tramite un hub e sono tenuti fuori dai quadranti.",
-    "adv.flows": "Flussi",
-    "adv.checks": "Controlli",
-    "adv.checks.none": "Nessun rilievo.",
-    "adv.checks.passed": "superato",
-    "adv.conduits": "Condotti",
-    "adv.conduits.none": "Nessun condotto in questa scansione.",
-    "adv.unverified": "Non verificato",
-    "adv.unverified.none": "Tutti i controlli erano eseguibili.",
-
-    "col.devices": "Dispositivi",
-    "col.integrations": "Integrazioni",
-    "col.transport": "Trasporto",
-    "col.integration": "Integrazione",
-    "col.destination": "Destinazione",
-    "graph.grouped": "raggruppati per integrazione: {n} dispositivi",
-    "graph.hidden": "+{n} dispositivi senza condotti non disegnati",
-    "graph.empty": "Nessun flusso da disegnare: questa scansione non contiene osservazioni, quindi non ci sono destinazioni note.",
-    "graph.devices": "{n} dispositivi",
-
-    "legend.infra": "infrastruttura",
-    "legend.vendor": "cloud produttore",
-    "legend.solid": "Linea continua: collegamento dichiarato, dentro casa. Tratteggiata: osservata nel query log.",
-    "legend.tunnel": "tunnel e NAT traversal",
-    "legend.unknown": "non classificato",
-    "legend.inside": "dentro casa:",
-    "legend.key": "locale con egress",
-
-    "table.origin": "Origine",
-    "table.destination": "Destinazione",
-    "table.protocol": "Protocollo",
-    "table.kind": "Tipo",
-    "table.evidence": "Prova",
-    "table.queries": "Query",
-    "table.filter": "Filtro",
-    "table.noDevice": "nessun device",
-    "table.unknownHost": "Host non identificato",
-    "table.core": "core",
-
-    "mode.settings": "Impostazioni",
-    "settings.title": "Impostazioni",
-    "settings.lead":
-      "Parametri di raccolta e ritenzione. Le modifiche vengono applicate alla scansione successiva e comportano un ricaricamento dell'integrazione.",
-    "settings.section.language": "Lingua",
-    "settings.section.connection": "Connessione ad AdGuard Home",
-    "settings.section.collection": "Raccolta",
-    "settings.section.retention": "Ritenzione dei dati",
-    "settings.section.zones": "Zone di rete",
-    "settings.section.rules": "File di regole",
-    "settings.section.system": "Sistema",
-    "settings.language.auto": "Automatica (segue Home Assistant)",
-    "settings.language.hint":
-      "La scelta vale solo per questo browser. L'interfaccia dell'integrazione segue invece la lingua di Home Assistant.",
-    "settings.connection.hint":
-      "Indirizzo e credenziali non sono modificabili da qui. Si cambiano da Impostazioni, Dispositivi e servizi, Talos, menu a tre puntini, Riconfigura: la password non transita mai da questa pagina.",
-    "settings.connection.none": "Non configurata: il report resta solo dichiarativo.",
-    "settings.connection.url": "Indirizzo",
-    "settings.connection.user": "Utente",
-    "settings.connection.password": "Password",
-    "settings.connection.ssl": "Verifica certificato SSL",
-    "settings.value.set": "impostata",
-    "settings.value.unset": "non impostata",
-    "settings.value.yes": "si",
-    "settings.value.no": "no",
-    "settings.value.empty": "non impostato",
-    "settings.save": "Salva",
-    "settings.saving": "Salvataggio in corso",
-    "settings.saved": "Impostazioni salvate. Ricaricamento dell'integrazione in corso.",
-    "settings.error": "Salvataggio non riuscito: {reason}",
-    "settings.range": "da {min} a {max}",
-    "opt.scan_interval_minutes": "Intervallo di scansione (minuti)",
-    "opt.page_size": "Record per pagina del query log",
-    "opt.max_pages": "Pagine massime per scansione",
-    "opt.observation_days": "Dimentica le osservazioni dopo (giorni)",
-    "opt.max_observations": "Osservazioni massime conservate",
-    "opt.scan_history": "Snapshot di scansione conservati",
-    "opt.zone_trusted_lan": "Subnet della LAN di fiducia",
-    "opt.zone_iot_vlan": "Subnet della VLAN IoT",
-    "opt.zone_guest": "Subnet della rete ospiti",
-    "opt.domain_rules_path": "File di regole domini aggiuntive",
-    "opt.check_rules_path": "File di controlli alternativo",
-    "opt.hint.max_observations":
-      "È questo il limite che tiene a bada la dimensione del database.",
-    "opt.hint.zone_trusted_lan":
-      "Uno o più intervalli CIDR separati da virgola, per esempio 192.168.50.0/24. Finché restano vuoti, i controlli sulle zone si dichiarano non eseguibili invece di risultare superati.",
-    "opt.hint.domain_rules_path":
-      "Percorso assoluto a un file JSON o YAML. Le regole si aggiungono a quelle predefinite, non le sostituiscono.",
-    "settings.system.ha": "Versione di Home Assistant",
-    "settings.system.collector": "Modalità di raccolta",
-    "settings.system.lastScan": "Ultima scansione",
-    "settings.system.observations": "Osservazioni memorizzate",
-    "settings.system.oldest": "Osservazione più vecchia",
-    "settings.system.dbSize": "Dimensione del database",
-    "settings.system.pruned": "Righe rimosse all'ultima potatura",
-    "mode.map": "Mappa",
-    "map.title": "Mappa dei collegamenti",
-    "map.lead":
-      "Come i dispositivi arrivano a Home Assistant, raggruppati per trasporto e per integrazione. Questa vista usa solo dati dichiarati dal registry: non richiede AdGuard e non dipende dalle osservazioni.",
-    "map.summary": "{devices} dispositivi · {integrations} integrazioni · {transports} trasporti",
-    "map.devices": "{n} dispositivi",
-    "map.entities": "{n} entita'",
-    "map.hubs": "Hub e dispositivi collegati",
-    "map.hubs.lead":
-      "Dispositivi che ne servono altri. Un figlio non ha un indirizzo proprio: raggiunge la rete attraverso il padre, ed e' da li' che eredita la propria esposizione.",
-    "map.hub.children": "{n} collegati",
-    "map.empty": "Nessun dispositivo nel registry.",
-    "map.noHubs": "Nessuna gerarchia via_device dichiarata dalle integrazioni.",
-    "map.showDevices": "Mostra i dispositivi",
-    "transport.zigbee": "Zigbee",
-    "transport.zwave": "Z-Wave",
-    "transport.wifi": "Wi-Fi",
-    "transport.ethernet": "Ethernet",
-    "transport.thread": "Thread",
-    "transport.matter": "Matter",
-    "transport.ble": "Bluetooth LE",
-    "transport.virtual": "Virtuale",
-    "transport.unknown": "Non determinato",
-    "map.search": "Cerca un dispositivo o un'integrazione",
-    "map.reset": "Reimposta la vista",
-    "map.legend.core": "Home Assistant",
-    "map.legend.transport": "Trasporto",
-    "map.legend.integration": "Integrazione",
-    "map.legend.device": "Dispositivo",
-    "map.legend.hub": "Hub con dispositivi collegati",
-    "map.truncated": "+{n} non disegnati",
-    "map.fullList": "Elenco completo per trasporto",
-    "map.matches": "{n} corrispondenze",
-    "map.noMatches": "Nessuna corrispondenza",
-    "map.detail": "Dettaglio",
-    "map.detail.less": "Meno dettaglio",
-    "map.detail.more": "Piu' dettaglio",
-    "map.detail.1": "Trasporti",
-    "map.detail.2": "Integrazioni",
-    "map.detail.3": "Dispositivi",
-    "map.zoomHint": "Le etichette dei dispositivi compaiono avvicinando lo zoom.",
-    "map.filters": "Filtra per trasporto",
-    "map.all": "Tutti",
-    "map.scope.transport": "Solo {name}",
-    "map.scope.integration": "Solo i dispositivi di {name}",
-    "map.clearScope": "Rimuovi il filtro",
-    "map.click.integration": "Clicca un'integrazione per isolarne i dispositivi.",
-    "map.filtered": "{n} dispositivi corrispondono",
-    "map.origins": "Sorgenti",
-    "map.origin.own": "diretto",
-    "map.legend.origin": "Sorgente dei dati",
-    "map.legend.bridge": "Collegamento fra integrazioni",
-    "map.bridges": "{n} collegamenti fra integrazioni",
-    "flows.undisclosed": "host non dichiarato",
-    "flows.declaredNote":
-      "Senza query log restano le sole dipendenze dichiarate dai manifest: si sa che l'integrazione ha bisogno di un servizio esterno, non a quale host si rivolge. Gli archi tratteggiati compariranno quando ci saranno osservazioni.",
-    "role.aggregator": "Aggregatore",
-    "role.streaming": "Streaming",
-    "role.unknown": "",
-    "map.roles": "Filtra per ruolo",
-    "map.scope.role": "Solo {name}",
-    "section.collapse": "Comprimi o espandi",
-    "state.notLoaded": "non caricata",
-    "base.offline.unavailable":
-      "<strong>{n} entità</strong> non sono disponibili adesso: la loro integrazione non è caricata, quindi non funzionano né con internet né senza.",
-    "transport.ip": "Rete IP",
-
-    "base.checks": "Controlli eseguiti",
-    "base.checks.lead":
-      "Verde è superato. Rosso o ambra è un rilievo, col suo colore di severità. Blu è verificato in parte: ha girato, non ha trovato niente fra ciò che vedeva, e nomina ciò che non ha potuto ispezionare. Grigio è non eseguibile, che non è un esito: dice cosa manca per farlo girare.",
-    "base.checks.total":
-      "{total} controlli dichiarati: {passed} superati, {partial} verificati in parte, {failed} con rilievi, {notrun} non eseguibili. Oltre a questi, {notes} limiti della raccolta, che non sono controlli e non concorrono ad alcun esito.",
-    "checks.group.notes": "Limiti della raccolta",
-    "adv.inventory": "Integrazioni",
-    "adv.inventory.lead":
-      "Tutto quello che Talos ricava dal registry per ogni config entry, senza interrogare nulla: cosa dichiara il manifest, in che stato è la entry, a quale indirizzo dice di collegarsi e che cosa le appartiene.",
-    "inv.class": "iot_class dichiarata",
-    "inv.role": "Ruolo",
-    "inv.state": "Stato della entry",
-    "inv.endpoint": "Indirizzo dichiarato",
-    "inv.origin": "Sistemi che pubblicano su questa entry",
-    "inv.source": "Provenienza",
-    "inv.source.builtin": "inclusa in Home Assistant",
-    "inv.source.custom": "installata a mano o via HACS",
-    "inv.counts": "{devices} dispositivi · {entities} entità",
-    "inv.none": "non dichiarato",
-    "base.unverified.notes":
-      "Elencati a parte anche <strong>{n} limiti della raccolta</strong>: punti in cui i dati non arrivano, che non sono controlli.",
-    "base.checks.tally.passed": "superati",
-    "base.checks.tally.failed": "con rilievi",
-    "base.checks.tally.unverified": "non eseguibili",
-    "checks.group.failed": "Con rilievi",
-    "checks.group.partial": "Verificati in parte",
-    "base.checks.tally.partial": "verificati in parte",
-    "check.partial": "parziale",
-    "check.partialBody":
-      "Il controllo ha girato e fra quello che poteva vedere non ha trovato niente. Quello che non ha potuto ispezionare è elencato qui sotto: non è un superato, è un superato con un buco dichiarato.",
-    "checks.group.passed": "Superati",
-    "checks.group.unverified": "Non eseguibili",
-    "check.subjects": "Elementi interessati",
-    "check.do": "Cosa fare",
-    "check.why": "Perché non è stato eseguito",
-    "check.passedBody":
-      "Eseguito su questa scansione senza rilievi. Vale per i dati di questa scansione, non è una garanzia permanente.",
-    "check.none": "Nessuno.",
-    "check.expandHint": "Clicca una voce per vedere il dettaglio e gli elementi coinvolti.",
-
-    "evidence.how": "Come lo so",
-    "evidence.how.body":
-      "Chi contatta il produttore non viene stabilito con sonde: Talos legge il query log di AdGuard Home, associa l'IP del client al dispositivo tramite i lease DHCP e classifica il dominio richiesto. Nessuna porta viene scansionata e nessun contenuto viene ispezionato: si sa <strong>quale nome è stato risolto</strong>, non cosa è stato detto.",
-    "evidence.blocked.adguard":
-      "Questa sezione resta vuota perché AdGuard Home non è raggiungibile. Senza query log non esiste alcuna osservazione, e una casella vuota non significa assenza di traffico.",
-    "evidence.blocked.correlation":
-      "Il query log è leggibile ma nessun dispositivo è correlato a un indirizzo IP: senza lease DHCP le richieste restano attribuite a host sconosciuti. Attiva il server DHCP di AdGuard Home oppure fornisci i lease del router.",
-    "evidence.blocked.partial":
-      "Correlati {done} dispositivi su {total}. Su quelli non correlati un eventuale traffico verso il produttore non è visibile, quindi questo elenco è un minimo.",
-    "evidence.blocked.silent":
-      "Query log leggibile e dispositivi correlati: in questa finestra nessuno ha risolto domini classificati come cloud del produttore.",
-
-    "chk.local_with_egress.title": "Dispositivo locale che contatta il cloud del produttore",
-    "chk.local_with_egress.detail":
-      "Home Assistant li comanda localmente, ma il query log li ha visti risolvere domini del produttore per conto proprio. Questo dice con chi hanno parlato, non che cosa si sono detti.",
-    "chk.local_with_egress.remediation":
-      "Cerca nell'app del produttore il servizio cloud che gira in parallelo, spesso chiamato P2P, UID o accesso remoto. Disattivarlo non compromette il controllo locale da Home Assistant.",
-    "chk.nat_traversal.title": "Dispositivo che si apre una via di rientro dall'esterno",
-    "chk.nat_traversal.detail":
-      "Questi dispositivi hanno risolto un server STUN o TURN, oppure un tunnel broker. Su quelli non ci naviga nessuno: sono quello che un dispositivo chiede quando vuole una via di rientro in casa che non passa dalle regole del tuo router. È così che l'app del produttore raggiunge una telecamera dall'altra parte del mondo, e funziona che tu abbia aperto una porta o no.",
-    "chk.nat_traversal.remediation":
-      "Se è un tunnel che hai messo su tu, Cloudflare, Tailscale, ZeroTier, è roba tua e non c'è niente da sistemare. Se è una telecamera o un elettrodomestico, cerca accesso remoto, P2P o UID nella sua app e disattivalo: il controllo locale da Home Assistant non ne dipende. Bloccare il dominio sul resolver ferma la risoluzione, non un indirizzo scritto nel firmware.",
-    "chk.resolver_bypass.title": "Dispositivo che aggira il resolver",
-    "chk.resolver_bypass.detail":
-      "Ha un lease DHCP ma non ha mai interrogato AdGuard: usa un server DNS scritto nel firmware. Su questo host ogni controllo basato sul DNS è cieco.",
-    "chk.resolver_bypass.remediation":
-      "Imposta il DNS di rete sul dispositivo, se lo consente. Altrimenti reindirizza la porta 53 sul router. Il DNS over HTTPS resta comunque fuori portata.",
-    "chk.integration_not_loaded.title": "Integrazione non caricata",
-    "chk.integration_not_loaded.detail":
-      "La config entry non è caricata, quindi le sue entità sono non disponibili adesso. Non è una questione di autonomia offline: non funzionano né con connettività né senza. Un broker fermo, un servizio che ha cambiato indirizzo o una migrazione fallita si presentano tutti così.",
-    "chk.integration_not_loaded.remediation":
-      "Apri Impostazioni, Dispositivi e servizi e leggi l'errore della entry. Se cita un broker o un server, verifica che il servizio sia effettivamente avviato e che l'indirizzo corrisponda ancora: un add-on fermato o rinominato è il caso più comune.",
-    "chk.zigbee_permit_join.title": "Rete Zigbee aperta all'accoppiamento",
-    "chk.zigbee_permit_join.detail":
-      "Il coordinator sta accettando nuovi dispositivi adesso. È lo stato giusto per il minuto che serve ad accoppiare qualcosa e quello sbagliato per tutto il resto del tempo: finché è aperta, qualunque cosa a portata radio che chieda di entrare viene fatta entrare.",
-    "chk.zigbee_permit_join.remediation":
-      "Disattiva l'accoppiamento da Zigbee2MQTT, dalla dashboard oppure pubblicando false su <base>/bridge/request/permit_join. Se è acceso perché stai accoppiando qualcosa, questo rilievo sparisce da solo quando hai finito.",
-    "chk.custom_integration_cloud.title": "Integrazione di terze parti con accesso cloud",
-    "chk.custom_integration_cloud.detail":
-      "Integrazioni installate a mano o tramite HACS che dialogano con un servizio esterno. Non sono riviste da Home Assistant, e le credenziali che custodiscono passano per codice di terzi.",
-    "chk.custom_integration_cloud.remediation":
-      "Verifica che il repository sia mantenuto e che l'installazione sia stata una tua scelta. Non è un difetto in sé: è una superficie in più che stai scegliendo di considerare affidabile.",
-    "chk.device_on_trusted_lan.title": "Dispositivo che comunica verso l'esterno dalla LAN di fiducia",
-    "chk.device_on_trusted_lan.detail":
-      "Si trova sulla rete che ospita anche computer e telefoni, e raggiunge l'esterno per conto proprio.",
-    "chk.device_on_trusted_lan.remediation":
-      "Spostalo sulla VLAN IoT, se ne hai una. Se non ce l'hai, questo controllo è l'argomento migliore per costruirne una.",
-    "chk.cloud_declared_silent.title": "Integrazione cloud che non ha contattato nessuno",
-    "chk.cloud_declared_silent.detail":
-      "Dichiarata cloud dal manifest eppure silenziosa nel query log. Non è un merito: o il dispositivo non è correlato, o usa un resolver proprio, o l'integrazione non sta funzionando.",
-    "chk.cloud_declared_silent.remediation":
-      "Verifica che il dispositivo sia effettivamente correlato a un IP e che l'integrazione sia caricata. Un cloud che non parla mai di solito segnala un problema.",
-    "chk.mqtt_anonymous.title": "Broker MQTT che accetta accessi anonimi",
-    "chk.mqtt_anonymous.detail":
-      "La config entry MQTT raggiunge il proprio broker senza alcuna credenziale, il che significa che il broker accetta connessioni anonime. Non è una sonda: Home Assistant è già collegato così, quindi la risposta del broker è agli atti. Qualunque cosa sulla stessa rete può pubblicare su qualunque topic, compresi quelli su cui i tuoi dispositivi agiscono.",
-    "chk.mqtt_anonymous.remediation":
-      "Crea un utente sul broker e assegnalo a Home Assistant. Sull'add-on Mosquitto è una riga nella configurazione dell'add-on, su EMQX è il database integrato sotto Access Control. Poi disattiva l'accesso anonimo, e riconfigura gli altri client che ci facevano affidamento.",
-    "chk.mqtt_unknown_client.title": "Client MQTT che non corrisponde ad alcun asset noto",
-    "chk.mqtt_unknown_client.detail":
-      "Il broker riporta questi client connessi e nessuno corrisponde a una config entry, a un dispositivo o a un add-on che Talos conosca. Un broker ha solo il client id per identificarli, quindi uno senza corrispondenza non è la prova di un intruso, ma è qualcosa che pubblica nei tuoi topic e di cui nulla in Home Assistant rende conto.",
-    "chk.mqtt_unknown_client.remediation":
-      "Confronta ogni id con quello che fai girare tu: Zigbee2MQTT, un Tasmota, un ESP, uno script su un'altra macchina. Quello che avanza vale la pena inseguirlo. Dare a ogni tuo client un client id esplicito e riconoscibile rende questo controllo utile invece che rumoroso.",
-    "chk.rtsp_cleartext.title": "Flusso RTSP in chiaro",
-    "chk.rtsp_cleartext.detail":
-      "Queste config entry di telecamere dichiarano uno stream RTSP, e RTSP porta in chiaro sia le credenziali sia il video. Chiunque riesca a vedere il traffico sul segmento dove sta la telecamera li legge entrambi. È quello che dichiara la entry, non una cattura: l'indirizzo l'ho letto dalla configurazione, non mi sono collegato a niente e non ho guardato niente.",
-    "chk.rtsp_cleartext.remediation":
-      "Sposta la telecamera sulla VLAN IoT, così il traffico non attraversa mai la rete dove stanno i tuoi computer. Dove la telecamera offre RTSPS o uno stream HTTPS, usa quelli. Dove non li offre, e le telecamere economiche non li offrono, la segmentazione è tutta la risposta.",
-
-    "unv.manifests_unavailable.title": "iot_class di alcune integrazioni",
-    "unv.entities_outside_registry.title": "Entità che non appartengono ad alcuna config entry",
-    "unv.entity_registry_unreadable.title": "Registry delle entità",
-    "unv.area_registry_unreadable.title": "Registry delle aree",
-    "unv.manifest_list_unreadable.title": "Elenco dei manifest",
-    "unv.entry_endpoints_unavailable.title": "Indirizzi a cui si collegano le integrazioni",
-    "unv.entry_endpoints_unavailable.detail":
-      "L'API WebSocket non espone i dati delle config entry, quindi da fuori non si può leggere a quale broker o server punta ciascuna integrazione. Eseguito come integrazione, Talos li legge in processo. Nient'altro è influenzato.",
-    "unv.dhcp_leases_unavailable.title": "Lease DHCP non disponibili: il controllo dello zero non è eseguibile",
-    "unv.dhcp_leases_unavailable.detail":
-      "Il registry di Home Assistant conosce i MAC, il query log conosce gli IP: i lease DHCP sono l'unico punto in cui i due si incontrano. Senza, ogni osservazione resta attribuita a un host sconosciuto, e Talos può dire che qualcuno ha contattato un produttore ma non quale dispositivo fosse. Nemmeno i client del resolver possono essere confrontati con i dispositivi in rete, quindi un apparecchio con DNS scritto nel firmware non emerge mai. Per copertura completa: attiva il server DHCP di AdGuard Home, oppure fornisci i lease del router. Questo controllo non è fallito, non è stato eseguito.",
-    "unv.resolver_bypassed.title": "Dispositivi che aggirano il resolver",
-    "unv.devices_without_identifier.title": "Dispositivi senza MAC nel registry",
-    "unv.unclassified_domains.title": "Domini non classificati",
-    "unv.doh.title": "Traffico DNS over HTTPS",
-    "unv.doh.detail":
-      "Un dispositivo che cifra anche le proprie richieste DNS (DoH, porta 443) è indistinguibile dal traffico ordinario. È un limite strutturale dichiarato: questo approccio non lo copre.",
-    "unv.observed_source_unavailable.title": "Lato osservato non disponibile in questa scansione",
-
-    "settings.section.scope": "Ambito dell'analisi",
-    "settings.scope.lead":
-      "Quello che segue non viene controllato da Talos e resta a carico tuo. Non è un elenco di difetti dell'integrazione: è il confine dichiarato del metodo.",
-    "settings.scope.does": "Cosa fa",
-    "settings.scope.doesBody":
-      "Legge in sola lettura i registry di Home Assistant e il query log di AdGuard Home, li correla tramite i lease DHCP e classifica i domini richiesti. Nessuna scansione di porte, nessun tentativo di credenziali, nessuna ispezione del contenuto del traffico, nessuna modifica alla configurazione.",
-    "settings.scope.doesNot": "Cosa non fa, e devi verificare a mano",
-    "settings.scope.item.segmentation":
-      "Segmentazione della rete: se i dispositivi IoT stiano su una VLAN separata da computer e telefoni.",
-    "settings.scope.item.credentials":
-      "Credenziali di dispositivi e servizi: password di default, account condivisi, token mai ruotati.",
-    "settings.scope.item.firmware": "Aggiornamenti firmware dei dispositivi e degli hub.",
-    "settings.scope.item.exposure":
-      "Esposizione di Home Assistant verso internet: reverse proxy, port forwarding, accesso remoto.",
-    "settings.scope.item.doh":
-      "Traffico che cifra anche le proprie richieste DNS: resta indistinguibile e non viene visto.",
-    "settings.scope.item.payload":
-      "Contenuto del traffico: cosa viene inviato al produttore non è ricavabile dal solo DNS.",
-    "settings.scope.closing":
-      "Un esito privo di rilievi indica assenza di evidenze, non assenza di rischio.",
-
-    "busy.scanning": "Scansione in corso",
-    "busy.scanning.sub": "Sto rileggendo i registry e il query log. I dati a schermo sono quelli della scansione precedente finché non finisce.",
-    "busy.saving": "Salvataggio in corso",
-    "busy.saving.sub": "Le opzioni vengono scritte e l'integrazione si ricarica. Ci vuole qualche secondo, non è bloccata.",
-    "busy.reloading": "Ricaricamento dei dati",
-    "busy.reloading.sub": "L'integrazione è ripartita, sto rileggendo lo stato.",
-    "busy.scanOk": "Scansione completata",
-    "busy.scanOk.sub": "Dati aggiornati alle {when}.",
-    "busy.saveOk": "Impostazioni salvate",
-    "busy.saveOk.sub": "Applicate alla scansione appena eseguita.",
-    "busy.scanError": "Scansione fallita",
-    "busy.saveError": "Salvataggio fallito",
-    "busy.stale": "L'ultimo tentativo di scansione è fallito",
-    "busy.stale.sub": "A schermo ci sono i dati dell'ultima scansione riuscita, del {when}. Motivo: {reason}",
-
-    "filter.search": "Cerca per nome, dominio o indirizzo",
-    "filter.all": "Tutte",
-    "filter.loaded": "Caricate",
-    "filter.notLoaded": "Non caricate",
-    "filter.cloud": "Cloud",
-    "filter.custom": "HACS",
-    "filter.withEndpoint": "Con indirizzo",
-    "filter.none": "Nessuna integrazione corrisponde a questo filtro.",
-    "filter.count": "{shown} su {total}",
-
-    "sugg.label": "Rilevato dalla scansione:",
-    "sugg.use": "Usa",
-    "sugg.detail.zone_trusted_lan":
-      "La subnet più popolata di questa scansione. Impostala solo se è la rete su cui stanno computer e telefoni, perché è questo che il controllo intende per rete di fiducia.",
-    "sugg.detail.zone_iot_vlan":
-      "Una seconda subnet con traffico in questa scansione. Se i dispositivi IoT sono quelli che ci stanno sopra, è la VLAN IoT; se non lo sono, lasciala vuota invece di riempirla.",
-    "sugg.hosts": "{n} host",
-
-    "settings.section.advice": "Consigli per l'utente",
-    "settings.advice.lead":
-      "Talos legge in sola lettura i registry di Home Assistant e il query log di AdGuard Home, li correla e classifica i domini richiesti. Non esegue scansioni di porte, non prova credenziali, non ispeziona il contenuto del traffico e non modifica nulla. Quello che segue resta quindi fuori dalla sua portata e a carico tuo: non è un elenco di difetti dell'integrazione, è il confine dichiarato del metodo.",
-    "settings.advice.items": "Verifiche a carico dell'utente",
-    "settings.guide": "Mini guida: tenere in ordine una rete domotica",
-    "settings.guide.lead":
-      "Sei cose che nella pratica fanno la differenza, in ordine di quanto rendono rispetto alla fatica che costano.",
-    "settings.guide.h.1": "1. Separa le reti prima di tutto il resto",
-    "settings.guide.p.1":
-      "Una VLAN per i dispositivi IoT e una per computer e telefoni. È l'intervento che rende innocui tutti gli altri problemi: una telecamera compromessa su una VLAN isolata non arriva ai tuoi file. Se il router non fa VLAN, la rete ospiti è un ripiego accettabile per i dispositivi che non devono parlare con nient'altro in casa.",
-    "settings.guide.h.2": "2. Metti il DHCP e il DNS sotto il tuo controllo",
-    "settings.guide.p.2":
-      "Un solo server DHCP che conosce tutti i lease e un solo resolver da cui passano tutte le richieste. Serve a te per sapere chi è chi, e serve a Talos per correlare: senza uno dei due, metà dei controlli si dichiara non eseguibile. Se AdGuard Home fa anche il DHCP, i due dati arrivano già uniti.",
-    "settings.guide.h.3": "3. Blocca la porta 53 in uscita sul router",
-    "settings.guide.p.3":
-      "Molti dispositivi hanno un DNS scritto nel firmware e ignorano quello che gli dai. Reindirizzare la porta 53 verso il tuo resolver li riporta in riga. Chi cifra anche il DNS (DoH sulla 443) resta comunque fuori portata: è un limite, non un difetto da risolvere.",
-    "settings.guide.h.4": "4. Preferisci l'integrazione locale a quella cloud",
-    "settings.guide.p.4":
-      "Quando esistono entrambe scegli la locale, anche se ha meno funzioni. Zigbee, Z-Wave, Matter, ESPHome e Modbus continuano a funzionare con il modem staccato. Un'integrazione cloud smette, e con lei ogni automazione che la usa.",
-    "settings.guide.h.5": "5. Dai un'identità a ogni cosa che pubblica",
-    "settings.guide.p.5":
-      "Client id MQTT espliciti, nomi dei dispositivi coerenti, riservazioni DHCP per quello che conta. Costa dieci minuti e trasforma un elenco di indirizzi anonimi in qualcosa che si legge. È anche la differenza fra un controllo utile e uno rumoroso.",
-    "settings.guide.h.6": "6. Aggiorna quello che espone qualcosa, ignora il resto",
-    "settings.guide.p.6":
-      "Firmware di router, hub, telecamere e qualunque cosa raggiungibile da fuori. Una lampadina Zigbee dietro un bridge non è una priorità. Se qualcosa è esposto su internet, quello viene prima di tutto il resto in questo elenco.",
-
-    "settings.section.mqtt": "Account MQTT di sola lettura",
-    "settings.mqtt.none":
-      "Nessun account configurato. Talos usa la sessione che l'integrazione MQTT ha già aperta, che funziona finché il broker non riserva $SYS a un utente specifico. Quasi tutti lo fanno, ed è il motivo per cui il controllo sui client sconosciuti di solito si dichiara non eseguibile.",
-    "settings.mqtt.state": "Ultima lettura",
-    "settings.mqtt.ok": "{clients} client letti, {unmatched} senza corrispondenza",
-
-    "mqtt.host": "Broker",
-    "mqtt.host.hint":
-      "Lascia vuoto per usare il broker che la config entry MQTT già dichiara. Compilalo solo se vuoi puntare altrove.",
-    "mqtt.port": "Porta",
-    "mqtt.user": "Utente",
-    "mqtt.password": "Password",
-    "mqtt.password.set": "impostata, lascia vuoto per non cambiarla",
-    "mqtt.password.unset": "nessuna password memorizzata",
-    "mqtt.tls": "Il broker usa TLS",
-    "mqtt.save": "Salva e prova la connessione",
-    "mqtt.saving": "Connessione in corso…",
-    "mqtt.clear": "Rimuovi l'account",
-    "mqtt.testing": "Provo la connessione al broker",
-    "mqtt.testing.sub": "Mi collego, mi sottoscrivo a $SYS e mi disconnetto. Non pubblico nulla.",
-    "mqtt.ok": "Account salvato",
-    "mqtt.ok.sub": "Broker raggiunto, {n} client letti da $SYS.",
-    "mqtt.okNoSys": "Account salvato, ma $SYS non risponde",
-    "mqtt.okNoSys.sub":
-      "La connessione funziona e le credenziali sono valide, ma questo utente non riesce a leggere $SYS. Serve il permesso di sottoscrivere $SYS/# sul broker. Il controllo sui client resta non eseguibile finché non ce l'ha.",
-    "mqtt.savedNotWorking": "Salvato, ma nessuna strada ha risposto",
-    "mqtt.savedNotWorking.sub":
-      "I valori sono memorizzati, così puoi sistemare i permessi sul broker senza doverli riscrivere. La prossima scansione riprova da sola.",
-
-    "mqtt.failed": "Connessione al broker fallita",
-    "mqtt.cleared": "Account rimosso",
-    "mqtt.cleared.sub": "Torno a usare la sessione dell'integrazione MQTT.",
-    "mqtt.acl":
-      "Serve un utente in sola lettura con il permesso di sottoscrivere $SYS/#. Su EMQX: Access Control, Authentication per l'utente e una regola di sola sottoscrizione. Su Mosquitto: una riga topic read $SYS/# nell'acl_file. Talos non pubblica nulla, non si sottoscrive ad altro, e si collega con client id talos-scanner così la sua connessione è riconoscibile nella lista che legge.",
-
-    "mqtt.route": "Sorgente in uso",
-    "mqtt.route.api": "API di EMQX",
-    "mqtt.route.account": "Account dedicato su $SYS",
-    "mqtt.route.session": "Sessione dell'integrazione MQTT",
-    "mqtt.state.ok": "{clients} client letti, {unmatched} senza corrispondenza",
-    "mqtt.state.blocked": "Nessun client letto",
-    "mqtt.lastRun": "Ultima scansione",
-    "mqtt.listener": "Stato del listener",
-    "mqtt.api": "API EMQX 5",
-    "mqtt.api.url": "Indirizzo API",
-    "mqtt.api.url.hint":
-      "EMQX 5 ha tolto i topic per client da $SYS, quindi la sottoscrizione lì non può rispondere: restano solo contatori. La sua API invece elenca i client connessi adesso, con l'indirizzo da cui si sono collegati, che permette di associarli ai dispositivi e non solo al nome. Metti lo stesso indirizzo con cui apri la dashboard nel browser, di norma sulla porta 18083. Lo schema puoi ometterlo.",
-    "mqtt.api.key": "API key",
-    "mqtt.api.secret": "API secret",
-    "mqtt.api.secret.set": "impostato, lascia vuoto per non cambiarlo",
-    "mqtt.api.secret.unset": "nessun secret memorizzato",
-    "mqtt.api.hint":
-      "Si crea dalla dashboard EMQX, System → API Key → Create. Bastano i permessi di sola lettura. Se compili questo, Talos usa l'API e ignora i campi del broker qui sopra.",
-    "mqtt.sub": "Sottoscrizione $SYS",
-    "mqtt.okApi": "Account salvato",
-    "mqtt.okApi.sub": "API raggiunta, {n} client letti.",
-    "mqtt.noReload":
-      "Le credenziali del broker vengono rilette a ogni scansione, quindi salvarle non ricarica l'integrazione e non interrompe nulla.",
-
-    "mqtt.fallback": "Ripiego da {route}",
-    "mqtt.fallback.why": "La sorgente configurata non ha risposto: {reason}",
-    "mqtt.api.replaces":
-      "Con una API key configurata Talos non si sottoscrive più a $SYS, e non è una perdita: su EMQX 5 quell'albero contiene solo contatori, mentre l'API elenca i client con il loro indirizzo. Se però l'API non risponde, Talos torna da sola alla sottoscrizione e te lo dice qui sotto invece di restare senza dati.",
-
-    "mesh.coordinator": "Coordinator",
-    "mesh.router": "Router",
-    "mesh.end_device": "Terminale",
-    "mesh.unknown": "",
-    "mesh.title": "Rete Zigbee",
-    "mesh.lead":
-      "Come il coordinator descrive la propria rete, letto dai topic ritenuti di Zigbee2MQTT. I router ripetono per i nodi vicini e stanno a corrente, i terminali dormono e dipendono da un router a portata. Il genitore di ciascun nodo non è dichiarato: saperlo richiede una scansione della mesh, e quella è una sonda.",
-    "mesh.nodes": "Nodi",
-    "mesh.routers": "Router",
-    "mesh.endDevices": "Terminali",
-    "mesh.channel": "Canale",
-    "mesh.permitJoin": "Accoppiamento",
-    "mesh.permitJoin.on": "aperto",
-    "mesh.permitJoin.off": "chiuso",
-    "mesh.version": "Versione Zigbee2MQTT",
-    "map.mesh": "Ruolo nella mesh",
-
-    "mqtt.clients.title": "Client MQTT",
-    "mqtt.clients.lead":
-      "Chi risulta collegato al broker, letto dal broker stesso. Il client id è il nome che il client si è dato, quindi da solo non dice niente: quando la sorgente lo fornisce, accanto trovi l'indirizzo da cui si è collegato, che è l'unico appiglio per andarlo a cercare.",
-    "mqtt.clients.matched": "Attribuiti",
-    "mqtt.clients.unmatched": "Non attribuiti",
-    "mqtt.clients.none": "Nessun client letto",
-    "mqtt.clients.why":
-      "Il controllo sui client sconosciuti non è eseguibile e per questo motivo: {reason}",
-    "mqtt.clients.emqx5":
-      "Su EMQX 5 i topic per client sotto $SYS non esistono più, restano solo i contatori. La strada che funziona è la API key, che si imposta qui sopra: elenca i client collegati adesso e in più dà l'indirizzo di ognuno.",
-    "mqtt.client.noAddress":
-      "indirizzo non fornito dalla sorgente",
-    "mqtt.client.seen": "il resolver ha visto {n} query da questo indirizzo",
-    "mqtt.client.unseen": "il resolver non ha mai visto questo indirizzo",
-    "mqtt.client.unmatched": "non attribuito",
-
-    "mode.diagnostics": "Diagnostica",
-    "diag.title": "Diagnostica",
-    "diag.lead":
-      "Una misura presa adesso, non una scansione. La lanci tu, dura il tempo della finestra e poi si ferma: non viene mai schedulata e non concorre a nessun controllo di sicurezza. Ogni riga porta l'ora in cui è stata misurata, perché il momento fa parte del dato.",
-    "diag.run": "Avvia la diagnostica",
-    "diag.running": "In corso…",
-    "diag.window": "Finestra di ascolto",
-    "diag.seconds": "{n} s",
-    "diag.busy": "Diagnostica in corso",
-    "diag.busy.sub":
-      "Ascolto i cambi di stato per {n} secondi. Intanto leggo il log e provo a raggiungere gli endpoint dichiarati. Non tocco nient'altro.",
-    "diag.done": "Diagnostica completata",
-    "diag.done.sub": "Misurata alle {when}, finestra di {n} secondi.",
-    "diag.failed": "Diagnostica fallita",
-    "diag.none": "Nessuna diagnostica ancora eseguita. Premi il bottone: dura un minuto.",
-    "diag.measured": "misurato alle {when}",
-    "diag.churn": "Cambi di stato per integrazione",
-    "diag.churn.lead":
-      "Chi scrive di più nella finestra. Ogni cambio di stato è una riga nel recorder e un giro sul loop: un'integrazione che ne produce centinaia al minuto è quella che gonfia il database e tiene occupato il sistema, anche se ogni singola scrittura è innocua.",
-    "diag.churn.total": "{total} cambi in {n} secondi, {rate} al minuto",
-    "diag.churn.unattributed":
-      "{n} cambi appartengono a entità senza config entry (YAML, helper) e sono conteggiati ma non attribuiti.",
-    "diag.churn.none": "Nessun cambio di stato nella finestra.",
-    "diag.churn.perMinute": "{n}/min",
-    "diag.churn.entities": "{n} entità",
-    "diag.churn.top": "Le più attive",
-    "diag.blocking": "Chiamate che bloccano il loop",
-    "diag.blocking.lead":
-      "Home Assistant scrive nel log ogni chiamata che ha bloccato l'event loop, e nel traceback c'è l'integrazione che l'ha fatta. È il segnale più diretto di \"questa cosa rallenta tutto\": mentre il loop è bloccato, niente altro gira. Letto dalla coda del log, senza eseguire nulla.",
-    "diag.blocking.none": "Nessuna chiamata bloccante nella coda del log.",
-    "diag.blocking.count": "{n} volte",
-    "diag.blocking.last": "ultima",
-    "diag.blocking.sample": "Esempio dal log",
-    "diag.reach": "Raggiungibilità degli endpoint dichiarati",
-    "diag.reach.lead":
-      "Una connessione TCP a ogni host e porta che le config entry dichiarano, con il tempo di risposta. Solo verso quello che hai configurato tu, solo sulla porta che hai scritto, niente ICMP e nessuna scansione: è la differenza fra verificare che il broker risponda e andare a bussare in rete.",
-    "diag.reach.none": "Nessuna config entry dichiara host e porta, quindi non c'era niente a cui collegarsi.",
-    "diag.reach.ok": "raggiungibile",
-    "diag.reach.fail": "non raggiungibile",
-    "diag.reach.ms": "{n} ms",
-    "diag.notes": "Cosa non è stato misurato",
-
-    "diag.addons": "Add-on e risorse di sistema",
-    "diag.addons.lead":
-      "Cosa consuma ogni container, chiesto al Supervisor. CPU e memoria sono lette a fine finestra. La rete è una velocità: il Supervisor dà i byte come contatori cumulativi dall'avvio, che non dicono niente sull'adesso, quindi campiono all'inizio e alla fine e divido per i secondi. Home Assistant Core è in lista come termine di paragone.",
-    "diag.addons.none": "Nessun add-on misurato.",
-    "diag.addons.cpu": "CPU",
-    "diag.addons.memory": "Memoria",
-    "diag.addons.network": "Rete",
-    "diag.addons.cpuNote": "Quota della macchina, normalizzata su {n} core.",
-    "diag.addons.memoryNote": "Quota di {total} di RAM dell'host.",
-    "diag.addons.networkNote":
-      "Ripartizione fra chi è stato misurato: per la rete non esiste un totale, nessuno sa quanto reggerebbe il collegamento.",
-    "diag.addons.other": "altro / libero",
-    "diag.addons.stopped": "fermo",
-    "diag.addons.rate": "{rx} in entrata · {tx} in uscita",
-    "diag.addons.noPie": "Nessun dato per questa torta.",
-
-    "check.blind": "Non ho potuto ispezionare",
-    "check.missing": "Cosa manca",
-    "check.about": "Cosa controllerebbe",
-    "precondition.observed_evidence":
-      "Nessuna osservazione in questa scansione: serve AdGuard Home configurato e raggiungibile, perché senza query log non c'è niente di osservato. Impostazioni → Connessione ad AdGuard Home.",
-    "precondition.dhcp_leases":
-      "Mancano i lease DHCP: sono l'unico posto dove un MAC e un IP compaiono insieme. Attiva il server DHCP di AdGuard Home, oppure un device tracker basato su router (AsusWRT, UniFi, Fritz) che pubblichi ip e mac.",
-    "precondition.zones_configured":
-      "Nessuna subnet configurata: Talos non sa quale rete sia la LAN di fiducia e quale la VLAN IoT. Impostazioni → Zone di rete, dove trovi anche la subnet rilevata da questa scansione.",
-    "precondition.manifests":
-      "Manifest delle integrazioni non leggibili: iot_class e is_built_in non sono affidabili in questa scansione. Di solito è transitorio, ripeti la scansione; se resta, il log di Home Assistant dice quale integrazione non risponde.",
-    "precondition.entry_endpoints":
-      "Nessuna config entry ha dichiarato a cosa si collega. Da fuori Home Assistant quei dati non sono esposti: succede con la CLI, non con l'integrazione. Se stai guardando il pannello, ripeti la scansione.",
-    "precondition.mqtt_clients":
-      "Il broker non ha fornito la lista dei client. Su EMQX 5 serve la API key; su Mosquitto serve un account con permesso di lettura su $SYS/#. Impostazioni → Account MQTT di sola lettura.",
-    "precondition.zigbee_bridge":
-      "Nessun coordinator Zigbee ha riportato il proprio stato: serve Zigbee2MQTT, che pubblica i topic bridge ritenuti su MQTT. ZHA e altri coordinator non li pubblicano, e questo controllo con loro non può girare.",
-    "precondition.entry_streams":
-      "Le integrazioni video elencate qui sotto non dichiarano l'URL dello stream: lo negoziano alla connessione (ONVIF, Reolink) e non lasciano nulla di leggibile, quindi se il loro flusso viaggia in chiaro non lo posso dire. Dove niente trasmette video il controllo passa. Per averlo verde anche qui serve una telecamera configurata a mano con un URL rtsp:// o rtsps://.",
-
-    "map.popup.close": "Chiudi",
-    "map.popup.isolate": "Isola questa integrazione",
-    "map.popup.unisolate": "Mostra tutto",
-    "map.popup.links": "Collegamenti",
-    "map.popup.conduits": "{n} condotti",
-    "map.popup.noConduits": "Nessun condotto registrato",
-    "map.popup.kind.core": "Home Assistant",
-    "map.popup.kind.transport": "Trasporto",
-    "map.popup.kind.integration": "Integrazione",
-    "map.popup.kind.origin": "Sistema che pubblica",
-    "map.popup.kind.device": "Dispositivo",
-    "map.popup.kind.more": "Nota",
-    "map.field.transport": "Trasporto",
-    "map.field.integration": "Integrazione",
-    "map.field.origin": "Origine",
-    "map.field.mesh": "Ruolo nella mesh",
-    "map.field.area": "Area",
-    "map.field.ip": "Indirizzo",
-    "map.field.mac": "MAC",
-    "map.field.model": "Modello",
-    "map.field.entities": "Entità",
-    "map.field.domain": "Dominio",
-    "map.field.class": "iot_class",
-    "map.field.role": "Ruolo",
-    "map.field.state": "Stato",
-    "map.field.endpoint": "Indirizzo dichiarato",
-    "map.field.devices": "Dispositivi",
-    "map.field.hub": "Dietro a",
-    "map.field.children": "Dispositivi collegati",
-    "map.hint":
-      "Trascina i nodi: si riassestano da soli. Rotella per lo zoom. Clicca un nodo per i dettagli e per vedere da dove passano i suoi dati.",
-
-    "mqtt.routes": "Esito per strada",
-    "mqtt.route.ok": "{n} client",
-    "mqtt.route.fail": "nessuna risposta",
-    "mqtt.test": "Prova ora",
-    "mqtt.testing.now": "Provo tutte le strade configurate",
-    "mqtt.testing.now.sub": "Stesso codice della scansione, eseguito adesso. L'esito di ogni strada è riportato testualmente.",
-    "mqtt.test.done": "Prova eseguita",
-    "mqtt.test.none": "Nessuna strada ha risposto",
-
-    "opt.retention_days": "Conserva i dati per (giorni)",
-    "opt.hint.retention_days":
-      "L'unica domanda che serve. Con il dimensionamento automatico acceso, età massima delle osservazioni, tetto di righe e numero di scansioni conservate si ricavano da questo numero e dal ritmo reale dell'impianto.",
-    "opt.auto_retention": "Dimensionamento automatico",
-    "opt.hint.auto_retention":
-      "Acceso: i tre limiti qui sotto sono derivati e mostrati, non modificabili. Spento: li imposti a mano.",
-    "retention.derived": "Derivato dal ritmo dell'impianto",
-    "retention.rate.measured": "{n} osservazioni al giorno, misurate",
-    "retention.rate.assumed": "{n} osservazioni al giorno, presunte: non c'è ancora abbastanza storico per misurarle",
-    "retention.rows": "Tetto di righe",
-    "retention.scans": "Documenti di scansione conservati",
-    "retention.days": "Età massima delle osservazioni",
-    "retention.estimate": "Dimensione stimata a regime",
-    "retention.estimate.none": "stima non disponibile finché il database non contiene osservazioni",
-    "retention.manual": "Limiti impostati a mano",
-
-    "history.title": "Andamento",
-    "history.lead":
-      "Una riga compatta per ogni scansione, conservata per tutta la finestra di ritenzione. La fotografia dice dove sei; queste righe dicono se le cose migliorano. L'asse orizzontale è la sequenza delle scansioni, dalla più vecchia alla più recente.",
-    "history.none": "Servono almeno due scansioni per disegnare un andamento. La prossima scansione aggiunge un punto.",
-    "history.scans": "{n} scansioni, dal {from}",
-    "history.findings": "Rilievi per severità",
-    "history.high": "alta",
-    "history.medium": "media",
-    "history.low": "bassa",
-    "history.partial": "verificati in parte",
-    "history.unverified": "non eseguibili",
-    "history.entities": "Entità: locali, cloud, non disponibili",
-    "history.local": "locali",
-    "history.cloud": "cloud",
-    "history.unavailable": "non disponibili",
-    "history.exposure": "Dispositivi che parlano fuori",
-    "history.exposed": "con egress diretto",
-    "history.localEgress": "locali con egress",
-    "history.unclassified": "Domini non classificati",
-    "history.unclassifiedSeries": "domini",
-    "history.correlation": "Dispositivi correlati",
-    "history.correlated": "correlati",
-    "history.last": "ultimo",
-
-    "severity.high": "alta",
-    "severity.medium": "media",
-    "severity.low": "bassa",
-    "evidence.declared": "dichiarata",
-    "evidence.observed": "osservata",
-    "evidence.inherited": "ereditata",
-    "reason.not_executable": "non eseguibile",
-    "reason.missing_data": "dati mancanti",
-    "reason.method_limit": "limite di metodo",
-    "kind.vendor_cloud": "cloud produttore",
-    "kind.telemetry": "telemetria",
-    "kind.push_service": "servizio push",
-    "kind.ota_update": "aggiornamenti",
-    "kind.ntp": "orologio",
-    "kind.nat_traversal": "attraversamento NAT",
-    "kind.cdn": "CDN",
-    "kind.local_hub": "hub locale",
-    "kind.local_broker": "broker locale",
-    "kind.ha_core": "Home Assistant",
-    "kind.unknown": "non classificato",
-  },
-
-  en: {
-    "app.subtitle": "last scan {when}",
-    "app.never": "never",
-    "app.loading": "Loading…",
-    "app.refresh": "Run the scan again",
-    "mode.base": "Basic",
-    "mode.advanced": "Advanced",
-
-    "base.title": "Security overview",
-    "base.lead":
-      "Two independent measures, kept apart because they call for different remedies: system continuity without connectivity, and device communications towards external destinations.",
-    "base.offline.label": "Offline continuity",
-    "base.offline.unit": "/{total} entities",
-    "base.offline.stops": "<strong>{n} entities</strong> cease to function.",
-    "base.offline.none": "No entity depends on a cloud service.",
-    "base.offline.unclassified": "{n} unclassified.",
-    "base.exposure.label": "External communications",
-    "base.exposure.unit": "/{total} devices",
-    "base.exposure.local":
-      "<strong>{n}</strong> are local to Home Assistant yet still contact the vendor.",
-    "base.exposure.none": "No local device is contacting its vendor.",
-    "base.exposure.inherited": "{n} exposed through a hub.",
-    "base.unverified.label": "Checks not runnable",
-    "base.unverified.unit": "checks",
-    "base.unverified.note":
-      "Neither passed nor failed: the available data does not allow a verdict. <strong>They must not be counted among the positive results.</strong>",
-    "base.findings": "Key findings",
-
-    "banner.declared":
-      "<strong>Declared data only.</strong> {reason}. This scan holds what Home Assistant declares about itself: no “talking outside” column has been verified, so an empty cell does not mean an absence of traffic.",
-    "banner.noAdguard": "AdGuard Home is not configured",
-
-    "find.contacted": " Contacted: <strong>{list}</strong>.",
-    "find.queries": "{n} queries",
-    "find.severity": "{level} severity",
-    "find.offline.title": "Dependency on {vendor} without connectivity",
-    "find.offline.body": "Without connectivity {list} cease to function. This is the expected behaviour of these services.",
-    "find.offline.entities": "{n} entities ({vendor})",
-    "find.offline.do":
-      "<b>No action required.</b> Worth reviewing only if one of these entities supports a critical function, for example a water leak alarm.",
-    "find.clean.title": "No high or medium severity findings",
-    "find.clean.body":
-      "{passed} checks passed. <strong>{unverified} could not run</strong> and do not contribute to the result.",
-
-    "adv.title": "Where the data comes from and where it goes",
-    "adv.lead":
-      "Every row is labelled with its evidence. {declared} comes from the Home Assistant registry, {observed} from the query log, {inherited} from a parent hub's behaviour.",
-    "adv.matrix": "Matrix",
-    "adv.matrix.head": "HA class / network",
-    "adv.matrix.silent": "No egress observed",
-    "adv.matrix.egress": "Egress observed",
-    "adv.matrix.local": "Local",
-    "adv.matrix.cloud": "Cloud",
-    "adv.matrix.unclassified": "Unclassified",
-    "adv.matrix.unclassifiedSub": "no iot_class",
-    "adv.cell.localSilent": "No outbound lookup observed.",
-    "adv.cell.localEgress":
-      "Driven locally, yet observed resolving vendor domains on their own.",
-    "adv.cell.cloudSilent": "Declared cloud but silent. Worth investigating, not a merit.",
-    "adv.cell.cloudEgress": "Declared dependency, confirmed.",
-    "adv.cell.unclassified": "iot_class calculated, assumed_state or missing: counted neither as local nor as cloud.",
-    "adv.correlation":
-      "Correlated <strong class=\"mono\">{done}/{total}</strong> devices ({pct}%, method <span class=\"mono\">{method}</span>). The uncorrelated ones may have egress that cannot be observed: the top-right cell is a <em>minimum</em>, not a total.",
-    "adv.correlation.infra":
-      " {n} devices only reached a time or update service: they stay in the silent column.",
-    "adv.correlation.inherited":
-      " {n} devices are exposed through a hub and are kept out of the quadrants.",
-    "adv.flows": "Flows",
-    "adv.checks": "Checks",
-    "adv.checks.none": "No findings.",
-    "adv.checks.passed": "passed",
-    "adv.conduits": "Conduits",
-    "adv.conduits.none": "No conduit in this scan.",
-    "adv.unverified": "Unverified",
-    "adv.unverified.none": "Every check was runnable.",
-
-    "col.devices": "Devices",
-    "col.integrations": "Integrations",
-    "col.transport": "Transport",
-    "col.integration": "Integration",
-    "col.destination": "Destination",
-    "graph.grouped": "grouped by integration: {n} devices",
-    "graph.hidden": "+{n} devices with no conduit not drawn",
-    "graph.empty": "Nothing to draw: this scan holds no observations, so there are no known destinations.",
-    "graph.devices": "{n} devices",
-
-    "legend.infra": "infrastructure",
-    "legend.vendor": "vendor cloud",
-    "legend.solid": "Solid line: a declared link, inside the house. Dashed: observed in the query log.",
-    "legend.tunnel": "tunnel and NAT traversal",
-    "legend.unknown": "unclassified",
-    "legend.inside": "inside the house:",
-    "legend.key": "local with egress",
-
-    "table.origin": "Origin",
-    "table.destination": "Destination",
-    "table.protocol": "Protocol",
-    "table.kind": "Kind",
-    "table.evidence": "Evidence",
-    "table.queries": "Queries",
-    "table.filter": "Filter",
-    "table.noDevice": "no device",
-    "table.unknownHost": "Unidentified host",
-    "table.core": "core",
-
-    "mode.settings": "Settings",
-    "settings.title": "Settings",
-    "settings.lead":
-      "Collection and retention parameters. Changes take effect on the next scan and reload the integration.",
-    "settings.section.language": "Language",
-    "settings.section.connection": "AdGuard Home connection",
-    "settings.section.collection": "Collection",
-    "settings.section.retention": "Data retention",
-    "settings.section.zones": "Network zones",
-    "settings.section.rules": "Rule files",
-    "settings.section.system": "System",
-    "settings.language.auto": "Automatic (follows Home Assistant)",
-    "settings.language.hint":
-      "This choice applies to this browser only. The integration's own interface follows the Home Assistant language.",
-    "settings.connection.hint":
-      "The address and credentials cannot be changed here. Use Settings, Devices and services, Talos, the three dot menu, Reconfigure: the password never travels through this page.",
-    "settings.connection.none": "Not configured: the report stays declared only.",
-    "settings.connection.url": "Address",
-    "settings.connection.user": "Username",
-    "settings.connection.password": "Password",
-    "settings.connection.ssl": "Verify the SSL certificate",
-    "settings.value.set": "set",
-    "settings.value.unset": "not set",
-    "settings.value.yes": "yes",
-    "settings.value.no": "no",
-    "settings.value.empty": "not set",
-    "settings.save": "Save",
-    "settings.saving": "Saving",
-    "settings.saved": "Settings saved. The integration is reloading.",
-    "settings.error": "Could not save: {reason}",
-    "settings.range": "{min} to {max}",
-    "opt.scan_interval_minutes": "Scan interval (minutes)",
-    "opt.page_size": "Query log records per page",
-    "opt.max_pages": "Maximum pages per scan",
-    "opt.observation_days": "Forget observations after (days)",
-    "opt.max_observations": "Maximum stored observations",
-    "opt.scan_history": "Scan snapshots kept",
-    "opt.zone_trusted_lan": "Trusted LAN subnet",
-    "opt.zone_iot_vlan": "IoT VLAN subnet",
-    "opt.zone_guest": "Guest network subnet",
-    "opt.domain_rules_path": "Extra domain rules file",
-    "opt.check_rules_path": "Alternative check list file",
-    "opt.hint.max_observations":
-      "This is the limit that bounds the size of the database.",
-    "opt.hint.zone_trusted_lan":
-      "One or more comma separated CIDR ranges, for example 192.168.50.0/24. While they are empty, the zone checks declare themselves unrunnable rather than passing.",
-    "opt.hint.domain_rules_path":
-      "Absolute path to a JSON or YAML file. The rules are added to the built in list, they do not replace it.",
-    "settings.system.ha": "Home Assistant version",
-    "settings.system.collector": "Collection mode",
-    "settings.system.lastScan": "Last scan",
-    "settings.system.observations": "Stored observations",
-    "settings.system.oldest": "Oldest observation",
-    "settings.system.dbSize": "Database size",
-    "settings.system.pruned": "Rows removed at the last prune",
-    "mode.map": "Map",
-    "map.title": "Connection map",
-    "map.lead":
-      "How devices reach Home Assistant, grouped by transport and by integration. This view uses declared registry data only: it needs no AdGuard and does not depend on observations.",
-    "map.summary": "{devices} devices · {integrations} integrations · {transports} transports",
-    "map.devices": "{n} devices",
-    "map.entities": "{n} entities",
-    "map.hubs": "Hubs and the devices behind them",
-    "map.hubs.lead":
-      "Devices that serve others. A child has no address of its own: it reaches the network through its parent, and that is where its exposure is inherited from.",
-    "map.hub.children": "{n} behind it",
-    "map.empty": "No devices in the registry.",
-    "map.noHubs": "No via_device hierarchy declared by the integrations.",
-    "map.showDevices": "Show the devices",
-    "transport.zigbee": "Zigbee",
-    "transport.zwave": "Z-Wave",
-    "transport.wifi": "Wi-Fi",
-    "transport.ethernet": "Ethernet",
-    "transport.thread": "Thread",
-    "transport.matter": "Matter",
-    "transport.ble": "Bluetooth LE",
-    "transport.virtual": "Virtual",
-    "transport.unknown": "Undetermined",
-    "map.search": "Search a device or an integration",
-    "map.reset": "Reset the view",
-    "map.legend.core": "Home Assistant",
-    "map.legend.transport": "Transport",
-    "map.legend.integration": "Integration",
-    "map.legend.device": "Device",
-    "map.legend.hub": "Hub with devices behind it",
-    "map.truncated": "+{n} not drawn",
-    "map.fullList": "Full list by transport",
-    "map.matches": "{n} matches",
-    "map.noMatches": "No match",
-    "map.detail": "Detail",
-    "map.detail.less": "Less detail",
-    "map.detail.more": "More detail",
-    "map.detail.1": "Transports",
-    "map.detail.2": "Integrations",
-    "map.detail.3": "Devices",
-    "map.zoomHint": "Device labels appear as you zoom in.",
-    "map.filters": "Filter by transport",
-    "map.all": "All",
-    "map.scope.transport": "{name} only",
-    "map.scope.integration": "Devices of {name} only",
-    "map.clearScope": "Clear the filter",
-    "map.click.integration": "Click an integration to isolate its devices.",
-    "map.filtered": "{n} devices match",
-    "map.origins": "Sources",
-    "map.origin.own": "direct",
-    "map.legend.origin": "Data source",
-    "map.legend.bridge": "Link between integrations",
-    "map.bridges": "{n} links between integrations",
-    "flows.undisclosed": "host not declared",
-    "flows.declaredNote":
-      "Without a query log only the dependencies the manifests declare remain: the integration is known to need an external service, not which host it reaches. Dashed edges appear once there are observations.",
-    "role.aggregator": "Aggregator",
-    "role.streaming": "Streaming",
-    "role.unknown": "",
-    "map.roles": "Filter by role",
-    "map.scope.role": "{name} only",
-    "section.collapse": "Collapse or expand",
-    "state.notLoaded": "not loaded",
-    "base.offline.unavailable":
-      "<strong>{n} entities</strong> are unavailable right now: their integration is not loaded, so they work neither with the internet nor without it.",
-    "transport.ip": "IP network",
-
-    "base.checks": "Checks run",
-    "base.checks.lead":
-      "Green is passed. Red or amber is a finding, in its severity colour. Blue is verified in part: it ran, found nothing among what it could see, and names what it could not inspect. Grey is could not run, which is not an outcome: it says what is missing for it to run.",
-    "base.checks.total":
-      "{total} declared checks: {passed} passed, {partial} verified in part, {failed} with findings, {notrun} could not run. On top of those, {notes} collection limits, which are not checks and settle nothing.",
-    "checks.group.notes": "Collection limits",
-    "adv.inventory": "Integrations",
-    "adv.inventory.lead":
-      "Everything Talos derives from the registry for each config entry, without asking anything: what the manifest declares, what state the entry is in, which address it says it connects to, and what belongs to it.",
-    "inv.class": "declared iot_class",
-    "inv.role": "Role",
-    "inv.state": "Entry state",
-    "inv.endpoint": "Declared address",
-    "inv.origin": "Systems publishing through this entry",
-    "inv.source": "Source",
-    "inv.source.builtin": "shipped with Home Assistant",
-    "inv.source.custom": "installed by hand or through HACS",
-    "inv.counts": "{devices} devices · {entities} entities",
-    "inv.none": "not declared",
-    "base.unverified.notes":
-      "Listed separately, <strong>{n} collection limits</strong>: places the data does not reach, which were never checks.",
-    "base.checks.tally.passed": "passed",
-    "base.checks.tally.failed": "with findings",
-    "base.checks.tally.unverified": "could not run",
-    "checks.group.failed": "With findings",
-    "checks.group.partial": "Verified in part",
-    "base.checks.tally.partial": "verified in part",
-    "check.partial": "partial",
-    "check.partialBody":
-      "The check ran and found nothing among what it could see. What it could not inspect is listed below: not a pass, a pass with a declared hole in it.",
-    "checks.group.passed": "Passed",
-    "checks.group.unverified": "Could not run",
-    "check.subjects": "Affected",
-    "check.do": "What to do",
-    "check.why": "Why it did not run",
-    "check.passedBody":
-      "Ran on this scan with nothing to report. That covers this scan's data, it is not a standing guarantee.",
-    "check.none": "None.",
-    "check.expandHint": "Click an entry for the detail and the assets involved.",
-
-    "evidence.how": "How this is known",
-    "evidence.how.body":
-      "Who contacts the vendor is not established by probing: Talos reads the AdGuard Home query log, ties the client IP to a device through the DHCP leases, and classifies the domain that was asked for. No port is scanned and no payload is inspected: what is known is <strong>which name was resolved</strong>, not what was said.",
-    "evidence.blocked.adguard":
-      "This section stays empty because AdGuard Home is not reachable. With no query log there is no observation at all, and an empty cell does not mean an absence of traffic.",
-    "evidence.blocked.correlation":
-      "The query log is readable but no device is tied to an IP address: without DHCP leases the queries stay attributed to unknown hosts. Enable AdGuard Home's DHCP server or supply the router's leases.",
-    "evidence.blocked.partial":
-      "{done} of {total} devices correlated. On the rest, traffic to a vendor would not be visible, so this list is a minimum.",
-    "evidence.blocked.silent":
-      "Query log readable and devices correlated: in this window none of them resolved a domain classified as vendor cloud.",
-
-    "settings.section.scope": "Scope of the analysis",
-    "settings.scope.lead":
-      "What follows is not checked by Talos and stays with you. It is not a list of shortcomings: it is the declared boundary of the method.",
-    "settings.scope.does": "What it does",
-    "settings.scope.doesBody":
-      "Reads the Home Assistant registries and the AdGuard Home query log, read-only, correlates them through the DHCP leases and classifies the domains asked for. No port scanning, no credential attempts, no payload inspection, no configuration changes.",
-    "settings.scope.doesNot": "What it does not do, and you have to check by hand",
-    "settings.scope.item.segmentation":
-      "Network segmentation: whether IoT devices sit on a VLAN separate from computers and phones.",
-    "settings.scope.item.credentials":
-      "Device and service credentials: default passwords, shared accounts, tokens never rotated.",
-    "settings.scope.item.firmware": "Firmware updates on devices and hubs.",
-    "settings.scope.item.exposure":
-      "Home Assistant's own exposure to the internet: reverse proxy, port forwarding, remote access.",
-    "settings.scope.item.doh":
-      "Traffic that encrypts its DNS queries too: it stays indistinguishable and goes unseen.",
-    "settings.scope.item.payload":
-      "Payload: what is sent to the vendor cannot be derived from DNS alone.",
-    "settings.scope.closing":
-      "A clean result means no evidence was found, not that there is no risk.",
-
-    "busy.scanning": "Scan running",
-    "busy.scanning.sub": "Reading the registries and the query log again. What is on screen is the previous scan until this finishes.",
-    "busy.saving": "Saving",
-    "busy.saving.sub": "Writing the options and reloading the integration. It takes a few seconds, it is not stuck.",
-    "busy.reloading": "Reloading data",
-    "busy.reloading.sub": "The integration is back up, reading its state again.",
-    "busy.scanOk": "Scan complete",
-    "busy.scanOk.sub": "Data as of {when}.",
-    "busy.saveOk": "Settings saved",
-    "busy.saveOk.sub": "Applied to the scan that just ran.",
-    "busy.scanError": "Scan failed",
-    "busy.saveError": "Saving failed",
-    "busy.stale": "The last scan attempt failed",
-    "busy.stale.sub": "What is on screen is the last scan that worked, from {when}. Reason: {reason}",
-
-    "filter.search": "Search by name, domain or address",
-    "filter.all": "All",
-    "filter.loaded": "Loaded",
-    "filter.notLoaded": "Not loaded",
-    "filter.cloud": "Cloud",
-    "filter.custom": "HACS",
-    "filter.withEndpoint": "With an address",
-    "filter.none": "No integration matches this filter.",
-    "filter.count": "{shown} of {total}",
-
-    "sugg.label": "Found in this scan:",
-    "sugg.use": "Use",
-    "sugg.detail.zone_trusted_lan":
-      "The busiest subnet in this scan. Set it only if this is the network your computers and phones are on, because that is what the trusted LAN check means by trusted.",
-    "sugg.detail.zone_iot_vlan":
-      "A second subnet carrying traffic in this scan. If your IoT devices are the ones on it, this is the IoT VLAN; if they are not, leave it empty rather than filling it in.",
-    "sugg.hosts": "{n} hosts",
-
-    "settings.section.advice": "Advice",
-    "settings.advice.lead":
-      "Talos reads the Home Assistant registries and the AdGuard Home query log, read-only, correlates them and classifies the domains asked for. It does not scan ports, try credentials, inspect payloads or change anything. What follows is therefore out of its reach and stays with you: not a list of shortcomings, the declared boundary of the method.",
-    "settings.advice.items": "Checks that stay with you",
-    "settings.guide": "Short guide: keeping a home automation network in order",
-    "settings.guide.lead":
-      "Six things that make a difference in practice, ordered by what they return for the effort they cost.",
-    "settings.guide.h.1": "1. Separate the networks before anything else",
-    "settings.guide.p.1":
-      "One VLAN for IoT devices, one for computers and phones. It is the change that makes every other problem survivable: a compromised camera on an isolated VLAN does not reach your files. If the router cannot do VLANs, the guest network is an acceptable stand-in for devices that need to talk to nothing else in the house.",
-    "settings.guide.h.2": "2. Own the DHCP and the DNS",
-    "settings.guide.p.2":
-      "One DHCP server that knows every lease, one resolver every query goes through. You need it to know who is who, and Talos needs it to correlate: without either, half the checks declare themselves unable to run. If AdGuard Home also does the DHCP, the two halves arrive already joined.",
-    "settings.guide.h.3": "3. Block outbound port 53 at the router",
-    "settings.guide.p.3":
-      "Plenty of devices carry a DNS server in firmware and ignore the one you hand them. Redirecting port 53 to your own resolver brings them back in line. Anything that encrypts its DNS too, DoH on 443, stays out of reach: that is a limit, not a fault to fix.",
-    "settings.guide.h.4": "4. Prefer the local integration to the cloud one",
-    "settings.guide.p.4":
-      "When both exist, take the local one even if it has fewer features. Zigbee, Z-Wave, Matter, ESPHome and Modbus keep working with the modem unplugged. A cloud integration stops, and every automation built on it stops with it.",
-    "settings.guide.h.5": "5. Give everything that publishes a name",
-    "settings.guide.p.5":
-      "Explicit MQTT client ids, consistent device names, DHCP reservations for what matters. It costs ten minutes and turns a list of anonymous addresses into something readable. It is also the difference between a useful check and a noisy one.",
-    "settings.guide.h.6": "6. Update what is exposed, ignore the rest",
-    "settings.guide.p.6":
-      "Firmware on routers, hubs, cameras and anything reachable from outside. A Zigbee bulb behind a bridge is not a priority. If something is exposed to the internet, it comes before everything else on this list.",
-
-    "settings.section.mqtt": "Read-only MQTT account",
-    "settings.mqtt.none":
-      "No account configured. Talos uses the session the MQTT integration already holds, which works until the broker reserves $SYS for a specific user. Most of them do, and that is why the unknown-client check usually declares itself unable to run.",
-    "settings.mqtt.state": "Last read",
-    "settings.mqtt.ok": "{clients} clients read, {unmatched} unmatched",
-
-    "mqtt.host": "Broker",
-    "mqtt.host.hint":
-      "Leave empty to use the broker the MQTT config entry already names. Fill it in only to point somewhere else.",
-    "mqtt.port": "Port",
-    "mqtt.user": "User",
-    "mqtt.password": "Password",
-    "mqtt.password.set": "stored, leave empty to keep it",
-    "mqtt.password.unset": "no password stored",
-    "mqtt.tls": "Broker uses TLS",
-    "mqtt.save": "Save and test the connection",
-    "mqtt.saving": "Connecting…",
-    "mqtt.clear": "Remove the account",
-    "mqtt.testing": "Testing the broker connection",
-    "mqtt.testing.sub": "Connecting, subscribing to $SYS, disconnecting. Nothing is published.",
-    "mqtt.ok": "Account saved",
-    "mqtt.ok.sub": "Broker reached, {n} clients read from $SYS.",
-    "mqtt.okNoSys": "Account saved, but $SYS does not answer",
-    "mqtt.okNoSys.sub":
-      "The connection works and the credentials are valid, but this user cannot read $SYS. It needs permission to subscribe to $SYS/# on the broker. The client check stays unable to run until it has it.",
-    "mqtt.savedNotWorking": "Saved, but no route answered",
-    "mqtt.savedNotWorking.sub":
-      "The values are stored, so you can fix the permissions on the broker without typing them again. The next scan tries on its own.",
-
-    "mqtt.failed": "Could not connect to the broker",
-    "mqtt.cleared": "Account removed",
-    "mqtt.cleared.sub": "Back to using the MQTT integration's session.",
-    "mqtt.acl":
-      "It needs a read-only user allowed to subscribe to $SYS/#. On EMQX: Access Control, Authentication for the user and a subscribe-only rule. On Mosquitto: a topic read $SYS/# line in the acl_file. Talos publishes nothing, subscribes to nothing else, and connects with the client id talos-scanner so its own connection is recognisable in the list it reads.",
-
-    "mqtt.route": "Route in use",
-    "mqtt.route.api": "EMQX API",
-    "mqtt.route.account": "Dedicated account on $SYS",
-    "mqtt.route.session": "MQTT integration's session",
-    "mqtt.state.ok": "{clients} clients read, {unmatched} unmatched",
-    "mqtt.state.blocked": "No client read",
-    "mqtt.lastRun": "Last scan",
-    "mqtt.listener": "Listener state",
-    "mqtt.api": "EMQX 5 API",
-    "mqtt.api.url": "API address",
-    "mqtt.api.url.hint":
-      "EMQX 5 removed the per-client topics from $SYS, so a subscription there cannot answer: only counters are left. Its API does list the clients connected right now, with the address each connected from, which ties them to devices and not just to a name. Use the same address you open the dashboard with in a browser, usually on port 18083. The scheme can be left out.",
-    "mqtt.api.key": "API key",
-    "mqtt.api.secret": "API secret",
-    "mqtt.api.secret.set": "stored, leave empty to keep it",
-    "mqtt.api.secret.unset": "no secret stored",
-    "mqtt.api.hint":
-      "Create it in the EMQX dashboard, System, API Key, Create. Read-only permissions are enough. Filling this in makes Talos use the API and ignore the broker fields above.",
-    "mqtt.sub": "$SYS subscription",
-    "mqtt.okApi": "Account saved",
-    "mqtt.okApi.sub": "API reached, {n} clients read.",
-    "mqtt.noReload":
-      "Broker credentials are read again on every scan, so saving them does not reload the integration and interrupts nothing.",
-
-    "mqtt.fallback": "Fell back from {route}",
-    "mqtt.fallback.why": "The configured source did not answer: {reason}",
-    "mqtt.api.replaces":
-      "With an API key configured Talos stops subscribing to $SYS, and nothing is lost by that: on EMQX 5 the tree holds only counters, while the API lists the clients with their address. If the API does not answer, Talos falls back to the subscription on its own and says so below rather than ending up with nothing.",
-
-    "mesh.coordinator": "Coordinator",
-    "mesh.router": "Router",
-    "mesh.end_device": "End device",
-    "mesh.unknown": "",
-    "mesh.title": "Zigbee network",
-    "mesh.lead":
-      "How the coordinator describes its own network, read from Zigbee2MQTT's retained topics. Routers relay for the nodes around them and are mains powered, end devices sleep and depend on a router being in range. The parent of a node is not stated: knowing it takes a scan of the mesh, and that is a probe.",
-    "mesh.nodes": "Nodes",
-    "mesh.routers": "Routers",
-    "mesh.endDevices": "End devices",
-    "mesh.channel": "Channel",
-    "mesh.permitJoin": "Joining",
-    "mesh.permitJoin.on": "open",
-    "mesh.permitJoin.off": "closed",
-    "mesh.version": "Zigbee2MQTT version",
-    "map.mesh": "Mesh role",
-
-    "mqtt.clients.title": "MQTT clients",
-    "mqtt.clients.lead":
-      "Who the broker reports as connected, read from the broker itself. A client id is the name a client gave itself, so on its own it says nothing: where the source provides one, the address it connected from is shown next to it, and that is the only handle for going to look.",
-    "mqtt.clients.matched": "Accounted for",
-    "mqtt.clients.unmatched": "Not accounted for",
-    "mqtt.clients.none": "No client read",
-    "mqtt.clients.why": "The unknown-client check cannot run, and this is why: {reason}",
-    "mqtt.clients.emqx5":
-      "On EMQX 5 the per-client topics under $SYS are gone and only counters are left. The route that works is the API key, set above: it lists the clients connected right now and gives the address of each.",
-    "mqtt.client.noAddress": "no address supplied by the source",
-    "mqtt.client.seen": "the resolver saw {n} queries from this address",
-    "mqtt.client.unseen": "the resolver has never seen this address",
-    "mqtt.client.unmatched": "not accounted for",
-
-    "mode.diagnostics": "Diagnostics",
-    "diag.title": "Diagnostics",
-    "diag.lead":
-      "A measurement taken now, not a scan. You start it, it lasts the window and then stops: it is never scheduled and it feeds no security check. Every row carries the time it was measured, because the moment is part of the data.",
-    "diag.run": "Run diagnostics",
-    "diag.running": "Running…",
-    "diag.window": "Listening window",
-    "diag.seconds": "{n} s",
-    "diag.busy": "Diagnostics running",
-    "diag.busy.sub":
-      "Listening to state changes for {n} seconds. Meanwhile the log is read and the declared endpoints are connected to. Nothing else is touched.",
-    "diag.done": "Diagnostics complete",
-    "diag.done.sub": "Measured at {when}, over a {n} second window.",
-    "diag.failed": "Diagnostics failed",
-    "diag.none": "No diagnostic run yet. Press the button: it takes a minute.",
-    "diag.measured": "measured at {when}",
-    "diag.churn": "State changes per integration",
-    "diag.churn.lead":
-      "Who writes the most in the window. Every state change is a row in the recorder and a turn on the loop: an integration producing hundreds a minute is what fills the database and keeps the system busy, even if each single write is harmless.",
-    "diag.churn.total": "{total} changes in {n} seconds, {rate} a minute",
-    "diag.churn.unattributed":
-      "{n} changes belong to entities with no config entry (YAML, helpers) and are counted but not attributed.",
-    "diag.churn.none": "No state change in the window.",
-    "diag.churn.perMinute": "{n}/min",
-    "diag.churn.entities": "{n} entities",
-    "diag.churn.top": "Most active",
-    "diag.blocking": "Calls that block the loop",
-    "diag.blocking.lead":
-      "Home Assistant logs every call that blocked the event loop, and the traceback names the integration that made it. It is the most direct signal of \"this thing slows everything down\": while the loop is blocked, nothing else runs. Read from the tail of the log, without running anything.",
-    "diag.blocking.none": "No blocking call in the tail of the log.",
-    "diag.blocking.count": "{n} times",
-    "diag.blocking.last": "last",
-    "diag.blocking.sample": "Sample from the log",
-    "diag.reach": "Reachability of the declared endpoints",
-    "diag.reach.lead":
-      "One TCP connection to every host and port the config entries declare, with the response time. Only to what you configured, only on the port you wrote, no ICMP and no sweep: that is the difference between checking the broker answers and knocking on doors on the network.",
-    "diag.reach.none": "No config entry declares a host and a port, so there was nothing to connect to.",
-    "diag.reach.ok": "reachable",
-    "diag.reach.fail": "unreachable",
-    "diag.reach.ms": "{n} ms",
-    "diag.notes": "What was not measured",
-
-    "diag.addons": "Add-ons and system resources",
-    "diag.addons.lead":
-      "What each container uses, asked of the Supervisor. CPU and memory are read at the end of the window. Network is a rate: the Supervisor gives bytes as counters growing since the container started, which say nothing about now, so a sample is taken at each end of the window and divided by the seconds. Home Assistant Core is listed as the yardstick.",
-    "diag.addons.none": "No add-on measured.",
-    "diag.addons.cpu": "CPU",
-    "diag.addons.memory": "Memory",
-    "diag.addons.network": "Network",
-    "diag.addons.cpuNote": "Share of the machine, normalised over {n} cores.",
-    "diag.addons.memoryNote": "Share of {total} of host RAM.",
-    "diag.addons.networkNote":
-      "Split among what was measured: network has no whole, nobody knows what the link could carry.",
-    "diag.addons.other": "other / free",
-    "diag.addons.stopped": "stopped",
-    "diag.addons.rate": "{rx} in · {tx} out",
-    "diag.addons.noPie": "No data for this pie.",
-
-    "check.blind": "Could not inspect",
-    "check.missing": "What is missing",
-    "check.about": "What it would check",
-    "precondition.observed_evidence":
-      "Nothing was observed in this scan: AdGuard Home has to be configured and reachable, because without a query log there is nothing observed. Settings, AdGuard Home connection.",
-    "precondition.dhcp_leases":
-      "No DHCP leases: they are the only place a MAC and an IP appear together. Enable AdGuard Home's DHCP server, or a router based device tracker (AsusWRT, UniFi, Fritz) that publishes ip and mac.",
-    "precondition.zones_configured":
-      "No subnet configured: Talos does not know which network is the trusted LAN and which the IoT VLAN. Settings, Network zones, where the subnet found in this scan is offered.",
-    "precondition.manifests":
-      "Integration manifests unreadable: iot_class and is_built_in are not trustworthy in this scan. Usually transient, run the scan again; if it stays, the Home Assistant log names the integration that does not answer.",
-    "precondition.entry_endpoints":
-      "No config entry declared where it connects. From outside Home Assistant that data is not exposed: this happens with the CLI, not with the integration. If you are looking at the panel, run the scan again.",
-    "precondition.mqtt_clients":
-      "The broker gave no client list. On EMQX 5 it takes the API key; on Mosquitto an account allowed to read $SYS/#. Settings, Read-only MQTT account.",
-    "precondition.zigbee_bridge":
-      "No Zigbee coordinator reported its state: it takes Zigbee2MQTT, which publishes its retained bridge topics over MQTT. ZHA and other coordinators do not, and this check cannot run with them.",
-    "precondition.entry_streams":
-      "The video integrations listed below declare no stream URL: they negotiate it at connection time (ONVIF, Reolink) and leave nothing to read, so whether their stream is in the clear cannot be said. Where nothing carries video the check passes. To have it green here too takes a camera configured by hand with an rtsp:// or rtsps:// URL.",
-
-    "map.popup.close": "Close",
-    "map.popup.isolate": "Isolate this integration",
-    "map.popup.unisolate": "Show everything",
-    "map.popup.links": "Links",
-    "map.popup.conduits": "{n} conduits",
-    "map.popup.noConduits": "No conduit recorded",
-    "map.popup.kind.core": "Home Assistant",
-    "map.popup.kind.transport": "Transport",
-    "map.popup.kind.integration": "Integration",
-    "map.popup.kind.origin": "Publishing system",
-    "map.popup.kind.device": "Device",
-    "map.popup.kind.more": "Note",
-    "map.field.transport": "Transport",
-    "map.field.integration": "Integration",
-    "map.field.origin": "Origin",
-    "map.field.mesh": "Mesh role",
-    "map.field.area": "Area",
-    "map.field.ip": "Address",
-    "map.field.mac": "MAC",
-    "map.field.model": "Model",
-    "map.field.entities": "Entities",
-    "map.field.domain": "Domain",
-    "map.field.class": "iot_class",
-    "map.field.role": "Role",
-    "map.field.state": "State",
-    "map.field.endpoint": "Declared address",
-    "map.field.devices": "Devices",
-    "map.field.hub": "Behind",
-    "map.field.children": "Attached devices",
-    "map.hint":
-      "Drag nodes: they settle on their own. Wheel to zoom. Click a node for its details and to see where its data passes.",
-
-    "mqtt.routes": "Outcome per route",
-    "mqtt.route.ok": "{n} clients",
-    "mqtt.route.fail": "no answer",
-    "mqtt.test": "Test now",
-    "mqtt.testing.now": "Trying every configured route",
-    "mqtt.testing.now.sub": "The same code the scan runs, executed now. Each route's outcome is reported verbatim.",
-    "mqtt.test.done": "Test complete",
-    "mqtt.test.none": "No route answered",
-
-    "opt.retention_days": "Keep data for (days)",
-    "opt.hint.retention_days":
-      "The one question that matters. With auto sizing on, the observation age, the row ceiling and the number of scan documents kept are derived from this number and from the install's measured rate.",
-    "opt.auto_retention": "Auto sizing",
-    "opt.hint.auto_retention":
-      "On: the three limits below are derived and shown, not editable. Off: you set them by hand.",
-    "retention.derived": "Derived from the install's rate",
-    "retention.rate.measured": "{n} observations a day, measured",
-    "retention.rate.assumed": "{n} observations a day, assumed: not enough history yet to measure",
-    "retention.rows": "Row ceiling",
-    "retention.scans": "Scan documents kept",
-    "retention.days": "Observation age",
-    "retention.estimate": "Estimated size at steady state",
-    "retention.estimate.none": "no estimate until the database holds observations",
-    "retention.manual": "Limits set by hand",
-
-    "history.title": "Trend",
-    "history.lead":
-      "One compact row per scan, kept for the whole retention window. The picture says where you are; these rows say whether it is getting better. The horizontal axis is the sequence of scans, oldest to newest.",
-    "history.none": "At least two scans are needed to draw a trend. The next scan adds a point.",
-    "history.scans": "{n} scans, since {from}",
-    "history.findings": "Findings by severity",
-    "history.high": "high",
-    "history.medium": "medium",
-    "history.low": "low",
-    "history.partial": "verified in part",
-    "history.unverified": "could not run",
-    "history.entities": "Entities: local, cloud, unavailable",
-    "history.local": "local",
-    "history.cloud": "cloud",
-    "history.unavailable": "unavailable",
-    "history.exposure": "Devices talking outside",
-    "history.exposed": "with direct egress",
-    "history.localEgress": "local with egress",
-    "history.unclassified": "Unclassified domains",
-    "history.unclassifiedSeries": "domains",
-    "history.correlation": "Correlated devices",
-    "history.correlated": "correlated",
-    "history.last": "last",
-
-    "severity.high": "high",
-    "severity.medium": "medium",
-    "severity.low": "low",
-    "evidence.declared": "declared",
-    "evidence.observed": "observed",
-    "evidence.inherited": "inherited",
-    "reason.not_executable": "not runnable",
-    "reason.missing_data": "missing data",
-    "reason.method_limit": "method limit",
-    "kind.vendor_cloud": "vendor cloud",
-    "kind.telemetry": "telemetry",
-    "kind.push_service": "push service",
-    "kind.ota_update": "updates",
-    "kind.ntp": "clock",
-    "kind.nat_traversal": "NAT traversal",
-    "kind.cdn": "CDN",
-    "kind.local_hub": "local hub",
-    "kind.local_broker": "local broker",
-    "kind.ha_core": "Home Assistant",
-    "kind.unknown": "unclassified",
-  },
+/** Strings live in i18n/<lang>.json next to this file, one table per
+ *  language, and are fetched on demand: keeping eight languages inline would
+ *  triple the size of the script every browser loads for one of them. The
+ *  English table is always loaded and is the fallback for any key a language
+ *  lacks. The URL carries the same ?v= as the script, so a release refreshes
+ *  both together. */
+const LANGUAGES = {
+  en: "English",
+  it: "Italiano",
+  fr: "Français",
+  de: "Deutsch",
+  es: "Español",
+  nl: "Nederlands",
+  pl: "Polski",
+  pt: "Português",
 };
+const LOCALES = {
+  en: "en-GB",
+  it: "it-IT",
+  fr: "fr-FR",
+  de: "de-DE",
+  es: "es-ES",
+  nl: "nl-NL",
+  pl: "pl-PL",
+  pt: "pt-PT",
+};
+const I18N_PENDING = {};
+
+function loadLanguage(code) {
+  if (I18N[code]) return Promise.resolve(I18N[code]);
+  if (!I18N_PENDING[code]) {
+    const url = new URL(`i18n/${code}.json`, import.meta.url);
+    url.search = new URL(import.meta.url).search;
+    I18N_PENDING[code] = fetch(url.href, { credentials: "same-origin" })
+      .then((response) => {
+        if (!response.ok) throw new Error(`${response.status} for ${code}.json`);
+        return response.json();
+      })
+      .then((table) => {
+        I18N[code] = table;
+        return table;
+      })
+      .catch((err) => {
+        // A missing table is not fatal: keys render raw, which is visible and
+        // says exactly which file did not arrive.
+        console.warn("talos: language table not loaded:", err);
+        delete I18N_PENDING[code];
+        return null;
+      });
+  }
+  return I18N_PENDING[code];
+}
+
 
 const FALLBACK_LANG = "en";
 
@@ -1962,10 +667,10 @@ class TalosPanel extends HTMLElement {
   }
 
   resolveLang(hass) {
-    if (this._langOverride && I18N[this._langOverride]) return this._langOverride;
+    if (this._langOverride && LANGUAGES[this._langOverride]) return this._langOverride;
     const raw = (hass && ((hass.locale && hass.locale.language) || hass.language)) || "";
     const base = String(raw).toLowerCase().split("-")[0];
-    return I18N[base] ? base : FALLBACK_LANG;
+    return LANGUAGES[base] ? base : FALLBACK_LANG;
   }
 
   setLanguage(value) {
@@ -1977,7 +682,13 @@ class TalosPanel extends HTMLElement {
       // A browser that refuses storage still gets the change for this session.
     }
     this._lang = this.resolveLang(this._hass);
-    this.render();
+    this.ensureLanguage().then(() => this.render());
+  }
+
+  /** The fallback table and the active one, fetched once. Awaited before
+   *  any render that matters, so the screen never shows raw keys. */
+  async ensureLanguage() {
+    await Promise.all([loadLanguage(FALLBACK_LANG), loadLanguage(this._lang)]);
   }
 
   set hass(hass) {
@@ -1990,15 +701,15 @@ class TalosPanel extends HTMLElement {
   }
 
   connectedCallback() {
-    this.render();
+    this.ensureLanguage().then(() => this.render());
   }
 
   /* ── i18n ────────────────────────────────────────────────────────────── */
 
   t(key, vars) {
-    const table = I18N[this._lang] || I18N[FALLBACK_LANG];
+    const table = I18N[this._lang] || I18N[FALLBACK_LANG] || {};
     let text = table[key];
-    if (text === undefined) text = I18N[FALLBACK_LANG][key];
+    if (text === undefined) text = (I18N[FALLBACK_LANG] || {})[key];
     if (text === undefined) return key;
     if (!vars) return text;
     return text.replace(/\{(\w+)\}/g, (match, name) =>
@@ -2008,13 +719,14 @@ class TalosPanel extends HTMLElement {
 
   num(value) {
     if (value == null) return "-";
-    return Number(value).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB");
+    return Number(value).toLocaleString(LOCALES[this._lang] || LOCALES[FALLBACK_LANG]);
   }
 
   /* ── data ────────────────────────────────────────────────────────────── */
 
   async load({ quiet = false } = {}) {
     this._loading = true;
+    await this.ensureLanguage();
     if (!quiet) this.render();
     try {
       const [derived, status, suggested, diagnostics, history] = await Promise.all([
@@ -2092,7 +804,7 @@ class TalosPanel extends HTMLElement {
 
   when(value) {
     return value
-      ? new Date(value).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB")
+      ? new Date(value).toLocaleString(LOCALES[this._lang] || LOCALES[FALLBACK_LANG])
       : this.t("app.never");
   }
 
@@ -2524,7 +1236,8 @@ class TalosPanel extends HTMLElement {
     const key = `${item.id}.${field}`;
     const table = I18N[this._lang] || {};
     if (table[key] !== undefined) return table[key];
-    if (I18N[FALLBACK_LANG][key] !== undefined) return I18N[FALLBACK_LANG][key];
+    const fallback = I18N[FALLBACK_LANG] || {};
+    if (fallback[key] !== undefined) return fallback[key];
     return item[field] || "";
   }
 
@@ -5049,7 +3762,7 @@ class TalosPanel extends HTMLElement {
     const prune = (status.retention || {}).last_prune || {};
     const configured = Boolean(connection.adguard_url);
     const lastScan = status.generated_at
-      ? new Date(status.generated_at).toLocaleString(this._lang === "it" ? "it-IT" : "en-GB")
+      ? new Date(status.generated_at).toLocaleString(LOCALES[this._lang] || LOCALES[FALLBACK_LANG])
       : this.t("app.never");
     const bytes = store.bytes_used
       ? `${(store.bytes_used / 1048576).toFixed(1)} MB`
@@ -5073,8 +3786,12 @@ class TalosPanel extends HTMLElement {
                 <option value="auto" ${this._langOverride ? "" : "selected"}>${esc(
                   this.t("settings.language.auto")
                 )}</option>
-                <option value="it" ${this._langOverride === "it" ? "selected" : ""}>Italiano</option>
-                <option value="en" ${this._langOverride === "en" ? "selected" : ""}>English</option>
+                ${Object.entries(LANGUAGES)
+                  .map(
+                    ([code, name]) =>
+                      `<option value="${code}" ${this._langOverride === code ? "selected" : ""}>${name}</option>`
+                  )
+                  .join("")}
               </select>
               <span class="hint">${esc(this.t("settings.language.hint"))}</span>
             </div>
