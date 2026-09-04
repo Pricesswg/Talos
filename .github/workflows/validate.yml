@@ -28,13 +28,12 @@ jobs:
 
       - name: Parse the panel
         # The Python tests read the panel as text, so a syntax error in it
-        # would otherwise reach a release. Node parses it for real.
+        # would otherwise reach a release. Node parses it for real, as the
+        # ES module it is: the panel uses import.meta.url to find its
+        # language tables, which a plain script parse would reject.
         run: |
-          node --input-type=module -e '
-            import fs from "fs";
-            new Function(fs.readFileSync("custom_components/talos/www/talos-panel.js", "utf8"));
-            console.log("panel parses");
-          '
+          cp custom_components/talos/www/talos-panel.js "$RUNNER_TEMP/talos-panel.mjs"
+          node --check "$RUNNER_TEMP/talos-panel.mjs" && echo "panel parses"
 
   bundle:
     name: bundled core is in sync
