@@ -439,6 +439,10 @@ svg.map .lbl { font-size: 12.5px; font-weight: 500; }
 svg.map .lbl--device { font-size: 11.5px; font-weight: 400; display: none; }
 svg.map .node--match .lbl--device, svg.map .is-focus .lbl--device,
 svg.map .is-near .lbl--device, svg.map .is-hover .lbl--device { display: inline; }
+/* Zoomed in past 2.2x there is room for every name; the toggle asks for
+   them at any zoom, and is remembered per browser. */
+svg.map[data-zoom="near"] .lbl--device, svg.map.show-labels .lbl--device { display: inline; }
+.btn--ghost[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); font-weight: 600; }
 svg.map .is-hover .node__mark { stroke: var(--ink-mute); stroke-width: 1.5px; }
 svg.map .lbl--core { font-size: 15px; font-weight: 600; }
 svg.map .lbl--transport { font-size: 13.5px; font-weight: 600; }
@@ -661,8 +665,10 @@ class TalosPanel extends HTMLElement {
     // Reading storage can throw in a private window or with site data blocked.
     try {
       this._langOverride = window.localStorage.getItem("talos.lang") || "";
+      this._allLabels = window.localStorage.getItem("talos.map.labels") === "1";
     } catch (err) {
       this._langOverride = "";
+      this._allLabels = false;
     }
   }
 
@@ -981,6 +987,25 @@ class TalosPanel extends HTMLElement {
       if (less) less.addEventListener("click", () => setDetail(-1));
       const more = host.querySelector("[data-action='map-more']");
       if (more) more.addEventListener("click", () => setDetail(1));
+
+      // A class on the svg, not a redraw: the simulation keeps running and
+      // the view stays where it is.
+      const svgMap = host.querySelector("svg.map");
+      if (svgMap) svgMap.classList.toggle("show-labels", !!this._allLabels);
+      const labels = host.querySelector("[data-action='map-labels']");
+      if (labels) {
+        labels.addEventListener("click", () => {
+          this._allLabels = !this._allLabels;
+          labels.setAttribute("aria-pressed", this._allLabels ? "true" : "false");
+          if (svgMap) svgMap.classList.toggle("show-labels", this._allLabels);
+          try {
+            if (this._allLabels) window.localStorage.setItem("talos.map.labels", "1");
+            else window.localStorage.removeItem("talos.map.labels");
+          } catch (err) {
+            // Storage refused: the choice still holds for this page.
+          }
+        });
+      }
 
       const reset = host.querySelector("[data-action='map-reset']");
       if (reset) {
@@ -2065,6 +2090,8 @@ class TalosPanel extends HTMLElement {
                     title="${esc(this.t("map.detail.more"))}" ${(this._detail || 2) >= 3 ? "disabled" : ""}>+</button>
           </span>
           <button class="btn btn--ghost" data-action="map-reset">${esc(this.t("map.reset"))}</button>
+          <button class="btn btn--ghost" data-action="map-labels"
+                  aria-pressed="${this._allLabels ? "true" : "false"}">${esc(this.t("map.labels.all"))}</button>
           <span class="hint">${esc(this.t("map.hint"))} ${esc(this.t("map.zoomHint"))} ${esc(
             this.t("map.click.integration")
           )}</span>
