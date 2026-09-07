@@ -393,6 +393,35 @@ dash from the leaf towards the hub, which is the direction the data goes. Escape
 space clears it. Dragging a node pins it to the pointer and lets the rest settle around it; letting
 go frees it.
 
+### Routes: from inside the house to whatever is at the far end
+
+Every other view answers one column at a time. The matrix says which quadrant a device is in, the
+map says it hangs off a transport, the conduit list says a name was resolved. None of them reads as
+a sentence, and a branch that ends at a transport looks like a bug: the picture says an integration
+is talking and never says to whom.
+
+The routes are that sentence, assembled in `talos_core/routes.py` so the panel, the exported report
+and the CLI all say it the same way. Each row reads left to right: what is talking, the legs that
+carry its data, and what is at the far end. A Zigbee bulb reads as the bulb, then Zigbee, then the
+coordinator that relays it, then the broker with its address, then the entry that owns it, then Home
+Assistant. An observed row reads as the client, the transport it speaks, DNS, and the name that was
+asked for, with the query count, the resolver's answer and the evidence next to it. Where the far end
+is outside, the destination kind is on the row in its own colour.
+
+Two kinds exist, because there are two ways Talos knows about a path. An inbound route is how a
+device reaches Home Assistant, read from the registry and always known. A conduit route is an
+exchange with something else, and its worth is in the evidence: `declared` is what a config entry
+says it connects to, `observed` is a name the resolver saw asked for, `inherited` is a path that runs
+through a hub.
+
+The interesting part is where the sentence breaks. A client the resolver saw that no lease ties to a
+device is shown as the address it used, marked as unattributed, and a device that was never placed
+carries the precondition that would place it, in the same words a check that could not run would use.
+Above the rows, one card per transport says how many devices speak it, how many of those the scan
+placed, and how many were seen reaching outside. That is the honest answer to a branch that ends at
+the transport: not "nothing happens here" but "nothing was seen, and this is what it would take to
+see it". On an install with no DHCP leases every one of those counts reads zero, which is the point.
+
 ### History, and how the store is sized
 
 Every scan leaves one compact row behind: findings by severity, passed, partial and could-not-run,
@@ -685,6 +714,7 @@ the English keys, drops a placeholder, or ships a language the panel does not of
 talos_core/                plain Python package, no dependencies, no homeassistant imports
 ├── model, validate        data model and validator with stable error codes
 ├── derive, checks         matrix, autonomy, exposure, posture check engine
+├── routes                 who talks, through what, to whom, and where it breaks
 ├── sources/               declared side (WebSocket API and in-process registries)
 ├── observed/              observed side (AdGuard), classification, join
 └── storage, cli, export   persistence with retention, CLI, HTML report

@@ -242,6 +242,17 @@ p.page-sub { margin: 0; color: var(--ink-soft); max-width: 62ch; }
 .guide h4:first-child { margin-top: 0; }
 .guide p { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); max-width: 84ch; }
 
+.route-legs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.route-legs .leg { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.route-legs .arrow { color: var(--ink-mute); }
+.route-legs .addr { font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-soft); }
+.route-cut { display: block; margin-top: 4px; color: var(--ink-mute); font-size: 12px; max-width: 60ch; }
+.tstrip { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.tstrip .tcard { border: 1px solid var(--border); border-radius: 10px; padding: 8px 11px; min-width: 150px; }
+.tstrip .tcard b { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.tstrip .tcard span { display: block; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+.tstrip .tcard .cut { color: var(--attention); }
+
 .charts { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
 .chart { }
 .chart__title { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-mute); margin: 0 0 6px; }
@@ -658,6 +669,8 @@ class TalosPanel extends HTMLElement {
     this._saving = false;
     this._saveStatus = null;
     this._mapQuery = "";
+    this._routeQuery = "";
+    this._routeFilter = "all";
     this._detail = 2;
     this._scope = null;
     this._reheat = 0;
@@ -735,7 +748,7 @@ class TalosPanel extends HTMLElement {
     await this.ensureLanguage();
     if (!quiet) this.render();
     try {
-      const [derived, status, suggested, diagnostics, history] = await Promise.all([
+      const [derived, status, suggested, diagnostics, history, routes] = await Promise.all([
         this._hass.callWS({ type: "talos/derived" }),
         this._hass.callWS({ type: "talos/status" }),
         // Advisory only: an older integration without the command must not
@@ -745,6 +758,9 @@ class TalosPanel extends HTMLElement {
         // Advisory: an older integration without the command must not take
         // the panel down, and a fresh install simply has no rows yet.
         this._hass.callWS({ type: "talos/history", limit: 500 }).catch(() => ({ rows: [] })),
+        // Assembled on demand by the integration, so an older one simply has
+        // no routes rather than taking the panel down.
+        this._hass.callWS({ type: "talos/routes" }).catch(() => ({ routes: [] })),
       ]);
       this._data = derived;
       // A finished scan supersedes the last save's test result.
@@ -755,6 +771,7 @@ class TalosPanel extends HTMLElement {
       this._suggestions = (suggested || {}).suggestions || [];
       if (diagnostics && diagnostics.run) this._diagnostics = diagnostics.run;
       this._history = (history && history.rows) || [];
+      this._routes = routes || { routes: [], transports: {}, unattributed: [] };
       this._error = null;
     } catch (err) {
       this._error = err && err.message ? err.message : String(err);
@@ -934,6 +951,7 @@ class TalosPanel extends HTMLElement {
     if (mqttTest) mqttTest.addEventListener("click", () => this.testMqtt());
 
     this.wireInventory(host);
+    this.wireRoutes(host);
 
     host.querySelectorAll("[data-suggest]").forEach((button) => {
       button.addEventListener("click", () => {
@@ -1760,10 +1778,7 @@ class TalosPanel extends HTMLElement {
         ${this.checkList()}
       </div>
 
-      <div>
-        <h2 class="sec">${esc(this.t("adv.conduits"))} · ${d.conduits.length}</h2>
-        <div class="card scroll-x">${this.conduitTable()}</div>
-      </div>
+      ${this.routesSection()}
 
       <div>
         <h2 class="sec">${esc(this.t("adv.unverified"))} · ${unverified.length}</h2>
@@ -1923,65 +1938,284 @@ class TalosPanel extends HTMLElement {
     </div></td>`;
   }
 
-  conduitTable() {
+  /* ── routes ───────────────────────────────────────────────────────────
+   * The conduit table said a name was resolved; the map said a device hangs
+   * off a transport. Neither reads as a sentence, and a branch that stops at
+   * the transport looks broken rather than unanswered. These rows are the
+   * sentence: what is talking, what carries it, what is at the far end.
+   */
+
+  /** What a leg is called on screen. Transports have a vocabulary, entries and
+   *  hubs have labels, and a publishing system names itself. */
+  legLabel(leg) {
     const d = this._data;
-    const rows = d.conduits
-      .slice()
-      .sort((a, b) => (b.query_count || 0) - (a.query_count || 0))
-      .map((conduit) => {
-        const destination = this.destination(conduit.destination_id);
-        const isKey =
-          conduit.evidence === "observed" &&
-          conduit.source.kind === "device" &&
-          d.matrix.local_egress.includes(conduit.source.id) &&
-          PHONE_HOME.has(destination.kind);
+    if (leg.kind === "transport") return this.t(`transport.${leg.id}`);
+    if (leg.kind === "integration") {
+      const integration = (d.labels.integrations || {})[leg.id] || {};
+      return integration.title || leg.id;
+    }
+    if (leg.kind === "hub") {
+      const device = (d.labels.devices || {})[leg.id] || {};
+      return device.name || leg.id;
+    }
+    if (leg.kind === "dns") return this.t("routes.leg.dns");
+    if (leg.kind === "protocol") return leg.id ? leg.id.toUpperCase() : this.t("routes.leg.link");
+    return leg.id;
+  }
 
-        let origin;
-        if (conduit.source.kind === "device") {
-          const device = d.labels.devices[conduit.source.id] || {};
-          const integration = d.labels.integrations[device.integration_id] || {};
-          origin = `${esc(device.name || conduit.source.id)}<span class="sub mono">${esc(
-            [integration.iot_class, device.ip || device.transport].filter(Boolean).join(" · ")
-          )}</span>`;
-        } else if (conduit.source.kind === "integration") {
-          const integration = d.labels.integrations[conduit.source.id] || {};
-          origin = `${esc(integration.title || conduit.source.id)}<span class="sub mono">${esc(
-            integration.domain || ""
-          )} · ${esc(this.t("table.noDevice"))}</span>`;
-        } else if (conduit.source.kind === "ha_core") {
-          origin = `Home Assistant<span class="sub mono">${esc(this.t("table.core"))}</span>`;
-        } else {
-          origin = `${esc(this.t("table.unknownHost"))}<span class="sub mono">${esc(conduit.source.id)}</span>`;
+  routeChain(route) {
+    const parts = route.legs.map((leg) => {
+      const dot =
+        leg.kind === "transport"
+          ? `<span class="dot" style="background:var(--t-${String(leg.id).replace(
+              /[^a-z]/g,
+              ""
+            )}, var(--t-unknown))"></span>`
+          : "";
+      const address = leg.detail ? ` <span class="addr">${esc(leg.detail)}</span>` : "";
+      return `<span class="leg">${dot}${esc(this.legLabel(leg))}${address}</span>`;
+    });
+    const chain =
+      parts.join('<span class="arrow">&rarr;</span>') ||
+      `<span class="leg">${esc(this.t("routes.leg.direct"))}</span>`;
+    return `<div class="route-legs">${chain}</div>`;
+  }
+
+  /** Both ends of a route, resolved to something a person can look for. */
+  routeEnd(end, route) {
+    const d = this._data;
+    if (end.kind === "ha_core") return { label: "Home Assistant", sub: this.t("table.core") };
+    if (end.kind === "device") {
+      const device = (d.labels.devices || {})[end.id] || {};
+      return {
+        label: device.name || end.id,
+        sub: [device.area, device.manufacturer, device.model].filter(Boolean).join(" · "),
+      };
+    }
+    if (end.kind === "integration") {
+      const integration = (d.labels.integrations || {})[end.id] || {};
+      return { label: integration.title || end.id, sub: integration.domain || "" };
+    }
+    if (end.kind === "host") return { label: end.id, sub: this.t("routes.host"), mono: true };
+    // Everything below is an address: monospace on the label, plain on the words.
+    const destination = this.destination(end.id);
+    const port = route && route.port ? `:${route.port}` : "";
+    const address = destination.fqdn + port;
+    return { label: address, sub: destination.vendor || "", mono: true, kind: destination.kind };
+  }
+
+  /** Devices per transport, and how many of them were seen going anywhere.
+   *  This is the answer to a branch that ends at the transport: not "nothing
+   *  happens here", but "nothing was seen, and this is what it would take". */
+  transportStrip() {
+    const rows = Object.entries((this._routes || {}).transports || {});
+    if (!rows.length) return "";
+    return `<div class="tstrip">${rows
+      .sort((a, b) => b[1].devices - a[1].devices)
+      .map(([name, row]) => {
+        const cut = (row.missing || []).length;
+        return `<div class="tcard">
+          <b><span class="dot" style="background:var(--t-${name.replace(
+            /[^a-z]/g,
+            ""
+          )}, var(--t-unknown))"></span>${esc(this.t(`transport.${name}`))}</b>
+          <span class="${cut ? "cut" : ""}">${esc(
+            this.t("routes.transport.counts", {
+              devices: this.num(row.devices),
+              seen: this.num(row.seen),
+              outward: this.num(row.outward),
+            })
+          )}</span>
+        </div>`;
+      })
+      .join("")}</div>`;
+  }
+
+  routeRows() {
+    const d = this._data;
+    const all = ((this._routes || {}).routes || []).slice();
+    const filter = this._routeFilter || "all";
+    const query = (this._routeQuery || "").trim().toLowerCase();
+
+    const kept = all.filter((route) => {
+      if (filter === "outward" && !route.outward) return false;
+      // Inside means inside: Home Assistant, a local broker, a hub. A clock
+      // server is outside the house even though reaching it is no finding.
+      if (filter === "inside") {
+        const inside =
+          route.target.kind === "ha_core" ||
+          INTERNAL_KINDS.has(this.destination(route.target.id).kind);
+        if (!inside) return false;
+      }
+      if (filter === "cut" && !(route.missing || []).length) return false;
+      if (!query) return true;
+      const from = this.routeEnd(route.source, route);
+      const to = this.routeEnd(route.target, route);
+      const haystack = [
+        from.label,
+        from.sub,
+        to.label,
+        to.sub,
+        ...route.legs.map((leg) => `${this.legLabel(leg)} ${leg.detail || ""}`),
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+
+    // Outward first and busiest first: the rows that answer "who is talking to
+    // the outside" should not sit below hundreds of lines of house wiring.
+    kept.sort((a, b) => {
+      if (a.outward !== b.outward) return a.outward ? -1 : 1;
+      return (b.query_count || 0) - (a.query_count || 0);
+    });
+
+    const LIMIT = 250;
+    const shown = kept.slice(0, LIMIT);
+    const rows = shown
+      .map((route) => {
+        const from = this.routeEnd(route.source, route);
+        const to = this.routeEnd(route.target, route);
+        const facts = [];
+        if (route.query_count != null) {
+          facts.push(this.t("find.queries", { n: this.num(route.query_count) }));
         }
-
+        facts.push(this.t(`evidence.${route.evidence}`));
+        if (route.filter_status) facts.push(route.filter_status);
+        const cut = (route.missing || []).length
+          ? `<span class="chip" style="color:var(--attention)">${esc(this.t("routes.cut.chip"))}</span>`
+          : "";
+        // Red keeps meaning one thing in this file: a device Home Assistant
+        // drives locally, observed reaching its vendor on its own. Any other
+        // outward row is a fact, not a finding.
+        const isKey =
+          route.outward &&
+          route.evidence === "observed" &&
+          route.source.kind === "device" &&
+          (d.matrix.local_egress || []).includes(route.source.id) &&
+          PHONE_HOME.has(this.destination(route.target.id).kind);
         return `<tr${isKey ? ' class="is-key"' : ""}>
-          <td>${origin}</td>
-          <td class="mono">${esc(destination.fqdn)}</td>
-          <td><span class="chip" style="color:${this.kindColour(destination.kind)}">
-            <span class="dot" style="background:currentColor"></span>${esc(
-              this.t(`kind.${destination.kind}`)
-            )}</span></td>
-          <td class="mono">${
-            conduit.protocol
-              ? `<span style="color:${this.linkColour(conduit, destination, false)}">${esc(
-                  conduit.protocol
-                )}</span>`
-              : "-"
+          <td>${from.mono ? `<span class="mono">${esc(from.label)}</span>` : esc(from.label)}${
+            from.sub ? `<span class="sub">${esc(from.sub)}</span>` : ""
           }</td>
-          <td><span class="ev ev--${esc(conduit.evidence)}">${esc(this.t(`evidence.${conduit.evidence}`))}</span></td>
-          <td class="num">${conduit.query_count == null ? "-" : this.num(conduit.query_count)}</td>
-          <td>${conduit.filter_status ? esc(conduit.filter_status) : "-"}</td>
+          <td>${this.routeChain(route)}</td>
+          <td>
+            <span class="${to.mono ? "mono" : ""}">${esc(to.label)}</span>
+            ${
+              to.kind
+                ? `<span class="chip" style="color:${this.kindColour(to.kind)}">
+                     <span class="dot" style="background:currentColor"></span>${esc(
+                       this.t(`kind.${to.kind}`)
+                     )}</span>`
+                : ""
+            }
+            <span class="sub">${esc(facts.join(" · "))}</span>
+            ${cut}
+          </td>
         </tr>`;
       })
       .join("");
 
-    return `<table class="data">
-      <thead><tr><th>${esc(this.t("table.origin"))}</th><th>${esc(this.t("table.destination"))}</th>
-      <th>${esc(this.t("table.kind"))}</th><th>${esc(this.t("table.protocol"))}</th>
-      <th>${esc(this.t("table.evidence"))}</th>
-      <th class="num">${esc(this.t("table.queries"))}</th><th>${esc(this.t("table.filter"))}</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="7">${esc(this.t("adv.conduits.none"))}</td></tr>`}</tbody>
-    </table>`;
+    return { rows, shown: shown.length, kept: kept.length, total: all.length };
+  }
+
+  /** The preconditions this scan actually hit, said once with their full
+   *  sentence, so the rows can carry a chip instead of a paragraph each. */
+  cutReasons() {
+    const routes = (this._routes || {}).routes || [];
+    const keys = [...new Set(routes.flatMap((route) => route.missing || []))];
+    if (!keys.length) return "";
+    const cut = routes.filter((route) => (route.missing || []).length).length;
+    return this.expander({
+      tone: "warn",
+      title: esc(this.t("routes.why", { n: this.num(cut) })),
+      body: keys.map((key) => `<p>${esc(this.t(`precondition.${key}`))}</p>`).join(""),
+    });
+  }
+
+  routesSection() {
+    const total = ((this._routes || {}).routes || []).length;
+    return `<div>
+      <h2 class="sec">${esc(this.t("routes.title"))} · ${this.num(total)}</h2>
+      <p class="page-sub" style="margin:0 0 12px">${esc(this.t("routes.lead"))}</p>
+      ${this.cutReasons()}
+      ${this.transportStrip()}
+      <div data-routes>${this.routesCard()}</div>
+    </div>`;
+  }
+
+  routesCard() {
+    const { rows, shown, kept, total } = this.routeRows();
+    const FILTERS = [
+      ["all", "filter.all"],
+      ["outward", "routes.filter.outward"],
+      ["inside", "routes.filter.inside"],
+      ["cut", "routes.filter.cut"],
+    ];
+    return `<div class="card">
+        <div class="card__head">
+          <input type="search" data-action="route-search" placeholder="${esc(
+            this.t("routes.search")
+          )}" value="${esc(this._routeQuery || "")}" spellcheck="false">
+          ${FILTERS.map(
+            ([key, label]) =>
+              `<button class="chip chip--filter" data-route-filter="${key}"
+                 aria-pressed="${(this._routeFilter || "all") === key}">${esc(this.t(label))}</button>`
+          ).join("")}
+          <span class="hint">${esc(
+            this.t("filter.count", { shown: this.num(kept), total: this.num(total) })
+          )}</span>
+        </div>
+        <div class="scroll-x"><table class="data">
+          <thead><tr>
+            <th>${esc(this.t("routes.col.from"))}</th>
+            <th>${esc(this.t("routes.col.how"))}</th>
+            <th>${esc(this.t("routes.col.to"))}</th>
+          </tr></thead>
+          <tbody>${rows || `<tr><td colspan="3">${esc(this.t("routes.none"))}</td></tr>`}</tbody>
+        </table></div>
+        ${
+          kept > shown
+            ? `<p class="hint" style="padding:0 16px 14px;margin:0">${esc(
+                this.t("routes.truncated", { n: this.num(kept - shown) })
+              )}</p>`
+            : ""
+        }
+      </div>`;
+  }
+
+  /** Redraw only the routes card, so the search field keeps focus and caret. */
+  renderRoutes(host) {
+    const container = host.querySelector("[data-routes]");
+    if (!container) return;
+    const active = this.shadowRoot.activeElement;
+    const focused = active === host.querySelector("[data-action='route-search']");
+    const caret = focused ? active.selectionStart : null;
+    container.innerHTML = this.routesCard();
+    this.wireRoutes(host);
+    if (focused) {
+      const field = host.querySelector("[data-action='route-search']");
+      if (field) {
+        field.focus();
+        if (caret != null) field.setSelectionRange(caret, caret);
+      }
+    }
+  }
+
+  wireRoutes(host) {
+    const search = host.querySelector("[data-action='route-search']");
+    if (search) {
+      search.addEventListener("input", (event) => {
+        this._routeQuery = event.target.value;
+        this.renderRoutes(host);
+      });
+    }
+    host.querySelectorAll("[data-route-filter]").forEach((button) => {
+      button.addEventListener("click", () => {
+        this._routeFilter = button.dataset.routeFilter;
+        this.renderRoutes(host);
+      });
+    });
   }
 
   /* ── map ─────────────────────────────────────────────────────────────── */

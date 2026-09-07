@@ -17,6 +17,7 @@ from typing import Any
 
 from .derive import Derived
 from .model import Scan
+from .routes import build_routes
 
 SEVERITY_LABEL = {"high": "high", "medium": "medium", "low": "low"}
 KIND_LABEL = {
@@ -223,6 +224,94 @@ def render_html(scan: Scan, derived: Derived, title: str = "Talos") -> str:
     parts.append(f"""<h2>Conduits · {len(scan.conduits)}</h2><div class="scroll"><table>
 <tr><th>Origin</th><th>Destination</th><th>Kind</th><th>Evidence</th><th class="num">Queries</th><th>Filter</th></tr>
 {"".join(rows) or "<tr><td colspan='6'>No conduit in this scan.</td></tr>"}
+</table></div>""")
+
+    # ── Routes ───────────────────────────────────────────────────────────────
+    # The same facts as the table above, read as a sentence: what is talking,
+    # what carries it, what is at the far end. A branch that stops early names
+    # the precondition that would carry it on, so an empty far end is never
+    # mistaken for silence.
+    routes = build_routes(scan)
+
+    def leg_text(leg: Any) -> str:
+        if leg.kind == "transport":
+            return leg.id
+        if leg.kind == "integration":
+            entry = integrations.get(leg.id)
+            return entry.title if entry else leg.id
+        if leg.kind == "hub":
+            hub = devices.get(leg.id)
+            return hub.name if hub else leg.id
+        if leg.kind == "dns":
+            return "DNS"
+        if leg.kind == "protocol":
+            return (leg.id or "link").upper() + (f" {leg.detail}" if leg.detail else "")
+        return leg.id
+
+    def end_text(end: Any, port: int | None) -> str:
+        if end.kind == "ha_core":
+            return "Home Assistant<span class='sub mono'>core</span>"
+        if end.kind == "device":
+            device = devices.get(end.id)
+            if device is None:
+                return _e(end.id)
+            sub_line = " · ".join(x for x in (device.area, device.model) if x)
+            return f"{_e(device.name)}<span class='sub'>{_e(sub_line)}</span>"
+        if end.kind == "integration":
+            entry = integrations.get(end.id)
+            return (
+                f"{_e(entry.title)}<span class='sub mono'>{_e(entry.domain)}</span>"
+                if entry
+                else _e(end.id)
+            )
+        if end.kind == "host":
+            return f"<span class='mono'>{_e(end.id)}</span><span class='sub'>host no device accounts for</span>"
+        destination = destinations.get(end.id)
+        address = destination.fqdn if destination else end.id
+        if port:
+            address = f"{address}:{port}"
+        kind = destination.kind if destination else "unknown"
+        return f"<span class='mono'>{_e(address)}</span><span class='sub'>{_e(KIND_LABEL.get(kind, kind))}</span>"
+
+    route_rows: list[str] = []
+    for route in sorted(
+        routes.routes, key=lambda r: (not r.outward, -(r.query_count or 0))
+    ):
+        chain = " &rarr; ".join(_e(leg_text(leg)) for leg in route.legs) or "direct"
+        facts = [route.evidence]
+        if route.query_count is not None:
+            facts.append(f"{_n(route.query_count)} queries")
+        if route.filter_status:
+            facts.append(route.filter_status)
+        cut = (
+            f"<span class='sub'>missing: {_e(', '.join(route.missing))}</span>"
+            if route.missing
+            else ""
+        )
+        route_rows.append(
+            f"""<tr class="{"key" if route.outward and route.evidence == "observed" else ""}">
+<td>{end_text(route.source, None)}</td><td>{chain}</td>
+<td>{end_text(route.target, route.port)}<span class='sub'>{_e(" · ".join(facts))}</span>{cut}</td></tr>"""
+        )
+
+    transport_rows = "".join(
+        f"<tr><td>{_e(name)}</td><td class='num'>{_n(row['devices'])}</td>"
+        f"<td class='num'>{_n(row['seen'])}</td><td class='num'>{_n(row['outward'])}</td>"
+        f"<td>{_e(', '.join(row['missing']) or '-')}</td></tr>"
+        for name, row in sorted(routes.transports.items(), key=lambda item: -item[1]["devices"])
+    )
+    parts.append(f"""<h2>Routes · {len(routes.routes)}</h2>
+<div class="note">Each row reads left to right: what is talking, how it exchanges, and what is at
+the far end. A branch that ends at a transport is an unanswered question, not an absence of
+traffic, and the row says which precondition would answer it.</div>
+<div class="scroll"><table>
+<tr><th>Transport</th><th class="num">Devices</th><th class="num">Placed</th>
+<th class="num">Reaching outside</th><th>Missing</th></tr>
+{transport_rows or "<tr><td colspan='5'>No device in the registry.</td></tr>"}
+</table></div>
+<div class="scroll"><table>
+<tr><th>From inside the house</th><th>How it exchanges</th><th>Who it talks to</th></tr>
+{"".join(route_rows) or "<tr><td colspan='3'>No route in this scan.</td></tr>"}
 </table></div>""")
 
     parts.append(f"<h2>Unverified · {len(checks.unverified)}</h2>")

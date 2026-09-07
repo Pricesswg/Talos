@@ -42,7 +42,7 @@ from .mqtt_source import (
     normalise_api_url,
     read_sys_blocking,
 )
-from .core import subnets, suggestions
+from .core import build_routes, subnets, suggestions
 from .core import DEFAULT_WINDOW
 
 _REGISTERED = f"{DOMAIN}_ws_registered"
@@ -61,6 +61,7 @@ def async_register(hass: HomeAssistant) -> None:
     websocket_api.async_register_command(hass, ws_set_mqtt)
     websocket_api.async_register_command(hass, ws_mqtt_test)
     websocket_api.async_register_command(hass, ws_history)
+    websocket_api.async_register_command(hass, ws_routes)
     websocket_api.async_register_command(hass, ws_diagnostics_run)
     websocket_api.async_register_command(hass, ws_diagnostics_last)
     websocket_api.async_register_command(hass, ws_refresh)
@@ -522,6 +523,26 @@ async def ws_history(
     limit = max(1, min(5000, int(msg["limit"])))
     rows = await hass.async_add_executor_job(store.history, limit)
     connection.send_result(msg["id"], {"rows": rows})
+
+
+@websocket_api.require_admin
+@websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/routes"})
+@callback
+def ws_routes(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Who is talking, through what, to whom.
+
+    Assembled on demand rather than carried in the derived payload: on a house
+    of any size the routes are the largest thing Talos can say, and most
+    sessions never open the view that reads them.
+    """
+    coordinator = _coordinator(hass)
+    data = coordinator.data if coordinator else None
+    if data is None:
+        _not_ready(connection, msg["id"])
+        return
+    connection.send_result(msg["id"], build_routes(data.scan).to_dict())
 
 
 def _entry_broker(coordinator: TalosCoordinator) -> str:

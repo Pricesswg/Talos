@@ -67,6 +67,7 @@ try:  # repository checkout, or an installed talos-core
     )
     from talos_core.suggest import subnets, suggestions  # noqa: F401
     from talos_core.retention import size_for, snapshot_of  # noqa: F401
+    from talos_core.routes import build_routes  # noqa: F401
 except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     from .vendor.talos_core import (  # type: ignore[no-redef]  # noqa: F401
         CheckEngine,
@@ -129,6 +130,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     )
     from .vendor.talos_core.suggest import subnets, suggestions  # type: ignore[no-redef]  # noqa: F401
     from .vendor.talos_core.retention import size_for, snapshot_of  # type: ignore[no-redef]  # noqa: F401
+    from .vendor.talos_core.routes import build_routes  # type: ignore[no-redef]  # noqa: F401
 
 __all__ = [
     "AdGuardCollector",
@@ -162,6 +164,7 @@ __all__ = [
     "ZigbeeFacts",
     "Scan",
     "TalosStore",
+    "build_routes",
     "size_for",
     "snapshot_of",
     "subnets",

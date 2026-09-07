@@ -42,6 +42,7 @@ from .derive import (
 )
 from .errors import CODES, Finding, TalosSchemaError
 from .retention import Sizing, size_for, snapshot_of
+from .routes import Leg, Route, RouteEnd, Routes, build_routes
 from .storage import PruneReport, RetentionPolicy, StoreStats, TalosStore
 from .model import (
     Conduit,
@@ -114,9 +115,14 @@ __all__ = [
     "default_engine",
     "derive",
     "is_valid",
+    "build_routes",
+    "Routes",
+    "Route",
+    "RouteEnd",
+    "Leg",
     "size_for",
     "snapshot_of",
     "validate",
 ]
 
-__version__ = "1.23.1"
+__version__ = "1.24.0"
