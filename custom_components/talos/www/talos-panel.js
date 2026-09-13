@@ -4066,6 +4066,8 @@ class TalosPanel extends HTMLElement {
           ${
             configured
               ? `<dl class="kv">
+                   <dt>${esc(this.t("settings.connection.kind"))}</dt>
+                   <dd>${esc(this.t(`resolver.${connection.resolver_kind || "adguard"}`))}</dd>
                    <dt>${esc(this.t("settings.connection.url"))}</dt>
                    <dd class="mono">${esc(connection.adguard_url)}</dd>
                    <dt>${esc(this.t("settings.connection.user"))}</dt>
@@ -4078,6 +4080,7 @@ class TalosPanel extends HTMLElement {
               : `<p class="status">${esc(this.t("settings.connection.none"))}</p>`
           }
           <p class="hint" style="margin:12px 0 0">${esc(this.t("settings.connection.hint"))}</p>
+          <p class="hint" style="margin:8px 0 0">${esc(this.t("settings.connection.kind.hint"))}</p>
         </div>
       </div>
 

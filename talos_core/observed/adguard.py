@@ -11,12 +11,13 @@ the same machine as Home Assistant, and just as often does not.
 
 from __future__ import annotations
 
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from .base import HttpTransport, ObservedAuthError, ObservedError, ObservedSource
 from .mapping import (
     Observation,
     ObservedFacts,
+    QueryRecord,
     aggregate,
     parse_clients,
     parse_leases,
@@ -27,6 +28,31 @@ from .mapping import (
 QUERYLOG_PATH = "/control/querylog"
 CLIENTS_PATH = "/control/clients"
 DHCP_PATH = "/control/dhcp/status"
+STATUS_PATH = "/control/status"
+
+# AdGuard's reason field: Filtered* means the query was answered by a
+# filter, NotFilteredWhiteList is an explicit allow and must not match.
+_BLOCKED_PREFIX = "Filtered"
+
+
+def adguard_records(records: Iterable[dict[str, Any]]) -> Iterator[QueryRecord]:
+    """AdGuard's query log entries as normalised records. A record without a
+    client or a name is dropped here; one with an unreadable time is kept
+    and dropped by the aggregation, which owns that rule."""
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        client = record.get("client")
+        question = record.get("question") or {}
+        fqdn = question.get("name") if isinstance(question, dict) else None
+        if not client or not fqdn:
+            continue
+        yield QueryRecord(
+            client=str(client),
+            fqdn=str(fqdn),
+            time=str(record.get("time") or ""),
+            blocked=str(record.get("reason") or "").startswith(_BLOCKED_PREFIX),
+        )
 
 
 class AdGuardCollector(ObservedSource):
@@ -53,7 +79,7 @@ class AdGuardCollector(ObservedSource):
         previous: Iterable[Observation] = (),
     ) -> ObservedFacts:
         records, cursor = await self._read_querylog(since)
-        observations = aggregate(records, previous)
+        observations = aggregate(adguard_records(records), previous)
 
         clients = await self._read_optional(CLIENTS_PATH)
         dhcp_available, leases = parse_leases(await self._read_optional(DHCP_PATH))
@@ -66,6 +92,11 @@ class AdGuardCollector(ObservedSource):
             cursor=cursor or since,
             window_hours=self._window_hours,
         )
+
+    async def probe(self) -> None:
+        # /control/status answers on every AdGuard, before and after login;
+        # a 401 there is the credentials, anything else is the address.
+        await self._get(STATUS_PATH)
 
     async def _read_querylog(self, since: str | None) -> tuple[list[dict[str, Any]], str | None]:
         boundary = parse_time(since)
@@ -161,16 +192,31 @@ class AiohttpJsonTransport:
         self._session = aiohttp.ClientSession(auth=auth)
 
     async def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return await self.request_json("GET", path, params=params)
+
+    async def request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: Any = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
         if self._session is None:
             await self.connect()
         assert self._session is not None
 
-        async with self._session.get(f"{self._base_url}{path}", params=params) as response:
+        async with self._session.request(
+            method, f"{self._base_url}{path}", params=params, json=json, headers=headers
+        ) as response:
             if response.status in (401, 403):
                 raise ObservedAuthError(f"{path}: credentials rejected ({response.status})")
             if response.status >= 400:
                 raise ObservedError(f"{path}: HTTP {response.status}")
-            return await response.json()
+            if response.status == 204:
+                return None
+            return await response.json(content_type=None)
 
     async def close(self) -> None:
         if self._session is not None:

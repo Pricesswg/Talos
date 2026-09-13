@@ -8,7 +8,7 @@ in shell history and in process listings.
     export TALOS_HA_TOKEN=...            # long lived access token
     export TALOS_ADGUARD_PASSWORD=...
     talos scan --url ws://homeassistant.local:8123/api/websocket \\
-               --adguard http://192.168.1.10:3000 --html report.html
+               --resolver-url http://192.168.1.10:3000 --html report.html
 """
 
 from __future__ import annotations
@@ -26,7 +26,13 @@ from .checks import CheckEngine
 from .derive import Derived, derive
 from .export_html import render_html, render_json
 from .model import Scan
-from .observed import AdGuardCollector, AiohttpJsonTransport, DomainClassifier, merge_observed
+from .observed import (
+    RESOLVER_KINDS,
+    AiohttpJsonTransport,
+    DomainClassifier,
+    collector_for,
+    merge_observed,
+)
 from .sources import AiohttpTransport, WebSocketSource
 from .storage import RetentionPolicy, TalosStore
 from .validate import validate
@@ -47,10 +53,17 @@ def build_parser() -> argparse.ArgumentParser:
                       help="Home Assistant WebSocket, e.g. ws://host:8123/api/websocket")
     scan.add_argument("--token", default=os.environ.get("TALOS_HA_TOKEN"),
                       help="long lived access token (better via TALOS_HA_TOKEN)")
-    scan.add_argument("--adguard", default=os.environ.get("TALOS_ADGUARD_URL"),
-                      help="AdGuard Home base URL; without it the report stays declared-only")
-    scan.add_argument("--adguard-user", default=os.environ.get("TALOS_ADGUARD_USERNAME", ""))
-    scan.add_argument("--adguard-password", default=os.environ.get("TALOS_ADGUARD_PASSWORD", ""))
+    # --adguard stays as an alias: scripts written against it keep working.
+    scan.add_argument("--resolver-url", "--adguard", dest="adguard",
+                      default=os.environ.get("TALOS_RESOLVER_URL") or os.environ.get("TALOS_ADGUARD_URL"),
+                      help="resolver base URL, AdGuard Home or Pi-hole; without it the report stays declared-only")
+    scan.add_argument("--resolver", choices=list(RESOLVER_KINDS),
+                      default=os.environ.get("TALOS_RESOLVER", "adguard"),
+                      help="which resolver answers at that URL (default: adguard)")
+    scan.add_argument("--adguard-user", default=os.environ.get("TALOS_ADGUARD_USERNAME", ""),
+                      help="AdGuard Home username; Pi-hole has none")
+    scan.add_argument("--adguard-password", default=os.environ.get("TALOS_ADGUARD_PASSWORD", ""),
+                      help="AdGuard Home password, or the Pi-hole web password")
     scan.add_argument("--db", type=Path, help="SQLite file holding the incremental totals")
     scan.add_argument("--observation-days", type=int, default=RetentionPolicy().observation_days)
     scan.add_argument("--max-observations", type=int, default=RetentionPolicy().max_observations)
@@ -159,9 +172,15 @@ async def _collect_observed(scan: Scan, store: TalosStore | None, args: Any) -> 
     cursor = store.get_cursor() if store else None
     previous = store.load_observations() if store else ()
 
-    transport = AiohttpJsonTransport(args.adguard, args.adguard_user, args.adguard_password)
+    basic = args.resolver == "adguard"
+    transport = AiohttpJsonTransport(
+        args.adguard,
+        args.adguard_user if basic else "",
+        args.adguard_password if basic else "",
+    )
     try:
-        facts = await AdGuardCollector(transport).fetch(since=cursor, previous=previous)
+        collector = collector_for(args.resolver, transport, password=args.adguard_password)
+        facts = await collector.fetch(since=cursor, previous=previous)
     finally:
         await transport.close()
 

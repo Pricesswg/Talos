@@ -192,6 +192,7 @@ class TestTranslations(unittest.TestCase):
                 "legend",
                 "precondition",
                 "map.popup.kind",
+                "resolver",
             },
         )
 
@@ -301,6 +302,14 @@ class TestTranslations(unittest.TestCase):
                 self.assertIn(f"map.detail.{level}", self.en)
                 self.assertIn(f"map.detail.{level}", self.it)
 
+    def test_every_resolver_kind_has_a_label(self) -> None:
+        from talos_core.observed import RESOLVER_KINDS
+
+        for kind in RESOLVER_KINDS:
+            with self.subTest(kind=kind):
+                self.assertIn(f"resolver.{kind}", self.en)
+                self.assertIn(f"resolver.{kind}", self.it)
+
     def test_every_editable_option_has_a_label(self) -> None:
         # The settings screen builds `opt.<key>` at runtime from the option
         # list in const.py, so the two have to stay in step.
@@ -333,7 +342,7 @@ class TestIntegrationTranslations(unittest.TestCase):
 
             walk(json.loads(path.read_text(encoding="utf-8")), "")
 
-    def test_english_and_italian_cover_the_same_keys(self) -> None:
+    def test_every_translation_covers_the_same_keys_as_strings(self) -> None:
         import json
 
         base = ROOT / "custom_components" / "talos" / "translations"
@@ -346,9 +355,27 @@ class TestIntegrationTranslations(unittest.TestCase):
                 found |= keys(value, f"{where}.{key}" if where else key)
             return found
 
-        english = keys(json.loads((base / "en.json").read_text(encoding="utf-8")))
-        italian = keys(json.loads((base / "it.json").read_text(encoding="utf-8")))
-        self.assertEqual(english ^ italian, set())
+        strings = keys(
+            json.loads((ROOT / "custom_components" / "talos" / "strings.json").read_text(encoding="utf-8"))
+        )
+        for path in sorted(base.glob("*.json")):
+            with self.subTest(language=path.stem):
+                self.assertEqual(
+                    keys(json.loads(path.read_text(encoding="utf-8"))) ^ strings,
+                    set(),
+                    "a config flow key exists in one file only and would render raw",
+                )
+
+    def test_the_flow_offers_every_resolver_the_core_reads(self) -> None:
+        from talos_core.observed import RESOLVER_KINDS
+
+        strings = json.loads(
+            (ROOT / "custom_components" / "talos" / "strings.json").read_text(encoding="utf-8")
+        )
+        options = strings["selector"]["resolver_kind"]["options"]
+        self.assertEqual(set(options), set(RESOLVER_KINDS))
+        for step in ("user", "reconfigure", "discovered"):
+            self.assertIn("resolver_kind", strings["config"]["step"][step]["data"])
 
 
 class TestMethodCoverage(unittest.TestCase):

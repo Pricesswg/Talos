@@ -16,6 +16,8 @@ from homeassistant.core import HomeAssistant, callback
 from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
+    CONF_RESOLVER_KIND,
+    DEFAULT_RESOLVER_KIND,
     CONF_ADGUARD_USERNAME,
     CONF_MQTT_API_KEY,
     CONF_MQTT_API_SECRET,
@@ -121,6 +123,9 @@ def ws_status(
             # talking to. The password never leaves the config entry: only
             # whether one is set.
             "connection": {
+                CONF_RESOLVER_KIND: coordinator.entry.data.get(
+                    CONF_RESOLVER_KIND, DEFAULT_RESOLVER_KIND
+                ),
                 CONF_ADGUARD_URL: coordinator.entry.data.get(CONF_ADGUARD_URL, ""),
                 CONF_ADGUARD_USERNAME: coordinator.entry.data.get(CONF_ADGUARD_USERNAME, ""),
                 CONF_VERIFY_SSL: bool(coordinator.entry.data.get(CONF_VERIFY_SSL, True)),

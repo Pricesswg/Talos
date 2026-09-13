@@ -1,11 +1,12 @@
 """Config and options flow.
 
-The AdGuard endpoint and its credentials are asked for, never guessed. It
+The resolver's endpoint and its credentials are asked for, never guessed. It
 often runs on the same machine as Home Assistant and just as often does not,
 and a wrong assumption here produces an empty report that looks like a clean
-one.
+one. Two kinds are spoken, AdGuard Home and Pi-hole v6, and the form says
+which it is talking to: the address alone does not.
 
-AdGuard is optional. Without it Talos still answers the offline-autonomy
+The resolver is optional. Without it Talos still answers the offline-autonomy
 question from what Home Assistant declares; it simply cannot answer the
 exposure one, and says so in the report rather than leaving it blank.
 """
@@ -21,6 +22,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
@@ -42,11 +46,13 @@ from .const import (
     CONF_MQTT_USERNAME,
     CONF_OBSERVATION_DAYS,
     CONF_PAGE_SIZE,
+    CONF_RESOLVER_KIND,
     CONF_RETENTION_DAYS,
     CONF_SCAN_HISTORY,
     CONF_SCAN_INTERVAL,
     CONF_VERIFY_SSL,
     DEFAULT_MQTT_PORT,
+    DEFAULT_RESOLVER_KIND,
     DEFAULT_RETENTION_DAYS,
     CONF_ZONE_GUEST,
     CONF_ZONE_IOT,
@@ -57,7 +63,14 @@ from .const import (
     DOMAIN,
     OPTION_BOUNDS,
 )
-from .core import ObservedAuthError, ObservedError, RetentionPolicy
+from .core import (
+    RESOLVER_ADGUARD,
+    RESOLVER_KINDS,
+    ObservedAuthError,
+    ObservedError,
+    RetentionPolicy,
+    collector_for,
+)
 from .discovery import (
     STATUS_PATH,
     Candidate,
@@ -75,10 +88,20 @@ _LOGGER = logging.getLogger(__name__)
 PROBE_TIMEOUT = 2.5
 
 def _connection_schema(current: dict[str, Any] | None = None) -> vol.Schema:
-    """The AdGuard endpoint, pre-filled when reconfiguring."""
+    """The resolver endpoint, pre-filled when reconfiguring."""
     current = current or {}
     return vol.Schema(
         {
+            vol.Required(
+                CONF_RESOLVER_KIND,
+                default=current.get(CONF_RESOLVER_KIND, DEFAULT_RESOLVER_KIND),
+            ): SelectSelector(
+                SelectSelectorConfig(
+                    options=list(RESOLVER_KINDS),
+                    mode=SelectSelectorMode.DROPDOWN,
+                    translation_key=CONF_RESOLVER_KIND,
+                )
+            ),
             vol.Optional(
                 CONF_ADGUARD_URL, default=current.get(CONF_ADGUARD_URL, "")
             ): TextSelector(TextSelectorConfig(type=TextSelectorType.URL)),
@@ -112,6 +135,9 @@ def _connection_schema(current: dict[str, Any] | None = None) -> vol.Schema:
 def _as_input(candidate: Candidate) -> dict[str, Any]:
     """A discovered endpoint, shaped like the form that will show it."""
     return {
+        # Discovery only knows how to find AdGuard: the official integration
+        # and the add-on hostname are its sources, and a Pi-hole has neither.
+        CONF_RESOLVER_KIND: RESOLVER_ADGUARD,
         CONF_ADGUARD_URL: candidate.url,
         CONF_ADGUARD_USERNAME: candidate.username,
         CONF_ADGUARD_PASSWORD: candidate.password,
@@ -190,13 +216,14 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
         broker that will not answer is reported here rather than every fifteen
         minutes in the log."""
         data = {**user_input}
+        data[CONF_RESOLVER_KIND] = user_input.get(CONF_RESOLVER_KIND) or DEFAULT_RESOLVER_KIND
         data[CONF_ADGUARD_URL] = (user_input.get(CONF_ADGUARD_URL) or "").strip()
         data[CONF_MQTT_HOST] = (user_input.get(CONF_MQTT_HOST) or "").strip()
         # A NumberSelector hands back a float, and a port is not a float.
         data[CONF_MQTT_PORT] = int(user_input.get(CONF_MQTT_PORT) or DEFAULT_MQTT_PORT)
 
         if data[CONF_ADGUARD_URL]:
-            error = await self._test_adguard(user_input, data[CONF_ADGUARD_URL])
+            error = await self._test_resolver(data)
             if error:
                 return data, error
         if data[CONF_MQTT_HOST]:
@@ -275,7 +302,7 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Change the AdGuard endpoint after setup.
+        """Change the resolver endpoint after setup.
 
         Without this the endpoint could only be set while adding the
         integration: anyone who set Talos up before knowing the address had to
@@ -315,22 +342,29 @@ class TalosConfigFlow(ConfigFlow, domain=DOMAIN):
         assert entry is not None
         return entry
 
-    async def _test_adguard(self, user_input: dict[str, Any], url: str) -> str | None:
+    async def _test_resolver(self, data: dict[str, Any]) -> str | None:
+        """Reach the resolver once with what the form holds. Each kind knows
+        its own way of proving the address and the credentials; the form only
+        needs the three outcomes."""
+        kind = data.get(CONF_RESOLVER_KIND) or DEFAULT_RESOLVER_KIND
+        password = data.get(CONF_ADGUARD_PASSWORD, "")
         transport = HassHttpTransport(
             self.hass,
-            url,
-            user_input.get(CONF_ADGUARD_USERNAME, ""),
-            user_input.get(CONF_ADGUARD_PASSWORD, ""),
-            bool(user_input.get(CONF_VERIFY_SSL, True)),
+            data[CONF_ADGUARD_URL],
+            # Pi-hole has no username and its password is not basic auth: the
+            # collector trades it for a session itself.
+            data.get(CONF_ADGUARD_USERNAME, "") if kind == RESOLVER_ADGUARD else "",
+            password if kind == RESOLVER_ADGUARD else "",
+            bool(data.get(CONF_VERIFY_SSL, True)),
         )
         try:
-            await transport.get_json(STATUS_PATH)
+            await collector_for(kind, transport, password=password).probe()
         except ObservedAuthError:
             return "invalid_auth"
         except ObservedError:
             return "cannot_connect"
         except Exception:  # noqa: BLE001
-            _LOGGER.exception("AdGuard check failed unexpectedly")
+            _LOGGER.exception("resolver check failed unexpectedly")
             return "unknown"
         return None
 

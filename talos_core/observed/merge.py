@@ -37,16 +37,24 @@ def merge_observed(
     classifier = classifier or DomainClassifier.load()
     zones = zones or ZoneMap()
 
-    lease_ip_by_mac = {lease.mac: lease.ip for lease in facts.leases}
+    # A real lease outranks a pair merely seen on the wire, so the DHCP ones
+    # are written last and win the slot when both exist for a MAC.
+    lease_by_mac = {}
+    for lease in sorted(facts.leases, key=lambda l: 0 if l.origin == "network" else 1):
+        lease_by_mac[lease.mac] = lease
     from_leases = 0
+    from_network = 0
     from_declared = 0
     devices = []
     for device in scan.devices:
-        leased = lease_ip_by_mac.get(device.mac) if device.mac else None
+        lease = lease_by_mac.get(device.mac) if device.mac else None
+        leased = lease.ip if lease else None
         # A lease is the fresher of the two, so it wins; the address Home
         # Assistant already held covers everything the leases do not reach.
         ip = leased or device.ip
-        if leased:
+        if lease and lease.origin == "network":
+            from_network += 1
+        elif leased:
             from_leases += 1
         elif ip:
             from_declared += 1
@@ -112,18 +120,20 @@ def merge_observed(
         correlation=Correlation(
             devices_total=len(devices),
             devices_correlated=sum(1 for d in devices if d.ip),
-            method=_method(from_leases, from_declared),
+            method=_method(from_leases, from_declared, from_network),
         ),
         unverified=[*scan.unverified, *_notes(scan, facts, classifier, devices, ignored)],
     )
 
 
-def _method(from_leases: int, from_declared: int) -> str:
+def _method(from_leases: int, from_declared: int, from_network: int = 0) -> str:
     """Name the sources that actually carried the join, not the ones that
     were available. A method nobody used has no business in the report."""
     used = []
     if from_leases:
         used.append("dhcp")
+    if from_network:
+        used.append("network")
     if from_declared:
         used.append("tracker")
     return f"mac_{'_'.join(used)}" if used else "none"
@@ -202,19 +212,20 @@ def _notes(
         notes.append(
             UnverifiedCheck(
                 id="unv.dhcp_leases_unavailable",
-                title="DHCP leases unavailable: the zero check cannot run",
+                title="No address table: the zero check cannot run",
                 reason="missing_data",
                 detail=(
                     "The Home Assistant registry knows MACs, the query log knows IPs:"
-                    " DHCP leases are one of the two places the two meet, and a"
-                    " router based device tracker inside Home Assistant is the other:"
+                    " something has to hold both. DHCP leases from the resolver are"
+                    " one witness, Pi-hole's network table is another, and a router"
+                    " based device tracker inside Home Assistant is the third:"
                     " whatever the trackers already know is used, and the rest of the"
                     " observations stay attributed to an unknown host. Nor can the"
-                    " resolver's clients be compared against the"
-                    " devices on the network, so an appliance with a hardcoded DNS"
-                    " server never surfaces. For full coverage: enable AdGuard Home's"
-                    " DHCP server, or supply the router's leases. This check did not"
-                    " fail, it did not run."
+                    " resolver's clients be compared against the devices on the"
+                    " network, so an appliance with a hardcoded DNS server never"
+                    " surfaces. For full coverage: let AdGuard Home serve DHCP, or"
+                    " use a Pi-hole, which records the pairs it sees on the wire"
+                    " whoever serves DHCP. This check did not fail, it did not run."
                 ),
             )
         )

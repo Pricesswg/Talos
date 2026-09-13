@@ -4,7 +4,7 @@ Everything blocking happens in the executor: the SQLite store, the mapping
 walk over the registries, the derivations. The query log is paginated and can
 be long, so nothing here may sit on the event loop.
 
-A scan is always produced, even when the observed side fails. Losing AdGuard
+A scan is always produced, even when the observed side fails. Losing the resolver
 must degrade the report to `declared` only, with a note saying so, never
 leave the panel showing yesterday's numbers as if they were today's.
 """
@@ -24,6 +24,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     CONF_ADGUARD_PASSWORD,
     CONF_ADGUARD_URL,
+    CONF_RESOLVER_KIND,
+    DEFAULT_RESOLVER_KIND,
     CONF_ADGUARD_USERNAME,
     CONF_AUTO_RETENTION,
     CONF_RETENTION_DAYS,
@@ -58,7 +60,9 @@ from .const import (
     STORAGE_FILE,
 )
 from .core import (
-    AdGuardCollector,
+    RESOLVER_ADGUARD,
+    collector_for,
+    resolver_name,
     CheckEngine,
     Derived,
     DomainClassifier,
@@ -313,15 +317,16 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         observed_available = False
         observed_error: str | None = None
         url = self.entry.data.get(CONF_ADGUARD_URL)
+        resolver = resolver_name(self.entry.data.get(CONF_RESOLVER_KIND, DEFAULT_RESOLVER_KIND))
 
         if url:
             try:
                 scan = await self._merge_observed(scan, store, url)
                 observed_available = True
             except ObservedAuthError as err:
-                observed_error = f"AdGuard credentials rejected: {err}"
+                observed_error = f"{resolver} credentials rejected: {err}"
             except ObservedError as err:
-                observed_error = f"AdGuard unreachable: {err}"
+                observed_error = f"{resolver} unreachable: {err}"
             except Exception as err:  # noqa: BLE001
                 observed_error = f"observed collection failed: {err}"
 
@@ -399,15 +404,21 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         )
 
     async def _merge_observed(self, scan: Scan, store: TalosStore, url: str) -> Scan:
+        kind = self.entry.data.get(CONF_RESOLVER_KIND, DEFAULT_RESOLVER_KIND)
+        basic = kind == RESOLVER_ADGUARD
         transport = HassHttpTransport(
             self.hass,
             url,
-            self.entry.data.get(CONF_ADGUARD_USERNAME, ""),
-            self.entry.data.get(CONF_ADGUARD_PASSWORD, ""),
+            # Basic auth is AdGuard's way in. Pi-hole's password goes to the
+            # collector, which trades it for a session.
+            self.entry.data.get(CONF_ADGUARD_USERNAME, "") if basic else "",
+            self.entry.data.get(CONF_ADGUARD_PASSWORD, "") if basic else "",
             bool(self.entry.data.get(CONF_VERIFY_SSL, True)),
         )
-        collector = AdGuardCollector(
+        collector = collector_for(
+            kind,
             transport,
+            password=self.entry.data.get(CONF_ADGUARD_PASSWORD, ""),
             page_size=int(self.entry.options.get(CONF_PAGE_SIZE, DEFAULT_PAGE_SIZE)),
             max_pages=int(self.entry.options.get(CONF_MAX_PAGES, DEFAULT_MAX_PAGES)),
         )
@@ -417,8 +428,8 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         )
         facts = await collector.fetch(since=cursor, previous=previous)
 
-        # Totals are folded on our side because AdGuard's retention is limited
-        # and the log rolls over; persist before deriving anything from them.
+        # Totals are folded on our side because the resolver's retention is
+        # limited and the log rolls over; persist before deriving anything.
         def save() -> None:
             store.save_observations(facts.observations)
             store.save_leases(facts.leases)

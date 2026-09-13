@@ -42,6 +42,11 @@ try:  # repository checkout, or an installed talos-core
     )
     from talos_core.observed import (  # noqa: F401
         AdGuardCollector,
+        RESOLVER_ADGUARD,
+        RESOLVER_KINDS,
+        RESOLVER_PIHOLE,
+        collector_for,
+        resolver_name,
         DomainClassifier,
         HttpTransport,
         EMQX_CLIENTS_PATH,
@@ -102,6 +107,11 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
     )
     from .vendor.talos_core.observed import (  # type: ignore[no-redef]  # noqa: F401
         AdGuardCollector,
+        RESOLVER_ADGUARD,
+        RESOLVER_KINDS,
+        RESOLVER_PIHOLE,
+        collector_for,
+        resolver_name,
         DomainClassifier,
         HttpTransport,
         EMQX_CLIENTS_PATH,
@@ -134,6 +144,11 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
 
 __all__ = [
     "AdGuardCollector",
+    "RESOLVER_ADGUARD",
+    "RESOLVER_KINDS",
+    "RESOLVER_PIHOLE",
+    "collector_for",
+    "resolver_name",
     "AddonUsage",
     "BlockingCall",
     "Churn",

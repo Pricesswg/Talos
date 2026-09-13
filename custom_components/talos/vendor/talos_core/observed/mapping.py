@@ -16,7 +16,21 @@ from typing import Any, Iterable, Sequence
 # AdGuard reports why a query was answered the way it was. Every reason that
 # starts with "Filtered" means a filter intervened; "NotFilteredWhiteList" is
 # an explicit allow and deliberately does not match.
-_BLOCKED_PREFIX = "Filtered"
+
+
+@dataclass(frozen=True, slots=True)
+class QueryRecord:
+    """One query as every resolver reports it, once its own shape is gone.
+
+    Each collector translates its appliance's records into these, and the
+    aggregation below never sees the appliance. `time` is RFC 3339 text, the
+    form AdGuard already uses; Pi-hole's Unix seconds are converted on the way
+    in, so the cursor and the totals compare the same way for both."""
+
+    client: str
+    fqdn: str
+    time: str
+    blocked: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,6 +79,11 @@ class Lease:
     ip: str
     hostname: str | None = None
     static: bool = False
+    # "dhcp" is a lease the resolver handed out itself. "network" is a pair
+    # Pi-hole saw on the wire, from ARP and neighbour tables, which it keeps
+    # even when the router does the DHCP: the same join, a different witness,
+    # and the report names which one carried it.
+    origin: str = "dhcp"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,14 +126,14 @@ def parse_time(value: Any) -> datetime | None:
 
 
 def aggregate(
-    records: Iterable[dict[str, Any]],
+    records: Iterable[QueryRecord],
     previous: Iterable[Observation] = (),
 ) -> tuple[Observation, ...]:
-    """Fold query log records into per client-and-name totals.
+    """Fold query records into per client-and-name totals.
 
-    `previous` carries what earlier polls already counted: AdGuard's retention
-    is limited and the log rolls over, so the running total has to live here
-    rather than being re-read from the appliance.
+    `previous` carries what earlier polls already counted: a resolver's
+    retention is limited and the log rolls over, so the running total has to
+    live here rather than being re-read from the appliance.
     """
     merged: dict[tuple[str, str], dict[str, Any]] = {}
 
@@ -127,17 +146,16 @@ def aggregate(
         }
 
     for record in records:
-        client = record.get("client")
-        question = record.get("question") or {}
-        fqdn = (question.get("name") or "").rstrip(".").lower()
+        client = record.client
+        fqdn = record.fqdn.rstrip(".").lower()
         if not client or not fqdn:
             continue
 
-        stamp = record.get("time")
+        stamp = record.time
         if parse_time(stamp) is None:
             continue
 
-        blocked = str(record.get("reason") or "").startswith(_BLOCKED_PREFIX)
+        blocked = record.blocked
         bucket = merged.setdefault(
             (client, fqdn), {"count": 0, "blocked": 0, "first": stamp, "last": stamp}
         )
@@ -165,7 +183,7 @@ def aggregate(
 
 
 def parse_leases(status: Any) -> tuple[bool, tuple[Lease, ...]]:
-    """Read `/control/dhcp/status`.
+    """Read AdGuard's `/control/dhcp/status`.
 
     Returns whether AdGuard is actually serving DHCP, and the leases. A
     disabled DHCP server is not an error: it means the zero check cannot run
@@ -205,6 +223,9 @@ def run_zero_check(
     The delta on one side is a device with a hardcoded resolver: the blind
     spot of the tool itself. On the other, a host the registry cannot explain.
     """
+    # `dhcp_available` reads as "an address table exists to compare against":
+    # DHCP leases, or the network table a Pi-hole keeps from what it sees on
+    # the wire. Without either there is nothing to hold the clients up to.
     if not dhcp_available:
         return ZeroCheck(dhcp_available=False)
 
@@ -219,7 +240,8 @@ def run_zero_check(
 
 
 def parse_clients(payload: Any) -> dict[str, str]:
-    """Names AdGuard has been given for its clients, by identifier."""
+    """Names AdGuard has been given for its clients, by identifier, from
+    `/control/clients`."""
     names: dict[str, str] = {}
     if not isinstance(payload, dict):
         return names

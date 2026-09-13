@@ -231,7 +231,7 @@ class TestIncrementalPolling(StoreCase):
     """The reason the store exists: the query log rolls over, totals must not."""
 
     def test_totals_survive_across_polls(self) -> None:
-        from talos_core.observed import aggregate
+        from talos_core.observed import adguard_records, aggregate
 
         store = self.store()
 
@@ -243,7 +243,7 @@ class TestIncrementalPolling(StoreCase):
                 "reason": "NotFilteredNotFound",
             }
         ] * 3
-        store.save_observations(aggregate(first_poll, store.load_observations()))
+        store.save_observations(aggregate(adguard_records(first_poll), store.load_observations()))
         store.set_cursor("2026-08-30T08:00:00+00:00")
 
         # AdGuard has since rolled the log: the second poll sees two records.
@@ -255,7 +255,7 @@ class TestIncrementalPolling(StoreCase):
                 "reason": "NotFilteredNotFound",
             }
         ] * 2
-        store.save_observations(aggregate(second_poll, store.load_observations()))
+        store.save_observations(aggregate(adguard_records(second_poll), store.load_observations()))
 
         total = store.load_observations()[0]
         self.assertEqual(total.count, 5)
@@ -305,3 +305,53 @@ class TestSnapshots(unittest.TestCase):
                 store.save_snapshot({"generated_at": "2026-09-03T00:00:00+00:00", "failed_high": 1})
                 store.prune(now=datetime(2026, 9, 4, tzinfo=timezone.utc))
                 self.assertEqual([r["failed_high"] for r in store.history()], [1])
+
+
+class TestLeaseOrigin(unittest.TestCase):
+    """A pair seen on the wire is kept apart from a lease handed out, and a
+    file written before the column existed opens and gains it."""
+
+    def test_origin_round_trips(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from talos_core import RetentionPolicy, TalosStore
+        from talos_core.observed import Lease
+
+        with tempfile.TemporaryDirectory() as folder:
+            with TalosStore(Path(folder, "t.sqlite"), RetentionPolicy()) as store:
+                store.save_leases(
+                    [
+                        Lease(mac="aa:aa:aa:aa:aa:aa", ip="192.168.1.2", origin="network"),
+                        Lease(mac="bb:bb:bb:bb:bb:bb", ip="192.168.1.3"),
+                    ]
+                )
+                by_mac = {lease.mac: lease.origin for lease in store.load_leases()}
+                self.assertEqual(by_mac, {"aa:aa:aa:aa:aa:aa": "network", "bb:bb:bb:bb:bb:bb": "dhcp"})
+
+    def test_a_schema_one_file_gains_the_column(self) -> None:
+        import sqlite3
+        import tempfile
+        from pathlib import Path
+
+        from talos_core import RetentionPolicy, TalosStore
+
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder, "old.sqlite")
+            old = sqlite3.connect(path)
+            old.executescript(
+                """
+                CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+                INSERT INTO meta VALUES ('schema_version', '1');
+                CREATE TABLE leases (
+                    mac TEXT PRIMARY KEY, ip TEXT NOT NULL, hostname TEXT,
+                    static INTEGER NOT NULL DEFAULT 0, seen_ts REAL
+                );
+                INSERT INTO leases (mac, ip) VALUES ('cc:cc:cc:cc:cc:cc', '192.168.1.4');
+                """
+            )
+            old.commit()
+            old.close()
+            with TalosStore(path, RetentionPolicy()) as store:
+                (lease,) = store.load_leases()
+                self.assertEqual((lease.ip, lease.origin), ("192.168.1.4", "dhcp"))

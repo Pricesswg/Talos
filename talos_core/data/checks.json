@@ -43,7 +43,7 @@
         "type": "unverified_present",
         "check_id": "unv.resolver_bypassed"
       },
-      "detail": "Holds a DHCP lease but has never queried AdGuard: it uses a DNS server hardcoded in its firmware. Every DNS-based check is blind on this host.",
+      "detail": "Holds a DHCP lease but has never queried the resolver: it uses a DNS server hardcoded in its firmware. Every DNS-based check is blind on this host.",
       "remediation": "Set the network DNS on the device if it allows it. Otherwise redirect port 53 at the router. DNS over HTTPS stays out of reach either way."
     },
     {

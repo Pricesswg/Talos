@@ -36,7 +36,7 @@ from typing import Any, Iterable
 from .model import Scan
 from .observed.mapping import Lease, Observation, parse_time
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +148,8 @@ CREATE TABLE IF NOT EXISTS leases (
     ip        TEXT NOT NULL,
     hostname  TEXT,
     static    INTEGER NOT NULL DEFAULT 0,
-    seen_ts   REAL
+    seen_ts   REAL,
+    origin    TEXT NOT NULL DEFAULT 'dhcp'
 );
 
 CREATE TABLE IF NOT EXISTS scans (
@@ -234,7 +235,17 @@ class TalosStore:
                 f"{self.path.name} was written by a newer Talos"
                 f" (schema {version} > {SCHEMA_VERSION})"
             )
-        # Future migrations step from `version` to SCHEMA_VERSION here.
+        if version < 2:
+            # Leases gained a witness column. The table above is created with
+            # it on a fresh file; a file from before needs it added.
+            columns = {
+                row["name"] for row in self._connection.execute("PRAGMA table_info(leases)")
+            }
+            if "origin" not in columns:
+                self._connection.execute(
+                    "ALTER TABLE leases ADD COLUMN origin TEXT NOT NULL DEFAULT 'dhcp'"
+                )
+                self._connection.commit()
         self._set_meta("schema_version", str(SCHEMA_VERSION))
 
     def _install_policy(self, policy: RetentionPolicy | None) -> RetentionPolicy:
@@ -322,16 +333,19 @@ class TalosStore:
 
     def save_leases(self, leases: Iterable[Lease], seen_at: datetime | None = None) -> None:
         stamp = (seen_at or datetime.now(timezone.utc)).timestamp()
-        payload = [(l.mac, l.ip, l.hostname, int(l.static), stamp) for l in leases]
+        payload = [
+            (l.mac, l.ip, l.hostname, int(l.static), stamp, l.origin or "dhcp") for l in leases
+        ]
         if not payload:
             return
         with self._lock:
             self._connection.executemany(
-                "INSERT INTO leases (mac, ip, hostname, static, seen_ts)"
-                " VALUES (?, ?, ?, ?, ?)"
+                "INSERT INTO leases (mac, ip, hostname, static, seen_ts, origin)"
+                " VALUES (?, ?, ?, ?, ?, ?)"
                 " ON CONFLICT(mac) DO UPDATE SET"
                 "  ip = excluded.ip, hostname = excluded.hostname,"
-                "  static = excluded.static, seen_ts = excluded.seen_ts",
+                "  static = excluded.static, seen_ts = excluded.seen_ts,"
+                "  origin = excluded.origin",
                 payload,
             )
             self._connection.commit()
@@ -339,7 +353,7 @@ class TalosStore:
     def load_leases(self) -> tuple[Lease, ...]:
         with self._lock:
             rows = self._connection.execute(
-                "SELECT mac, ip, hostname, static FROM leases ORDER BY ip"
+                "SELECT mac, ip, hostname, static, origin FROM leases ORDER BY ip"
             ).fetchall()
         return tuple(
             Lease(
@@ -347,6 +361,7 @@ class TalosStore:
                 ip=row["ip"],
                 hostname=row["hostname"],
                 static=bool(row["static"]),
+                origin=row["origin"] or "dhcp",
             )
             for row in rows
         )

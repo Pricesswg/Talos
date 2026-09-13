@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Talos",
-        "description": "Talos maps where your data comes from and where it goes.\n\nAdGuard Home is optional. Without it, Talos still tells you what stops working when the internet drops, using what Home Assistant declares about itself. It cannot tell you which devices talk to the outside world, and the report says so rather than leaving it blank.\n\nFor full coverage, AdGuard should also be serving DHCP: the leases are the only place a MAC and an IP appear together, and without them an observation cannot be traced back to a device.",
+        "description": "Talos maps where your data comes from and where it goes.\n\nA DNS resolver is optional: AdGuard Home or Pi-hole v6. Without one, Talos still tells you what stops working when the internet drops, using what Home Assistant declares about itself. It cannot tell you which devices talk to the outside world, and the report says so rather than leaving it blank.\n\nFor full coverage the resolver should also know who is who: AdGuard Home by serving DHCP, Pi-hole through the network table it keeps from what it sees on the wire. A router's own DNS keeps no query log Talos can read; point the router at one of these instead.",
         "data": {
-          "adguard_url": "AdGuard Home URL",
-          "adguard_username": "Username",
+          "resolver_kind": "Resolver",
+          "adguard_url": "Resolver address",
+          "adguard_username": "Username (AdGuard Home only)",
           "adguard_password": "Password",
           "verify_ssl": "Verify the SSL certificate",
           "mqtt_host": "Broker address (optional)",
@@ -16,16 +17,17 @@
           "mqtt_tls": "Broker uses TLS"
         },
         "data_description": {
-          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first: the address followed by /control/status must return JSON. Leave empty to run without observed data.",
-          "adguard_username": "Leave empty if AdGuard has no authentication."
+          "adguard_url": "Where the resolver answers. AdGuard Home: for example http://192.168.1.10:3000, or the add-on's internal hostname http://a0d7b954-adguard:3000, which survives an IP change. Pi-hole v6: the address of its web interface, for example http://192.168.1.11, no path. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Leave empty to run without observed data.",
+          "adguard_username": "AdGuard Home only. Leave empty if it has no authentication. Pi-hole has no username: give its web password below, or an app password."
         }
       },
       "reconfigure": {
-        "title": "Talos: AdGuard Home connection",
-        "description": "Change the AdGuard Home endpoint or its credentials. Leave the address empty to go back to a declared-only report, without the observed side.",
+        "title": "Talos: DNS resolver",
+        "description": "Change the resolver, its address or its credentials. Leave the address empty to go back to a declared-only report, without the observed side.",
         "data": {
-          "adguard_url": "AdGuard Home URL",
-          "adguard_username": "Username",
+          "resolver_kind": "Resolver",
+          "adguard_url": "Resolver address",
+          "adguard_username": "Username (AdGuard Home only)",
           "adguard_password": "Password",
           "verify_ssl": "Verify the SSL certificate",
           "mqtt_host": "Broker address (optional)",
@@ -35,15 +37,16 @@
           "mqtt_tls": "Broker uses TLS"
         },
         "data_description": {
-          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first: the address followed by /control/status must return JSON. Leave empty to run without observed data."
+          "adguard_url": "Where the resolver answers. AdGuard Home: for example http://192.168.1.10:3000, or the add-on's internal hostname http://a0d7b954-adguard:3000, which survives an IP change. Pi-hole v6: the address of its web interface, for example http://192.168.1.11, no path. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Leave empty to run without observed data."
         }
       },
       "discovered": {
         "title": "AdGuard Home found",
         "description": "Talos found an AdGuard Home instance answering at {url} and filled the form with it. Check the values and confirm, or change them. Clear the address to run without observed data.",
         "data": {
-          "adguard_url": "AdGuard Home URL",
-          "adguard_username": "Username",
+          "resolver_kind": "Resolver",
+          "adguard_url": "Resolver address",
+          "adguard_username": "Username (AdGuard Home only)",
           "adguard_password": "Password",
           "verify_ssl": "Verify the SSL certificate",
           "mqtt_host": "Broker address (optional)",
@@ -53,8 +56,8 @@
           "mqtt_tls": "Broker uses TLS"
         },
         "data_description": {
-          "adguard_url": "Where AdGuard answers, for example http://192.168.1.10:3000. If you run the AdGuard Home add-on, use its internal hostname, http://a0d7b954-adguard:3000, which survives an IP change. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Check it in a browser first: the address followed by /control/status must return JSON. Leave empty to run without observed data.",
-          "adguard_username": "Leave empty if AdGuard has no authentication."
+          "adguard_url": "Where the resolver answers. AdGuard Home: for example http://192.168.1.10:3000, or the add-on's internal hostname http://a0d7b954-adguard:3000, which survives an IP change. Pi-hole v6: the address of its web interface, for example http://192.168.1.11, no path. Do not use 127.0.0.1 unless Home Assistant runs on host networking: inside a container that address is the container itself. Leave empty to run without observed data.",
+          "adguard_username": "AdGuard Home only. Leave empty if it has no authentication. Pi-hole has no username: give its web password below, or an app password."
         }
       }
     },
@@ -67,7 +70,7 @@
     },
     "abort": {
       "already_configured": "Talos is already set up. One instance maps the whole house.",
-      "reconfigure_successful": "AdGuard connection updated. Talos will use it on the next scan."
+      "reconfigure_successful": "Resolver connection updated. Talos will use it on the next scan."
     }
   },
   "options": {
@@ -159,6 +162,14 @@
     "refresh": {
       "name": "Run the scan again",
       "description": "Forces a fresh collection without waiting for the interval."
+    }
+  },
+  "selector": {
+    "resolver_kind": {
+      "options": {
+        "adguard": "AdGuard Home",
+        "pihole": "Pi-hole v6"
+      }
     }
   }
 }

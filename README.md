@@ -24,13 +24,13 @@ A single admin-only panel provides:
 - Basic, Map, Advanced and Settings views, split by question rather than by density of data, all
   derived from the same computation so they cannot drift apart
 - A connection map grouping every device by transport and by integration, with the hub hierarchy
-  spelled out. Declared data only, so it works with no AdGuard configured
+  spelled out. Declared data only, so it works with no resolver configured
 - The declared / observed matrix, with the quadrant that matters (local to Home Assistant, yet caught
   phoning home) highlighted as the only red thing in the interface
 - Offline autonomy: entities and integrations that keep working with the uplink down, grouped by
   vendor so a single vendor outage can be costed
-- External exposure: devices seen reaching outside, with query volume, vendor and whether AdGuard
-  filtered any of it
+- External exposure: devices seen reaching outside, with query volume, vendor and whether the
+  resolver filtered any of it
 - A column graph of the flows, where the arcs that bypass Home Assistant entirely are the point of
   the picture, grouping by integration above ten origins instead of truncating
 - A conduit table where every row is labelled `declared`, `observed` or `inherited`, never mixed
@@ -43,8 +43,9 @@ A single admin-only panel provides:
 - A standalone CLI that runs the same pipeline out of band, against a remote instance
 - Domain list and check list in data files, extensible without touching code, JSON always and YAML
   when PyYAML is present
-- Setup that finds the AdGuard Home endpoint on its own, from the official integration or the add-on,
-  and pre-fills the form with whatever actually answered
+- Two resolvers read the same way, AdGuard Home and Pi-hole v6, and a setup that finds the AdGuard
+  endpoint on its own, from the official integration or the add-on, and pre-fills the form with
+  whatever actually answered
 
 Everything is read-only. No port scanning, no active probing, no traffic inspection, no CVE matching.
 
@@ -76,11 +77,15 @@ labelled `declared` like everything else in this step. The second is **the entry
 `setup_retry` is serving nothing right now, so its entities are counted as unavailable rather than as
 local, and a check reports it. Working offline and not working at all are not the same result.
 
-**2. Poll AdGuard Home.** The query log is a rolling buffer, not a queryable history, so Talos walks
-it newest first with the `older_than` cursor and stops at the cursor left by the previous poll.
-Running totals per client and domain live in a dedicated SQLite file under `config/talos/`, never in
-the recorder database, because AdGuard's retention rolls over and a device that resolved a domain
-four thousand times last week would otherwise read as a handful today.
+**2. Poll the resolver.** AdGuard Home's query log is a rolling buffer, not a queryable history, so
+Talos walks it newest first with the `older_than` cursor and stops at the cursor left by the previous
+poll. Pi-hole keeps a database and pins each walk to a cursor of its own, so the pages stay put while
+new queries arrive. Either way the appliance's own shape ends at the collector: what comes out is one
+record per query, client, name, time and whether a filter answered it, and everything downstream
+folds those without knowing who produced them. Running totals per client and domain live in a
+dedicated SQLite file under `config/talos/`, never in the recorder database, because a resolver's
+retention rolls over and a device that resolved a domain four thousand times last week would
+otherwise read as a handful today.
 
 A radio is a conduit too. A Zigbee lamp exchanges data with its coordinator constantly and never
 touches IP, so it owns no address, appears in no query log, and used to be absent from every view
@@ -305,7 +310,7 @@ tracker that would provide it. A reason of "missing data" that does not say whic
 and for a while that is what the panel showed, because it preferred the translated description of the
 finding over the reason it did not run.
 
-A check that could not run is not a pass. If AdGuard is unreachable the "local with egress" quadrant
+A check that could not run is not a pass. If the resolver is unreachable the "local with egress" quadrant
 comes out empty because nothing was observed, not because nothing is wrong, and reporting that as
 green would be the exact failure this tool exists to avoid. Every check declares its preconditions,
 and when one is not met the check moves to the unverified list with the reason spelled out. That
@@ -487,7 +492,7 @@ relaxation passes push overlapping nodes apart and slide them back onto their ri
 branch spreads out instead of piling up. Wheel zooms, drag pans. Below the graph, the hubs and the
 devices behind them, then the full list by transport.
 
-It reads the registry only, so it populates even with no AdGuard configured.
+It reads the registry only, so it populates even with no resolver configured.
 
 **Advanced** answers who talks to whom and on what evidence: the matrix, the flow graph, the full
 conduit table with its evidence labels, the check results with their subjects, and the unverified
@@ -497,9 +502,9 @@ The flow graph shows both sides. Observed egress is drawn dashed, and the arcs t
 Assistant entirely are the point of the picture. Declared dependencies are drawn solid: a manifest
 that says `cloud_push` states that the integration needs an external service without saying which
 host, so the destination is named after whoever needs it and labelled **host not declared**. Nothing
-is invented, and the graph has content before AdGuard is connected.
+is invented, and the graph has content before a resolver is connected.
 
-**Settings** holds the language, the AdGuard connection shown read only, and the editable options:
+**Settings** holds the language, the resolver connection shown read only, and the editable options:
 interval, retention, network ranges and rule file paths.
 
 ## Installation
@@ -523,6 +528,13 @@ The bundled core under `vendor/` is committed on purpose, so that folder is self
 
 ## First-time setup
 
+The first field is the resolver kind, AdGuard Home or Pi-hole, and the address below it is read
+according to that choice. What Talos needs is not "a DNS server" but a query log it can ask for,
+per query with the client address, and those two expose one over HTTP. A router's own resolver,
+dnsmasq on OpenWrt or the one inside a Fritz!Box or a UniFi gateway, keeps no such log where
+anything can reach it: that is not a gap in Talos, it is data that does not exist in a readable form.
+The way to observe a house behind such a router is to point the router at one of the two.
+
 The config flow looks for AdGuard Home before asking. It reads the configuration of the official
 AdGuard integration if you have it, then tries the community add-on's hostname and the address Home
 Assistant knows itself by, and probes each one against `/control/status`. The first address that
@@ -533,41 +545,51 @@ on it, because a wrong address that looks plausible produces an empty report tha
 one. If nothing answers, the form comes up empty and you fill it in by hand. The same probe runs
 when you reconfigure an entry that has no address yet.
 
-### Which address to use for AdGuard
+### Which address to use
 
 | Setup | Address |
 |---|---|
 | AdGuard Home add-on on HAOS or Supervised | `http://a0d7b954-adguard:3000`, the add-on's internal hostname, which survives an IP change |
-| Anything else | The LAN address of the machine, `http://192.168.1.10:3000` |
+| AdGuard Home anywhere else | The LAN address of the machine, `http://192.168.1.10:3000` |
+| Pi-hole v6 | The address of its web interface, `http://192.168.1.11`, no `/admin` path |
 
 Do not use `127.0.0.1` unless Home Assistant runs with host networking. Inside a container that
-address is the container itself, not the machine. The port is the one you open the AdGuard web
+address is the container itself, not the machine. For AdGuard the port is the one you open the web
 interface on, 3000 by default but often moved to 80 after the first setup.
 
-Check the address in a browser before typing it into the config flow: the address followed by
-`/control/status` must return JSON with `running` and `dns_addresses`. That is the exact endpoint
-the config flow probes.
+Check the address in a browser before typing it into the config flow. For AdGuard, the address
+followed by `/control/status` must return JSON with `running` and `dns_addresses`; for Pi-hole, the
+address followed by `/api/info/version` must return JSON, or a 401 if a password is set. Those are
+the exact calls the config flow makes.
 
-**AdGuard is optional.** Without it Talos still answers the autonomy question from what Home
+**Credentials.** AdGuard uses its username and password as basic auth on every request. Pi-hole has
+no username: give the web password, or better an app password created under Settings, Web
+interface / API, which Talos trades for a session at `/api/auth` and releases at the end of every
+scan. A Pi-hole with no password is read without a session.
+
+**The resolver is optional.** Without one Talos still answers the autonomy question from what Home
 Assistant declares. It cannot answer the exposure question, and it writes that into the report rather
 than leaving the column blank.
 
 Straight after setup, open the options and set the **network ranges**. Until a range is given, the
 checks that depend on zones declare themselves unrunnable instead of passing.
 
-### Why the DHCP leases matter
+### Why the address table matters
 
-The Home Assistant registry knows **MACs**. The query log knows **IPs**. The DHCP leases are the only
-place the two appear together.
+The Home Assistant registry knows **MACs**. The query log knows **IPs**. Something has to hold both,
+and there are three witnesses: the DHCP leases the resolver hands out, the network table a Pi-hole
+keeps from what it sees on the wire, and a router based device tracker inside Home Assistant.
 
-Without leases every observation stays attributed to an unknown host. Talos can say that somebody
-contacted a vendor, but not **which device it was**, so the quadrant that matters comes out empty:
-not because there is nothing in it, but because nothing can be attributed. The resolver's clients
-also cannot be compared against the devices on the network, so an appliance with a hardcoded DNS
-server never surfaces at all.
+Without any of them every observation stays attributed to an unknown host. Talos can say that
+somebody contacted a vendor, but not **which device it was**, so the quadrant that matters comes out
+empty: not because there is nothing in it, but because nothing can be attributed. The resolver's
+clients also cannot be compared against the devices on the network, so an appliance with a hardcoded
+DNS server never surfaces at all.
 
-For full coverage, enable AdGuard Home's DHCP server, or supply the router's leases. The report
-always states which of the two situations it is describing.
+For full coverage, let AdGuard Home serve DHCP, or use a Pi-hole: it records the MAC and IP pairs it
+sees through ARP and neighbour discovery whoever serves DHCP, which is the one thing it does that
+AdGuard cannot. The report names the witness it used, `mac_dhcp`, `mac_network`, `mac_tracker` or a
+combination, and never calls a pair seen on the wire a lease.
 
 ## Options
 
@@ -657,10 +679,10 @@ out of band: a container on another machine, a cron job, a laptop.
 
 ```bash
 export TALOS_HA_TOKEN=...            # long lived access token
-export TALOS_ADGUARD_PASSWORD=...
+export TALOS_ADGUARD_PASSWORD=...    # or the Pi-hole password, with --resolver pihole
 
 talos scan --url ws://homeassistant.local:8123/api/websocket \
-           --adguard http://192.168.1.10:3000 \
+           --resolver-url http://192.168.1.10:3000 \
            --zone-trusted 192.168.1.0/24 \
            --db ~/talos.db --html report.html
 ```
@@ -716,7 +738,7 @@ talos_core/                plain Python package, no dependencies, no homeassista
 ├── derive, checks         matrix, autonomy, exposure, posture check engine
 ├── routes                 who talks, through what, to whom, and where it breaks
 ├── sources/               declared side (WebSocket API and in-process registries)
-├── observed/              observed side (AdGuard), classification, join
+├── observed/              observed side (AdGuard Home, Pi-hole), classification, join
 └── storage, cli, export   persistence with retention, CLI, HTML report
 
 custom_components/talos/   thin wrapper: config flow, coordinator, entities, panel

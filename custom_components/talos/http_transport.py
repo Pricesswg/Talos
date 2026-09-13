@@ -1,4 +1,4 @@
-"""HTTP transport for AdGuard Home, on Home Assistant's shared session."""
+"""HTTP transport for the resolver, on Home Assistant's shared session."""
 
 from __future__ import annotations
 
@@ -36,11 +36,25 @@ class HassHttpTransport:
         self._timeout = timeout
 
     async def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return await self.request_json("GET", path, params=params)
+
+    async def request_json(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        json: Any = None,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
         session = async_get_clientsession(self._hass, verify_ssl=self._verify_ssl)
         try:
-            async with session.get(
+            async with session.request(
+                method,
                 f"{self._base_url}{path}",
                 params=params,
+                json=json,
+                headers=headers,
                 auth=self._auth,
                 timeout=aiohttp.ClientTimeout(total=self._timeout),
             ) as response:
@@ -48,6 +62,8 @@ class HassHttpTransport:
                     raise ObservedAuthError(f"{path}: HTTP {response.status}")
                 if response.status >= 400:
                     raise ObservedError(f"{path}: HTTP {response.status}")
+                if response.status == 204:
+                    return None
                 return await response.json(content_type=None)
         except ObservedError:
             raise

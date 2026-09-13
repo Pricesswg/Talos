@@ -7,10 +7,17 @@ from typing import Final
 DOMAIN: Final = "talos"
 
 # Config entry data
+# The resolver's address and credentials. The keys still say adguard: they
+# were the only resolver when the entry format was fixed, and renaming them
+# would cost every install a migration for nothing. `resolver_kind` says
+# what is actually behind the address; an entry without it is AdGuard,
+# because that is what every entry was before the key existed.
+CONF_RESOLVER_KIND: Final = "resolver_kind"
 CONF_ADGUARD_URL: Final = "adguard_url"
 CONF_ADGUARD_USERNAME: Final = "adguard_username"
 CONF_ADGUARD_PASSWORD: Final = "adguard_password"
 CONF_VERIFY_SSL: Final = "verify_ssl"
+DEFAULT_RESOLVER_KIND: Final = "adguard"
 
 # A read-only account on the broker, for the one thing Home Assistant's own
 # session usually cannot do: read $SYS. Most brokers restrict that tree, and
