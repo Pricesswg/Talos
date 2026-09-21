@@ -53,6 +53,11 @@ PRECONDITION_REASONS: dict[str, str] = {
         "silent hosts could not be confirmed against the resolver's full log:"
         " absence from the window one poll read is not evidence of absence"
     ),
+    "clients_direct": (
+        "one host carries the resolver's log: the clients sit behind a forwarder"
+        " or are not pointed at this resolver, so nothing observed can be"
+        " attributed to a device and a silent lease is not a bypass"
+    ),
     "resolver_unlogged": (
         "the resolver is configured not to log some clients: nothing they"
         " resolve can be observed, so they are neither clean nor a finding"
@@ -339,6 +344,7 @@ class _Context:
         for name, note_id in (
             ("silence_confirmed", "unv.resolver_silence_unconfirmed"),
             ("resolver_unlogged", "unv.resolver_unlogged_clients"),
+            ("clients_direct", "unv.resolver_forwarder"),
         ):
             if name in missing:
                 hosts.extend(self.note_subjects(note_id))
@@ -363,6 +369,8 @@ class _Context:
             return "unv.resolver_silence_unconfirmed" not in self.unverified_ids
         if name == "resolver_unlogged":
             return "unv.resolver_unlogged_clients" not in self.unverified_ids
+        if name == "clients_direct":
+            return "unv.resolver_forwarder" not in self.unverified_ids
         if name == "settled":
             # Unknown uptime, a CLI document or an older export, is not a
             # reason to withhold the check: only a young uptime is.

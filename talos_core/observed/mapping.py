@@ -89,6 +89,10 @@ class Lease:
     # When the witness last saw this pair, RFC 3339, where it says. A pair
     # last seen months ago belongs to something gone, not to something silent.
     seen_at: str | None = None
+    # Whether the witness counts queries from this device: Pi-hole's network
+    # table carries a per device total over its whole history, which answers
+    # the silence question without a scan of the log. None means unknown.
+    queried: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -306,6 +310,13 @@ def is_unlogged(lease: Lease, unlogged: Sequence[str]) -> bool:
 HIDDEN_CLIENTS = frozenset({"0.0.0.0", "::", "hidden"})
 
 
+def is_anonymised(client: str) -> bool:
+    """AdGuard's anonymised client: the last two IPv4 octets zeroed, or an
+    IPv6 cut to its prefix. A real host at x.y.0.0 is a network address and
+    no client, so nothing true is lost."""
+    return client.endswith(".0.0") or client.endswith("::")
+
+
 def run_zero_check(
     observations: Sequence[Observation],
     leases: Sequence[Lease],
@@ -331,24 +342,36 @@ def run_zero_check(
     if not dhcp_available:
         return ZeroCheck(dhcp_available=False, window=window, retention_seconds=retention_seconds)
 
-    seen = {observation.client for observation in observations} - HIDDEN_CLIENTS
+    seen = {
+        observation.client
+        for observation in observations
+        if observation.client not in HIDDEN_CLIENTS and not is_anonymised(observation.client)
+    }
     leased = {lease.ip for lease in leases}
 
     # The device is the MAC, not the address. A MAC seen on any of its
     # addresses is using the resolver: its other addresses, an old IPv4 or
     # the IPv6 ones a network table lists, are not silent hosts.
     seen_macs = {lease.mac for lease in leases if lease.ip in seen}
+    # A zero retention is a log that keeps nothing on disk, not a horizon at
+    # this very moment: it cannot make every pair stale.
     horizon = None
-    if retention_seconds is not None and now is not None:
+    if retention_seconds and now is not None:
         horizon = now.timestamp() - retention_seconds
+    # A witness that counts queries per device answers for its MAC outright.
+    queried_macs = {lease.mac for lease in leases if lease.queried}
     candidates: list[Lease] = []
     stale: list[Lease] = []
+    known_outside: list[Lease] = []
     for lease in sorted(leases, key=lambda l: l.ip):
         if lease.ip in seen or lease.mac in seen_macs:
             continue
         last = parse_time(lease.seen_at) if lease.seen_at else None
         if horizon is not None and last is not None and last.timestamp() < horizon:
             stale.append(lease)
+            continue
+        if lease.mac in queried_macs:
+            known_outside.append(lease)
             continue
         candidates.append(lease)
 
@@ -357,11 +380,16 @@ def run_zero_check(
         unleased_clients=tuple(sorted(seen - leased)),
         unlogged_leases=tuple(l for l in candidates if is_unlogged(l, unlogged)),
         unconfirmed=tuple(l for l in candidates if not is_unlogged(l, unlogged)),
+        outside_window=tuple(known_outside),
         window=window,
         stale_pairs=tuple(stale),
         retention_seconds=retention_seconds,
     )
 
+
+# A log kept for less than this cannot vouch for a device that phones home
+# weekly: a "no" from it is pending, not a finding.
+SILENCE_MIN_RETENTION_SECONDS = 7 * 86400
 
 # A confirmed absence is trusted for this long before the host is asked
 # about again. The walk still sees the host the moment it queries, so the
@@ -418,6 +446,10 @@ def settle(
     in `not_asked` were left for a later poll and are reported as such.
     """
     skipped = {(lease.mac, lease.ip) for lease in not_asked}
+    # A log too short to vouch for a weekly caller turns every no into pending.
+    short_log = (
+        zero.retention_seconds is not None and zero.retention_seconds < SILENCE_MIN_RETENTION_SECONDS
+    )
     # Answers are per address; the verdict is per device. Any address that
     # answered yes makes the whole device seen; any that is unanswered or
     # unasked leaves it pending; only a device whose every address answered
@@ -440,7 +472,10 @@ def settle(
         if "yes" in verdicts:
             outside.extend(group)
         elif all(v == "no" for v in verdicts):
-            silent.extend(group)
+            if short_log:
+                pending.extend(group)
+            else:
+                silent.extend(group)
         elif "pending" in verdicts:
             pending.extend(group)
         else:

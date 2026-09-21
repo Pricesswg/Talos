@@ -7,7 +7,8 @@
       "title": "Local device reaching its vendor's cloud",
       "severity": "high",
       "requires": [
-        "observed_evidence"
+        "observed_evidence",
+        "clients_direct"
       ],
       "selector": {
         "type": "matrix_quadrant",
@@ -21,7 +22,8 @@
       "title": "Device opening a way back in from outside",
       "severity": "high",
       "requires": [
-        "observed_evidence"
+        "observed_evidence",
+        "clients_direct"
       ],
       "selector": {
         "type": "device_where",
@@ -39,7 +41,8 @@
       "requires": [
         "dhcp_leases",
         "silence_confirmed",
-        "resolver_unlogged"
+        "resolver_unlogged",
+        "clients_direct"
       ],
       "selector": {
         "type": "unverified_present",
@@ -109,7 +112,8 @@
       "severity": "medium",
       "requires": [
         "zones_configured",
-        "observed_evidence"
+        "observed_evidence",
+        "clients_direct"
       ],
       "selector": {
         "type": "device_where",
@@ -126,7 +130,8 @@
       "title": "Cloud integration that has contacted nobody",
       "severity": "low",
       "requires": [
-        "observed_evidence"
+        "observed_evidence",
+        "clients_direct"
       ],
       "selector": {
         "type": "matrix_quadrant",

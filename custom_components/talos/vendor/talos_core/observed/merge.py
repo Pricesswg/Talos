@@ -15,13 +15,14 @@ which sources actually carried the join is recorded rather than assumed.
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Iterable
+from typing import Any, Iterable
 
 from ..const import PHONE_HOME_DESTINATION_KINDS
 from ..zones import ZoneMap
 from ..model import Conduit, Correlation, Destination, Device, Scan, SourceRef, UnverifiedCheck
 from .classify import DomainClassifier
-from .mapping import Lease, ObservedFacts, ZeroCheck
+from .forwarder import find_forwarder, is_supervisor_client
+from .mapping import Lease, ObservedFacts, ZeroCheck, parse_time
 
 # Only a relationship with somebody worth naming is worth attributing to the
 # children of a hub. Inheriting a clock sync would be noise, not evidence.
@@ -38,11 +39,7 @@ def merge_observed(
     classifier = classifier or DomainClassifier.load()
     zones = zones or ZoneMap()
 
-    # A real lease outranks a pair merely seen on the wire, so the DHCP ones
-    # are written last and win the slot when both exist for a MAC.
-    lease_by_mac = {}
-    for lease in sorted(facts.leases, key=lambda l: 0 if l.origin == "network" else 1):
-        lease_by_mac[lease.mac] = lease
+    lease_by_mac = {lease.mac: lease for lease in _pick_address_per_mac(facts.leases)}
     from_leases = 0
     from_network = 0
     from_declared = 0
@@ -67,6 +64,13 @@ def merge_observed(
     destinations: dict[str, Destination] = {d.id: d for d in scan.destinations}
     conduits: list[Conduit] = list(scan.conduits)
     ignored = 0
+    # On Home Assistant OS and Supervised, everything in the Home Assistant
+    # stack resolves through the Supervisor's DNS plugin, which reaches the
+    # resolver from its own network: those queries are Home Assistant's own,
+    # not an unknown host's. Only there: a bare 172.30.32.x on a Container
+    # install is somebody's Docker network and stays unknown.
+    supervised = any(integration.domain == "hassio" for integration in scan.integrations)
+    supervisor_seen: dict[str, tuple[int, set[str]]] = {}
 
     for observation in facts.observations:
         if classifier.is_ignored(observation.fqdn):
@@ -87,6 +91,11 @@ def merge_observed(
         if device_id:
             source = SourceRef("device", device_id)
             key = device_id
+        elif supervised and is_supervisor_client(observation.client):
+            source = SourceRef("ha_core")
+            key = observation.client
+            queries, seen_names = supervisor_seen.setdefault(observation.client, (0, set()))
+            supervisor_seen[observation.client] = (queries + observation.count, seen_names | {observation.fqdn})
         else:
             # Seen by the resolver, absent from the registry. Not a broken
             # reference: a host we cannot name, which is worth saying so.
@@ -122,8 +131,36 @@ def merge_observed(
             devices_correlated=sum(1 for d in devices if d.ip),
             method=_method(from_leases, from_declared, from_network),
         ),
-        unverified=[*scan.unverified, *_notes(scan, facts, classifier, devices, ignored)],
+        unverified=[
+            *scan.unverified,
+            *_notes(scan, facts, classifier, devices, ignored, device_by_ip, supervisor_seen),
+        ],
     )
+
+
+def _pick_address_per_mac(leases: Iterable[Lease]) -> list[Lease]:
+    """One address per device for the join.
+
+    A lease the resolver handed out outranks a pair merely seen on the
+    wire. Among wire pairs an IPv4 outranks an IPv6, because that is what
+    the registry and the log speak, and the most recently seen one wins:
+    Pi-hole lists a device's addresses newest first, so taking the last
+    would join it to its oldest address, or to a link-local IPv6."""
+    best: dict[str, Lease] = {}
+
+    def rank(lease: Lease) -> tuple[int, int, float]:
+        seen = parse_time(lease.seen_at) if lease.seen_at else None
+        return (
+            1 if lease.origin != "network" else 0,
+            0 if ":" in lease.ip else 1,
+            seen.timestamp() if seen else float("-inf"),
+        )
+
+    for lease in leases:
+        current = best.get(lease.mac)
+        if current is None or rank(lease) > rank(current):
+            best[lease.mac] = lease
+    return list(best.values())
 
 
 def _method(from_leases: int, from_declared: int, from_network: int = 0) -> str:
@@ -199,6 +236,90 @@ def _descendants(root: str, children: dict[str, list[str]]) -> list[str]:
     return found
 
 
+def _forwarder_note(found: Any, facts: ObservedFacts) -> UnverifiedCheck:
+    hours = facts.window_hours or 24
+    share = f"{found.share * 100:.0f}"
+    if found.tier in ("house", "single"):
+        who = found.address + (f" ({found.label})" if found.label else "")
+        identity = {
+            "gateway_address": "It sits at the gateway address of its network, where a router lives.",
+            "registry_model": f"Home Assistant lists it as {found.label}.",
+            "name": f"The resolver names it {found.label}.",
+        }.get(found.identity or "", "Nothing names it as a router.")
+        single = (
+            f" With {found.names} names it also looks like a single machine, the one host"
+            " pointed at this resolver by hand while the rest of the network resolves"
+            " elsewhere."
+            if found.tier == "single"
+            else ""
+        )
+        detail = (
+            f"{who} is the source of {share}% of the queries the resolver heard in the"
+            f" last {hours} hours, {found.names} distinct names, with {found.live_clients - 1}"
+            f" other host(s) speaking in that time; of the {found.known} addresses the"
+            f" leases and Home Assistant know, {found.known_heard} were heard. {identity}"
+            " That is what the log looks like when one host answers DNS for everyone"
+            " behind it: the router's DHCP hands out the router as DNS and the router"
+            " forwards cache misses here (Fritz!Box, Google and Nest Wifi, eero, Deco and"
+            " Orbi in router mode, most ISP boxes, over IPv6 as well when the box"
+            " announces itself as DNSv6), a second router does NAT in front of this"
+            f" resolver, or this resolver is only the router's upstream.{single} Either"
+            f" way nothing behind {found.address} can be attributed to a device: the"
+            " observed side of this report describes one host, every lease listed as"
+            " silent may simply be behind it, and the checks that read the query log"
+            " are withheld, not passed. Hand the resolver's own address to the clients"
+            " in the router's DHCP DNS option (Fritz!Box: Home Network, Network, IPv4"
+            " settings, Local DNS server, and Local DNSv6 server under IPv6; UniFi: the"
+            " network's DHCP Name Server set to Manual; OpenWrt: dhcp_option 6; ASUS:"
+            " LAN, DHCP Server, DNS Server 1) instead of the router's upstream field,"
+            " which gives filtering and no attribution. On a router that cannot (Google"
+            " and Nest Wifi, most ISP boxes), let the resolver serve DHCP and turn the"
+            " router's off, or run the mesh in bridge mode behind a router that can."
+            " Behind a second router doing NAT, bridge the outer box or move the"
+            " resolver inside it."
+        )
+    elif found.tier == "loopback":
+        detail = (
+            f"Every query the resolver heard in the last {hours} hours came from"
+            f" 127.0.0.1, {found.names} distinct names: a forwarder on the same machine"
+            " (dnsmasq, systemd-resolved, the router's own DNS when the resolver runs"
+            " on the router) sits in front of it and hands the queries in from"
+            " loopback, so the log holds no client address at all. Point the clients"
+            " at the resolver's listen address directly and stop the local forwarder,"
+            " or make the forwarder pass the client address through, which dnsmasq"
+            " cannot."
+        )
+    else:
+        which = (
+            "the gateway address of a container network"
+            if found.tier == "container"
+            else "a container bridge gateway or the router of a network numbered inside"
+            " 172.16.0.0/12; nothing in the leases or the registry says which"
+        )
+        detail = (
+            f"Every query the resolver heard in the last {hours} hours came from"
+            f" {found.address}, {which}, {found.names} distinct names. A resolver in a"
+            " container with published ports has its queries re-originated by the"
+            " userland proxy from the bridge gateway, so the clients' addresses never"
+            " reach the log. Not a router setting. Run the container with host"
+            " networking or on a macvlan with its own LAN address (Synology Container"
+            " Manager and QNAP Container Station: network mode host; Docker Engine:"
+            " network_mode host; userland-proxy false only fixes the host-local and"
+            " IPv6 paths)."
+        )
+    detail += (
+        " This note clears the day after the clients start speaking for themselves;"
+        " a lease renews on its own schedule and can lag behind."
+    )
+    return UnverifiedCheck(
+        id="unv.resolver_forwarder",
+        title="One host carries the resolver's log",
+        reason="method_limit",
+        detail=detail,
+        subjects=[found.address],
+    )
+
+
 def _hosts(leases: Iterable[Lease]) -> str:
     return ", ".join(
         f"{lease.ip} ({lease.hostname})" if lease.hostname else lease.ip for lease in leases
@@ -241,17 +362,29 @@ def _unlogged_note(unlogged: Iterable[str], leases: Iterable[Lease]) -> Unverifi
 
 
 def _retention_text(zero: ZeroCheck) -> str:
+    """What the log holds, as evidence, then how long it keeps things, as
+    the ceiling: a 30 day setting on a log that holds 3 days is not 30
+    days of evidence."""
     seconds = zero.retention_seconds
-    if not seconds:
-        return "over its whole retention"
-    days = seconds / 86400.0
-    if days >= 1:
-        return f"over its whole retention of {days:g} days"
-    return f"over its whole retention of {seconds / 3600.0:g} hours"
+    kept = ""
+    if seconds:
+        days = seconds / 86400.0
+        kept = (
+            f", which it keeps for up to {days:g} days"
+            if days >= 1
+            else f", which it keeps for up to {seconds / 3600.0:g} hours"
+        )
+    begins = ""
+    if zero.window is not None and zero.window.oldest and not zero.window.truncated:
+        begins = f" and which begins at {zero.window.oldest}"
+    return f"in everything the resolver's log holds{kept}{begins}"
 
 
 def _silence_notes(
-    zero: ZeroCheck, log_hidden: str | None = None, unlogged: Iterable[str] = ()
+    zero: ZeroCheck,
+    log_hidden: str | None = None,
+    unlogged: Iterable[str] = (),
+    forwarder: str | None = None,
 ) -> list[UnverifiedCheck]:
     """One note per outcome of the silence question, none of which is the
     same thing as another. Only the confirmed one drives a check."""
@@ -261,6 +394,12 @@ def _silence_notes(
         notes.append(_unlogged_note(unlogged, zero.unlogged_leases))
 
     if zero.silent_leases:
+        reason = (
+            f"With {forwarder} carrying the log, the likely reason is that they resolve"
+            " through it, not a hardcoded server."
+            if forwarder
+            else "The usual reason is a DNS server hardcoded in the firmware."
+        )
         notes.append(
             UnverifiedCheck(
                 id="unv.resolver_bypassed",
@@ -268,12 +407,11 @@ def _silence_notes(
                 reason="method_limit",
                 detail=(
                     "They hold a lease, or were seen on the wire by the resolver,"
-                    " and the resolver's log holds no query from any of their"
-                    f" addresses {_retention_text(zero)}: {_hosts(zero.silent_leases)}."
+                    " and there is no query from any of their addresses"
+                    f" {_retention_text(zero)}: {_hosts(zero.silent_leases)}."
                     " Each one was confirmed with a targeted search of the full"
                     " log, not inferred from the window this poll read"
-                    f" ({_window_text(zero)}). The usual reason is a DNS server"
-                    " hardcoded in the firmware. A device powered off for longer"
+                    f" ({_window_text(zero)}). {reason} A device powered off for longer"
                     " than the log is kept looks the same, and so does one that"
                     " queries less often than that. Either way every DNS-based"
                     " check is blind on these hosts: they are not clean results,"
@@ -290,9 +428,10 @@ def _silence_notes(
                 title="Hosts seen only before the window this poll read",
                 reason="method_limit",
                 detail=(
-                    f"{_window_text(zero).capitalize()}. These hosts queried the"
-                    " resolver, but only earlier than that, so the walk never"
-                    f" counted them: {_hosts(zero.outside_window)}. Devices that"
+                    f"{_window_text(zero)[0].upper()}{_window_text(zero)[1:]}. These hosts queried the"
+                    " resolver, but only earlier than that, or the network table"
+                    " counts queries from them older than the log, so the walk"
+                    f" never counted them: {_hosts(zero.outside_window)}. Devices that"
                     " phone home a few times a day fall past a short window on a"
                     " busy resolver. They are not bypassing it. The one entry the"
                     " confirmation found for each is folded into the totals, so"
@@ -309,6 +448,11 @@ def _silence_notes(
     if pending:
         if log_hidden and "client" in log_hidden:
             why = f"the resolver hides who asked ({log_hidden}), so no search can answer"
+        elif zero.retention_seconds is not None and zero.retention_seconds < 7 * 86400:
+            why = (
+                f"the resolver keeps its log for {zero.retention_seconds / 3600:g} hours,"
+                " too short to vouch for a device that phones home weekly"
+            )
         elif zero.not_asked and not zero.unconfirmed:
             why = "this poll's budget of targeted searches ran out before reaching them"
         elif not zero.confirmed:
@@ -343,7 +487,7 @@ def _silence_notes(
                 reason="method_limit",
                 detail=(
                     "The resolver's network table remembers these addresses, but"
-                    " it last saw them before its query log begins"
+                    " it last saw them before anything the query log holds"
                     f" ({_retention_text(zero)}): {_hosts(zero.stale_pairs)}. As"
                     " far as the log can tell they belong to something that left"
                     " the network, so they were not asked about: a search could"
@@ -391,8 +535,43 @@ def _notes(
     classifier: DomainClassifier,
     devices: list[Device],
     ignored: int,
+    device_by_ip: dict[str, str] | None = None,
+    supervisor_seen: dict[str, tuple[int, set[str]]] | None = None,
 ) -> list[UnverifiedCheck]:
     notes: list[UnverifiedCheck] = []
+
+    forwarder = find_forwarder(facts, devices, device_by_ip or {}, classifier)
+    if forwarder is not None:
+        notes.append(_forwarder_note(forwarder, facts))
+
+    if supervisor_seen:
+        addresses = sorted(supervisor_seen)
+        queries = sum(q for q, _ in supervisor_seen.values())
+        names = set().union(*(n for _, n in supervisor_seen.values()))
+        notes.append(
+            UnverifiedCheck(
+                id="unv.supervisor_dns",
+                title="Home Assistant's own queries arrive from the Supervisor's DNS",
+                reason="method_limit",
+                detail=(
+                    "Home Assistant, the Supervisor and every add-on resolve through"
+                    " the Supervisor's DNS plugin at 172.30.32.3, and an add-on that"
+                    f" resolves on its own shows as another 172.30.33.x address: {queries}"
+                    f" queries to {len(names)} names arrived from {', '.join(addresses)}."
+                    " They are Home Assistant's own traffic and are recorded as such,"
+                    " not as an unknown host, and they cannot be split per add-on: an"
+                    " add-on with a hardcoded phone-home looks the same as a core"
+                    " integration. With the plugin's fallback enabled, the default,"
+                    " anything this resolver refuses or fails, and everything while it"
+                    " is down, is asked again over DNS over TLS to Cloudflare and never"
+                    " appears here. A lease named homeassistant that shows as silent is"
+                    " expected: the host reaches the resolver as 172.30.32.3, not from"
+                    " its LAN address. To close the Cloudflare path: ha dns options"
+                    " --fallback=false."
+                ),
+                subjects=addresses,
+            )
+        )
 
     if not facts.zero.dhcp_available:
         notes.append(
@@ -416,7 +595,12 @@ def _notes(
             )
         )
     else:
-        notes.extend(_silence_notes(facts.zero, facts.log_hidden, facts.unlogged))
+        notes.extend(
+            _silence_notes(
+                facts.zero, facts.log_hidden, facts.unlogged,
+                forwarder.address if forwarder is not None else None,
+            )
+        )
 
     if facts.unlogged and not facts.zero.dhcp_available:
         # Without a table nothing is compared, but the operator's exclusions

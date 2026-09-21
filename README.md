@@ -183,8 +183,9 @@ correct: they chat with their vendor, but Home Assistant drives them locally.
 It checks:
 
 - Devices Home Assistant drives locally that were observed contacting their vendor's cloud
-- Hosts with a DHCP lease that never query the resolver, so they run a DNS server hardcoded in
-  firmware and are invisible to every other check here
+- Hosts with a lease and no query anywhere in the resolver's retained log, each confirmed by a
+  targeted search of that log: the usual cause is a DNS server hardcoded in firmware, and every
+  DNS-based check is blind on them either way
 - Third-party integrations, not shipped with Home Assistant, that declare cloud access
 - Devices reaching outside from the trusted LAN rather than from an IoT VLAN
 - Integrations declared cloud that were never seen contacting anything
@@ -651,6 +652,36 @@ sees through ARP and neighbour discovery whoever serves DHCP, which is the one t
 AdGuard cannot. The report names the witness it used, `mac_dhcp`, `mac_network`, `mac_tracker` or a
 combination, and never calls a pair seen on the wire a lease.
 
+### When the router carries the log
+
+The report I hear most often about a configured resolver with a full log and nothing attributed
+turns out, on inspection, to be a log that is one host asking for everything. That is what a
+router's DHCP does when it hands out the router itself as the DNS server and forwards cache misses
+to the resolver: Fritz!Box, Google and Nest Wifi, eero, Deco and Orbi in router mode, most ISP
+boxes, and over IPv6 as well when the box announces itself as DNSv6. A second router doing NAT in
+front of the resolver looks the same, and so does a resolver that is only the router's upstream.
+
+Talos looks for that shape and names it, as a collection limit and not a finding: in the last day
+of the log one LAN host carries at least sixty percent of the queries and forty distinct names,
+at most two other hosts speak at all, and either something names that host as a router, its
+address ending in .1 or .254, a router model in the registry, a name like fritz.box in the
+resolver, or the leases and the registry know at least five addresses of which almost none was
+heard. A busy NAS in a house where everyone else is heard does not match, nor does Home Assistant
+as the loudest client, nor a three device home. Two other shapes get their own wording: every
+query from 127.0.0.1, a forwarder on the resolver's own machine, and every query from a container
+bridge gateway, a resolver in a container with published ports whose userland proxy re-originates
+the queries. While the note stands, the five checks that read the query log withhold themselves
+with the forwarder as their blind subject, because nothing behind it can be attributed and a silent
+lease is not a bypass. The fix is on the router: hand the resolver's own address to the clients in
+the DHCP DNS option, not the upstream field, and the note clears the day after they start speaking
+for themselves.
+
+On Home Assistant OS and Supervised, Home Assistant, the Supervisor and every add-on resolve
+through the Supervisor's DNS plugin, which reaches the resolver from 172.30.32.3. Those queries are
+recorded as Home Assistant's own, not as an unknown host, with a note saying what that means: they
+cannot be split per add-on, the plugin's fallback re-asks Cloudflare over DNS over TLS for anything
+this resolver refuses, and a lease named homeassistant that shows as silent is expected.
+
 ## Options
 
 | Option | Default | What it does |
@@ -686,7 +717,7 @@ otherwise gain three hundred registry entries for numbers the panel already show
 | `sensor.talos_correlation_coverage` | How much of the house the MAC/IP join could reach |
 | `sensor.talos_database_size` | Size of the Talos database, disabled by default |
 | `sensor.talos_last_scan` | Timestamp of the last completed scan |
-| `binary_sensor.talos_blind_spot` | On when part of the network cannot be seen: a host confirmed absent from the resolver's log, hosts the resolver is told not to log, a log hidden by its privacy level, silent hosts not yet confirmed, no address table, or no observed side at all |
+| `binary_sensor.talos_blind_spot` | On when part of the network cannot be seen through no choice of yours: a host confirmed absent from the resolver's log, a log hidden by its privacy level, silent hosts not yet confirmed, one host carrying the whole log, no address table, or no observed side at all. Clients you told the resolver not to log stay in the report but do not hold the sensor on |
 
 ## Services
 

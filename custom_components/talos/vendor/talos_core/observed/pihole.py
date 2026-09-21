@@ -21,6 +21,7 @@ lacks the cursor that makes incremental reading safe.
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 from typing import Any, Iterable, Iterator
 
@@ -56,6 +57,7 @@ SID_HEADER = "X-FTL-SID"
 # reads the long-term database on disk, which the API warns is heavy on a
 # Pi, so the bound is real and the answers are remembered for a day.
 MAX_CONFIRMATIONS = 40
+CONFIRM_BUDGET_SECONDS = 45.0
 
 # Pi-hole's privacy levels. Above zero the log stops naming things, and
 # what it stops naming is exactly what the join needs. From level 2 the
@@ -138,6 +140,8 @@ def parse_network_table(payload: Any) -> tuple[tuple[Lease, ...], dict[str, str]
         # the form ip-<address>: no device to join, nothing to keep.
         if not mac or str(mac).lower() == "00:00:00:00:00:00" or str(mac).lower().startswith("ip-"):
             continue
+        count = device.get("numQueries")
+        queried = (int(count) > 0) if isinstance(count, (int, float)) and not isinstance(count, bool) else None
         for entry in device.get("ips") or ():
             if not isinstance(entry, dict) or not entry.get("ip"):
                 continue
@@ -150,6 +154,7 @@ def parse_network_table(payload: Any) -> tuple[tuple[Lease, ...], dict[str, str]
                     hostname=name,
                     origin="network",
                     seen_at=_iso(entry.get("lastSeen")) or None,
+                    queried=queried,
                 )
             )
             if name:
@@ -268,7 +273,8 @@ class PiholeCollector(ObservedSource):
                 to_ask, answers = order_candidates(zero.unconfirmed, remembered or {}, now, window)
                 asked, hits = await self._confirm(to_ask[:MAX_CONFIRMATIONS])
                 answers.update(asked)
-                zero = settle(zero, answers, not_asked=to_ask[MAX_CONFIRMATIONS:])
+                skipped = [lease for lease in to_ask if lease.ip not in asked]
+                zero = settle(zero, answers, not_asked=skipped)
                 if hits:
                     observations = aggregate(pihole_records(hits), observations)
 
@@ -310,7 +316,10 @@ class PiholeCollector(ObservedSource):
         empty page is a no."""
         answers: dict[str, bool | None] = {}
         hits: list[dict[str, Any]] = []
+        started = time.monotonic()
         for lease in candidates:
+            if time.monotonic() - started > CONFIRM_BUDGET_SECONDS:
+                break
             try:
                 payload = await self._get(
                     QUERIES_PATH, {"client_ip": lease.ip, "length": 1, "disk": "true"}

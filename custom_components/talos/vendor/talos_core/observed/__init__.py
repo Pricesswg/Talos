@@ -5,6 +5,7 @@ from __future__ import annotations
 from .adguard import AdGuardCollector, AiohttpJsonTransport, adguard_records
 from .base import HttpTransport, ObservedAuthError, ObservedError, ObservedSource
 from .pihole import PiholeCollector, parse_network_table, parse_pihole_leases, pihole_records
+from .forwarder import Forwarder, find_forwarder, is_supervisor_client
 from .resolvers import (
     RESOLVER_ADGUARD,
     RESOLVER_KINDS,
@@ -54,6 +55,9 @@ __all__ = [
     "AiohttpJsonTransport",
     "PiholeCollector",
     "Confirmation",
+    "Forwarder",
+    "find_forwarder",
+    "is_supervisor_client",
     "QueryRecord",
     "WalkWindow",
     "order_candidates",

@@ -793,7 +793,7 @@ class TestSilenceOutcomes(unittest.TestCase):
         merged = merge_observed(declared_scan(), collect(FakeHttp(adguard()), max_pages=2))
         notes = {u.id: u for u in merged.unverified}
         self.assertEqual(notes["unv.resolver_bypassed"].subjects, ["192.168.1.203"])
-        self.assertIn("whole retention", notes["unv.resolver_bypassed"].detail)
+        self.assertIn("everything the resolver's log holds", notes["unv.resolver_bypassed"].detail)
         self.assertIn("12 entries", notes["unv.resolver_bypassed"].detail)
         self.assertEqual(notes["unv.observation_window"].subjects, ["192.168.1.177"])
         self.assertIn("hvac-attic", notes["unv.observation_window"].detail)
@@ -820,12 +820,13 @@ class TestPiholeSilence(unittest.TestCase):
         http = FakePihole(data)
         facts = asyncio.run(PiholeCollector(http, password="secret", page_size=3, max_pages=1).fetch())
         zero = facts.zero
-        # Page budget of one: the smartcam's query is on page two, confirmed
-        # present by the targeted filter; the mute host is confirmed absent.
+        # Page budget of one: the smartcam's query is on page two, but the
+        # network table counts queries from its MAC, so it is known without a
+        # search; the mute host is asked and confirmed absent.
         self.assertEqual([l.ip for l in zero.outside_window], ["192.168.1.61"])
         self.assertEqual([l.ip for l in zero.silent_leases], ["192.168.1.99"])
         confirmations = [p for m, path, p in http.calls if path == "/api/queries" and (p or {}).get("client_ip")]
-        self.assertEqual(sorted(p["client_ip"] for p in confirmations), ["192.168.1.61", "192.168.1.99"])
+        self.assertEqual(sorted(p["client_ip"] for p in confirmations), ["192.168.1.99"])
 
     def test_privacy_level_is_reported_as_a_limit(self) -> None:
         data = pihole()
@@ -1027,7 +1028,7 @@ class TestSilenceIsPerDevice(unittest.TestCase):
         merged = merge_observed(declared_scan(), facts)
         note = next(u for u in merged.unverified if u.id == "unv.resolver_stale_pairs")
         self.assertIn("old-laptop", note.detail)
-        self.assertIn("30 days", note.detail)
+        self.assertIn("up to 30 days", note.detail)
 
 
 class TestResolverSettingsThatHideTheLog(unittest.TestCase):
@@ -1097,7 +1098,7 @@ class TestResolverSettingsThatHideTheLog(unittest.TestCase):
         self.assertEqual(facts.zero.retention_seconds, 7 * 86400)
         merged = merge_observed(declared_scan(), facts)
         note = next(u for u in merged.unverified if u.id == "unv.resolver_bypassed")
-        self.assertIn("7 days", note.detail)
+        self.assertIn("up to 7 days", note.detail)
 
     def test_unlogged_matches_every_mac_spelling(self) -> None:
         from talos_core.observed import Lease, is_unlogged, parse_unlogged
@@ -1128,3 +1129,199 @@ class TestUptimeSurvivesTheMerge(unittest.TestCase):
         merged = merge_observed(young, collect(FakeHttp(adguard())))
         self.assertEqual(merged.ha_uptime_seconds, 60.0)
         self.assertEqual(merged.ha_version, young.ha_version)
+
+
+def _rows(client: str, names: int, count: int, last_seen: str, prefix: str = "n") -> list[Observation]:
+    return [
+        Observation(client=client, fqdn=f"{prefix}{i}.example.net", count=count, blocked=0,
+                    first_seen="2026-08-01T00:00:00+00:00", last_seen=last_seen)
+        for i in range(names)
+    ]
+
+
+class TestForwarder(unittest.TestCase):
+    """One host carrying the log is the shape a relaying router leaves. The
+    rule has to fire on that and stay silent on a busy NAS, on Home
+    Assistant as the loudest client, and on a stale address table."""
+
+    NOW = "2026-08-30T12:00:00+00:00"
+
+    def facts(self, rows: list[Observation], **kwargs: Any) -> ObservedFacts:
+        return ObservedFacts(observations=tuple(rows), cursor=self.NOW, **kwargs)
+
+    def test_a_gateway_carrying_the_log_is_named(self) -> None:
+        rows = _rows("192.168.178.1", 60, 10, self.NOW)
+        merged = merge_observed(declared_scan(), self.facts(rows, zero=ZeroCheck(dhcp_available=False)))
+        notes = {u.id: u for u in merged.unverified}
+        self.assertIn("unv.resolver_forwarder", notes)
+        note = notes["unv.resolver_forwarder"]
+        self.assertEqual(note.subjects, ["192.168.178.1"])
+        self.assertIn("gateway address", note.detail)
+        self.assertIn("DHCP", note.detail)
+        report = derive(merged).checks
+        withheld = {c.id: c for c in report.unverified}
+        for check_id in ("chk.resolver_bypass", "chk.local_with_egress", "chk.nat_traversal", "chk.cloud_declared_silent"):
+            with self.subTest(check=check_id):
+                self.assertIn(check_id, withheld)
+                self.assertIn("clients_direct", withheld[check_id].missing)
+                self.assertEqual(list(withheld[check_id].subjects), ["192.168.178.1"])
+                self.assertNotIn(check_id, {c.id for c in report.passed})
+
+    def test_a_busy_host_in_a_heard_house_is_not_a_forwarder(self) -> None:
+        rows = _rows("192.168.1.40", 600, 40, self.NOW, "nas")
+        for n in range(6):
+            rows += _rows(f"192.168.1.{20 + n}", 30, 5, self.NOW, f"h{n}")
+        leases = tuple(Lease(mac=f"aa:00:00:00:00:{n:02x}", ip=f"192.168.1.{20 + n}") for n in range(6))
+        merged = merge_observed(
+            declared_scan(), self.facts(rows, leases=leases, zero=ZeroCheck(dhcp_available=True))
+        )
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+    def test_a_registry_nobody_hears_makes_the_note_without_a_router_identity(self) -> None:
+        from dataclasses import replace
+
+        scan = declared_scan()
+        devices = [
+            replace(device, ip=f"192.168.4.{10 + i}") if i < 12 else device
+            for i, device in enumerate(scan.devices)
+        ]
+        scan = replace(scan, devices=devices)
+        rows = _rows("192.168.1.50", 80, 5, self.NOW)
+        merged = merge_observed(scan, self.facts(rows, zero=ZeroCheck(dhcp_available=False)))
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_forwarder")
+        self.assertIn("second router", note.detail)
+        self.assertIn("Nothing names it as a router", note.detail)
+
+    def test_the_note_clears_when_clients_speak_for_themselves(self) -> None:
+        two_days_ago = "2026-08-28T12:00:00+00:00"
+        rows = _rows("192.168.178.1", 900, 5, two_days_ago)
+        for n in range(9):
+            rows += _rows(f"192.168.178.{20 + n}", 30, 5, self.NOW, f"h{n}")
+        merged = merge_observed(declared_scan(), self.facts(rows, zero=ZeroCheck(dhcp_available=False)))
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+    def test_a_three_device_home_and_a_fresh_resolver_say_nothing(self) -> None:
+        rows = _rows("192.168.1.10", 30, 2, self.NOW)  # 60 queries, under the floor
+        merged = merge_observed(declared_scan(), self.facts(rows, zero=ZeroCheck(dhcp_available=False)))
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+    def test_loopback_and_container_bridge_pick_their_wording(self) -> None:
+        rows = _rows("127.0.0.1", 50, 10, self.NOW)
+        merged = merge_observed(declared_scan(), self.facts(rows, zero=ZeroCheck(dhcp_available=False)))
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_forwarder")
+        self.assertIn("same machine", note.detail)
+
+        rows = _rows("172.17.0.1", 50, 10, self.NOW)
+        leases = (Lease(mac="02:42:ac:11:00:01", ip="172.17.0.1", origin="network"),
+                  Lease(mac="aa:bb:cc:dd:ee:30", ip="192.168.1.30"))
+        merged = merge_observed(declared_scan(), self.facts(rows, leases=leases, zero=ZeroCheck(dhcp_available=True)))
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_forwarder")
+        self.assertIn("container", note.detail)
+
+        leases = (Lease(mac="aa:bb:cc:dd:ee:01", ip="172.17.0.1", origin="network"),)
+        merged = merge_observed(declared_scan(), self.facts(rows, leases=leases, zero=ZeroCheck(dhcp_available=True)))
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+    def test_hidden_clients_never_make_a_forwarder(self) -> None:
+        rows = _rows("192.168.1.0", 80, 10, self.NOW)
+        facts = self.facts(rows, zero=ZeroCheck(dhcp_available=False),
+                           log_hidden="client addresses are anonymised in the query log")
+        merged = merge_observed(declared_scan(), facts)
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+    def test_the_ipv6_relay_is_named_by_its_resolver_name(self) -> None:
+        rows = _rows("fd00::1", 120, 5, self.NOW)
+        leases = tuple(Lease(mac=f"aa:00:00:00:01:{n:02x}", ip=f"192.168.178.{30 + n}", origin="network") for n in range(7))
+        facts = self.facts(rows, leases=leases, client_names={"fd00::1": "fritz.box"}, zero=ZeroCheck(dhcp_available=True))
+        merged = merge_observed(declared_scan(), facts)
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_forwarder")
+        self.assertEqual(note.subjects, ["fd00::1"])
+        self.assertIn("fritz.box", note.detail)
+
+    def test_the_bypass_note_reads_differently_behind_a_forwarder(self) -> None:
+        rows = _rows("192.168.178.1", 60, 10, self.NOW)
+        zero = ZeroCheck(dhcp_available=True, silent_leases=(Lease(mac="aa:bb:cc:00:00:09", ip="192.168.178.9", hostname="boiler"),), confirmed=True)
+        merged = merge_observed(declared_scan(), self.facts(rows, zero=zero))
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_bypassed")
+        self.assertIn("resolve through it", note.detail)
+        self.assertNotIn("The usual reason", note.detail)
+
+    def test_the_recorded_house_has_no_forwarder(self) -> None:
+        merged = merge_observed(declared_scan(), collect(FakeHttp(adguard())))
+        self.assertNotIn("unv.resolver_forwarder", {u.id for u in merged.unverified})
+
+
+class TestSupervisorDns(unittest.TestCase):
+    NOW = "2026-08-30T12:00:00+00:00"
+
+    def scan_with_hassio(self):
+        from dataclasses import replace
+
+        from talos_core import Integration
+
+        scan = declared_scan()
+        hassio = Integration(id="hassio_entry", domain="hassio", title="Supervisor", iot_class="local_push", is_built_in=True)
+        return replace(scan, integrations=[*scan.integrations, hassio])
+
+    def test_supervisor_range_clients_are_home_assistant_on_a_supervisor_install(self) -> None:
+        from talos_core import validate
+
+        rows = [
+            Observation("172.30.32.3", "version.home-assistant.io", 12, 0, self.NOW, self.NOW),
+            Observation("172.30.32.3", "mqtt.tuya.com", 3, 0, self.NOW, self.NOW),
+        ]
+        facts = ObservedFacts(observations=tuple(rows), cursor=self.NOW, zero=ZeroCheck(dhcp_available=False))
+        merged = merge_observed(self.scan_with_hassio(), facts)
+        kinds = {c.source.kind for c in merged.conduits if c.evidence == "observed"}
+        self.assertEqual(kinds, {"ha_core"})
+        self.assertFalse(any(c.source.id == "172.30.32.3" and c.source.kind == "unknown_host" for c in merged.conduits))
+        note = next(u for u in merged.unverified if u.id == "unv.supervisor_dns")
+        self.assertEqual(note.subjects, ["172.30.32.3"])
+        self.assertEqual(validate(merged.to_dict()), [])
+
+    def test_without_hassio_the_address_stays_an_unknown_host(self) -> None:
+        rows = [Observation("172.30.32.3", "version.home-assistant.io", 12, 0, self.NOW, self.NOW)]
+        facts = ObservedFacts(observations=tuple(rows), cursor=self.NOW, zero=ZeroCheck(dhcp_available=False))
+        merged = merge_observed(declared_scan(), facts)
+        self.assertTrue(any(c.source.kind == "unknown_host" and c.source.id == "172.30.32.3" for c in merged.conduits))
+        self.assertNotIn("unv.supervisor_dns", {u.id for u in merged.unverified})
+
+    def test_an_addon_address_is_a_second_key(self) -> None:
+        rows = [
+            Observation("172.30.32.3", "api.example.com", 2, 0, self.NOW, self.NOW),
+            Observation("172.30.33.4", "api.example.com", 2, 0, self.NOW, self.NOW),
+        ]
+        facts = ObservedFacts(observations=tuple(rows), cursor=self.NOW, zero=ZeroCheck(dhcp_available=False))
+        merged = merge_observed(self.scan_with_hassio(), facts)
+        ids = [c.id for c in merged.conduits if c.evidence == "observed"]
+        self.assertEqual(len(ids), len(set(ids)))
+        note = next(u for u in merged.unverified if u.id == "unv.supervisor_dns")
+        self.assertEqual(note.subjects, ["172.30.32.3", "172.30.33.4"])
+
+
+class TestZeroRetentionIsNotAHorizon(unittest.TestCase):
+    def test_maxdbdays_zero_does_not_make_every_pair_stale(self) -> None:
+        data = pihole()
+        data["network"]["devices"].append({
+            "id": 7, "hwaddr": "aa:bb:cc:00:00:99", "interface": "eth0", "firstSeen": 1788079000,
+            "lastQuery": 0, "numQueries": 0, "macVendor": "",
+            "ips": [{"ip": "192.168.1.99", "name": "mute", "lastSeen": 1788079700, "nameUpdated": 0}],
+        })
+        data["maxdbdays"] = {"config": {"database": {"maxDBdays": 0}}}
+        http = FakePihole(data, dhcp=False)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual(facts.zero.stale_pairs, ())
+        self.assertIn("192.168.1.99", [l.ip for l in facts.zero.unconfirmed])
+        report = derive(merge_observed(declared_scan(), facts)).checks
+        partial = {c.id: c for c in report.partial}
+        self.assertIn("chk.resolver_bypass", partial)
+        self.assertIn("192.168.1.99", partial["chk.resolver_bypass"].uninspected)
+
+    def test_an_empty_adguard_log_asks_nothing(self) -> None:
+        data = adguard()
+        data["querylog_pages"] = [{"data": [], "oldest": ""}]
+        transport = FakeHttp(data)
+        facts = collect(transport)
+        self.assertEqual(facts.zero.silent_leases, ())
+        self.assertFalse(any(p and p.get("search") for path, p in transport.calls))
+        self.assertTrue(facts.zero.unconfirmed)

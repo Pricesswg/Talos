@@ -11,6 +11,7 @@ from __future__ import annotations
 
 try:  # repository checkout, or an installed talos-core
     from talos_core import (  # noqa: F401
+        CheckEngine,
         DEFAULT_WINDOW,
         AddonUsage,
         BlockingCall,

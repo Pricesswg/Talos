@@ -39,6 +39,9 @@ PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = TalosCoordinator(hass, entry)
     await coordinator.async_prepare()
+    # Read before the first refresh, which is the scan that gets stamped
+    # with it: a slow first scan must not talk itself out of the follow-up.
+    uptime = process_uptime_seconds()
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
@@ -47,7 +50,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # so the not-loaded check withholds itself. One more scan once the
     # system has settled, instead of waiting for the interval, which can be
     # a day. A reload of Talos on an old process schedules nothing.
-    uptime = process_uptime_seconds()
     if uptime is not None and uptime < SETTLE_SECONDS:
 
         async def _settled(_now: object) -> None:
@@ -56,7 +58,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # a task is not allowed.
             await coordinator.async_request_refresh()
 
-        entry.async_on_unload(async_call_later(hass, SETTLE_SECONDS - uptime + 5, _settled))
+        entry.async_on_unload(async_call_later(hass, max(5.0, SETTLE_SECONDS - uptime + 5), _settled))
 
     websocket_api.async_register(hass)
     services.async_register(hass)

@@ -14,11 +14,13 @@ from __future__ import annotations
 from typing import Any, Iterable, Iterator
 
 from .base import HttpTransport, ObservedAuthError, ObservedError, ObservedSource
+import time
 from datetime import datetime, timezone
 
 from .mapping import (
     HIDDEN_CLIENTS,
     Confirmation,
+    is_anonymised,
     Lease,
     Observation,
     ObservedFacts,
@@ -58,6 +60,12 @@ MAX_CONFIRMATIONS = 40
 # name "192.168.1.4" from another host does match, so a hit is read back
 # for the client, and a foreign hit is stepped past with older_than.
 CONFIRM_STEPS = 4
+# Seconds of one poll the confirmations may take in total. A search that
+# has to scan a large log can approach the transport's timeout, and forty of
+# them in a row would stall the coordinator for the better part of an hour;
+# past the budget the rest wait for the next poll, which the notes and the
+# rotation already know how to say.
+CONFIRM_BUDGET_SECONDS = 45.0
 
 
 def parse_querylog_config(payload: Any) -> tuple[str | None, float | None]:
@@ -89,7 +97,7 @@ def _clients_look_hidden(observations: Iterable[Observation]) -> bool:
     clients = {o.client for o in observations}
     if not clients:
         return False
-    return all(c in HIDDEN_CLIENTS or c.endswith(".0.0") for c in clients)
+    return all(c in HIDDEN_CLIENTS or is_anonymised(c) for c in clients)
 
 
 def adguard_records(records: Iterable[dict[str, Any]]) -> Iterator[QueryRecord]:
@@ -138,7 +146,8 @@ class AdGuardCollector(ObservedSource):
         now: datetime | None = None,
     ) -> ObservedFacts:
         now = now or datetime.now(timezone.utc)
-        log_hidden, retention = parse_querylog_config(await self._read_optional(QUERYLOG_CONFIG_PATH))
+        config = await self._read_optional(QUERYLOG_CONFIG_PATH)
+        log_hidden, retention = parse_querylog_config(config)
         records, cursor, window = await self._read_querylog(since)
         observations = aggregate(adguard_records(records), previous)
 
@@ -150,7 +159,11 @@ class AdGuardCollector(ObservedSource):
             observations, leases, dhcp_available, unlogged, window, retention, now
         )
         asked: dict[str, bool | None] = {}
-        if log_hidden or _clients_look_hidden(observations):
+        empty_log = window.newest is None and not previous
+        if log_hidden or (config is None and _clients_look_hidden(observations)) or empty_log:
+            # A log that is off or anonymised cannot answer; nor can one that
+            # is empty, freshly cleared or minutes old: every search would
+            # reach the end and answer no about everyone.
             # A log that is off, or anonymised on output, cannot answer the
             # question: nothing is asked, the candidates stay unconfirmed,
             # and the check withholds itself with the setting named.
@@ -159,7 +172,8 @@ class AdGuardCollector(ObservedSource):
             to_ask, answers = order_candidates(zero.unconfirmed, remembered or {}, now, window)
             asked, hits = await self._confirm(to_ask[:MAX_CONFIRMATIONS])
             answers.update(asked)
-            zero = settle(zero, answers, not_asked=to_ask[MAX_CONFIRMATIONS:])
+            skipped = [lease for lease in to_ask if lease.ip not in asked]
+            zero = settle(zero, answers, not_asked=skipped)
             if hits:
                 # The entries the confirmation returned are real log entries:
                 # fold them in, so the host is seen from now on and its
@@ -191,7 +205,10 @@ class AdGuardCollector(ObservedSource):
         a no only once the server says it reached the end of the log."""
         answers: dict[str, bool | None] = {}
         hits: list[dict[str, Any]] = []
+        started = time.monotonic()
         for lease in candidates:
+            if time.monotonic() - started > CONFIRM_BUDGET_SECONDS:
+                break  # the rest are reported as not asked
             answers[lease.ip] = None
             older_than: str | None = None
             for _ in range(CONFIRM_STEPS):
