@@ -36,8 +36,9 @@ A single admin-only panel provides:
 - A conduit table where every row is labelled `declared`, `observed` or `inherited`, never mixed
 - Posture checks with severity and remediation, and an explicit count of the checks that could not
   run, which are never folded into the passes
-- The zero check: hosts holding a DHCP lease that never query the resolver, which are the blind spots
-  of the tool itself
+- The zero check: hosts holding a lease and absent from the resolver's log, each one confirmed with a
+  targeted search of the full log before it is called anything, because those are the blind spots
+  of the tool itself and a blind spot misreported is worse than one missed
 - Nine summary entities and one problem binary sensor, no per-device entity pollution
 - A self-contained HTML export, no scripts and no external assets, for archiving or sharing
 - A standalone CLI that runs the same pipeline out of band, against a remote instance
@@ -192,7 +193,9 @@ It checks:
 - A Zigbee network left open to joining
 - Camera entries that declare a cleartext RTSP stream
 - Config entries that are not loaded, whose entities are unavailable right now rather than
-  merely cloud-dependent
+  merely cloud-dependent. Discoveries you dismissed are left out, because an ignored entry never
+  loads by design, and the check withholds itself for ten minutes after a Home Assistant start,
+  while entries are still setting up
 - Which entities stop working when the internet drops, and which vendor accounts for most of them
 - Domains nobody has classified yet, counted and listed rather than hidden
 
@@ -315,6 +318,63 @@ comes out empty because nothing was observed, not because nothing is wrong, and 
 green would be the exact failure this tool exists to avoid. Every check declares its preconditions,
 and when one is not met the check moves to the unverified list with the reason spelled out. That
 count sits next to the other two in the panel and cannot be hidden.
+
+### An absence is not a negative
+
+The first bug report against Talos was three findings that read a missing observation as a fact,
+which is exactly the mistake the rest of the project is built to refuse. All three came from one
+install and the fix is the same idea applied three times.
+
+A host with a lease and no query in the log used to be called a bypass. But one poll walks the log
+newest first under a page budget, and on a busy resolver that budget covers hours where the log
+holds days: a heat pump that phones home twice a day falls straight through it. And AdGuard has a
+per-client `ignore_querylog` flag, set on the chattiest devices to keep the log readable, under
+which a host is counted in the statistics and never written to the log at all. So the silence of a
+lease is now a candidate, never a verdict. The device is the MAC, not the address: a device seen
+querying on any of its addresses is not silent on the others, an old IPv4 or the IPv6 ones Pi-hole's
+network table lists, and a device is called silent only when every address answers no. A pair the
+network table last saw before the log's retention began is something that left the network, not
+something silent, and is set aside under its own note without being asked about.
+
+Every remaining candidate is asked about over the resolver's whole retained log before it is called
+anything, and the asking respects how each resolver actually answers. AdGuard's `search` scans at
+most fifty thousand entries per request unless an `offset` is given, so the request carries
+`offset=0`, the term in double quotes for an exact match, and `limit=1`: one request reaches the
+first hit or the end of the log, which the server marks with an empty `oldest`. A quoted term also
+matches a query for the bare name from another host, so a hit is read back for the client and a
+foreign one is stepped past. Pi-hole's `/api/queries` answers from a day of memory unless `disk` is
+set, so it is, and the read goes to the long-term database; an empty answer from an empty database,
+`recordsTotal` zero or `maxDBdays` zero, is not an absence. The questions are bounded to forty per
+poll, the hosts not yet asked go first next time, a confirmed absence is kept in the store for a day
+and an unanswered question for an hour, so the resolver is not made to scan its log for the same host
+every fifteen minutes; a poll whose walk was cut short trusts none of that memory, because the log
+may hold what the walk did not reach. The entry a search finds is a real log entry and is folded
+into the totals, so a host found that way counts as seen from then on.
+
+The answer sorts each candidate into one of four notes that are kept apart because they mean
+different things: confirmed absent from the full log, which is the only one that drives the check;
+seen only before the window this poll read, which is the note that explains the two heat pumps;
+excluded from the log by the resolver's own configuration, AdGuard's `ignore_querylog` or Pi-hole's
+`excludeClients`, which is a setting and not a behaviour; and unconfirmed, when the request could not
+be made, did not answer, or did not get its turn. The check runs on the confirmed hosts and carries
+the unconfirmed and the excluded ones as not inspected, so it is partial rather than green or
+withheld. The bypass, window and unconfirmed notes state the window the poll actually read, entries
+and time span, and the retention the resolver declares, so the reader can tell how much of the log
+an absence refers to. Settings that make the log unable to answer are reported the same way and
+stop the question being asked: Pi-hole's privacy level from two, where clients are written as
+0.0.0.0, AdGuard's query log switched off or its client addresses anonymised on output. Clients that
+asked the resolver without holding a lease are listed too, and when one of them is on Home
+Assistant's supervisor network the note says what that means: on Home Assistant OS with the resolver
+as an add-on, Home Assistant's own queries arrive from there and not from the host's LAN lease.
+
+A config entry with source `ignore` is a discovery the user dismissed, the ZHA entry for a
+coordinator that Zigbee2MQTT owns being the clearest case: not loaded is its correct state, and
+loading it would break the mesh. Those entries are left out of the not-loaded check. The same check
+now withholds itself when Home Assistant started less than ten minutes before the scan, read from
+the process start time in `/proc` against the kernel's boot clock, because a scan taken a minute
+after boot reports every integration still retrying as broken, and an hour later reports the three
+that are. Since the first scan of every boot is that early one, Talos schedules one more scan on its
+own once the ten minutes have passed, instead of leaving the check withheld until the next interval.
 
 ## Diagnostics, on demand
 
@@ -626,7 +686,7 @@ otherwise gain three hundred registry entries for numbers the panel already show
 | `sensor.talos_correlation_coverage` | How much of the house the MAC/IP join could reach |
 | `sensor.talos_database_size` | Size of the Talos database, disabled by default |
 | `sensor.talos_last_scan` | Timestamp of the last completed scan |
-| `binary_sensor.talos_blind_spot` | On when a host bypasses the resolver, or when the zero check could not run at all |
+| `binary_sensor.talos_blind_spot` | On when part of the network cannot be seen: a host confirmed absent from the resolver's log, hosts the resolver is told not to log, a log hidden by its privacy level, silent hosts not yet confirmed, no address table, or no observed side at all |
 
 ## Services
 

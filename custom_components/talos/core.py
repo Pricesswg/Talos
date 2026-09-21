@@ -24,6 +24,7 @@ try:  # repository checkout, or an installed talos-core
         ZigbeeFacts,
         RetentionPolicy,
         Reach,
+        SETTLE_SECONDS,
         Scan,
         Slice,
         TalosStore,
@@ -89,6 +90,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
         ZigbeeFacts,
         RetentionPolicy,
         Reach,
+        SETTLE_SECONDS,
         Scan,
         Slice,
         TalosStore,
@@ -144,6 +146,7 @@ except ModuleNotFoundError:  # pragma: no cover - HACS release layout
 
 __all__ = [
     "AdGuardCollector",
+    "SETTLE_SECONDS",
     "RESOLVER_ADGUARD",
     "RESOLVER_KINDS",
     "RESOLVER_PIHOLE",

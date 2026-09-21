@@ -257,6 +257,7 @@ def build_scan(
     generated_at: str,
     collector: str = "websocket",
     ha_version: str | None = None,
+    ha_uptime_seconds: float | None = None,
 ) -> Scan:
     """Normalise registry payloads into a scan. Declared evidence only."""
     areas = {a["area_id"]: a.get("name") for a in payload.areas if a.get("area_id")}
@@ -319,6 +320,7 @@ def build_scan(
         generated_at=generated_at,
         collector=collector,
         ha_version=ha_version,
+        ha_uptime_seconds=ha_uptime_seconds,
         integrations=integrations,
         devices=devices,
         # A manifest never says which host an integration reaches, but a
@@ -496,6 +498,7 @@ def _build_integrations(
                 # claiming it is would understate the finding.
                 is_built_in=bool((manifest or {}).get("is_built_in", False)),
                 state=entry.get("state") or "loaded",
+                source=entry.get("source") or None,
                 role=INTEGRATION_ROLE_BY_DOMAIN.get(domain, "unknown"),
                 # Only meaningful for an entry that names somewhere to connect.
                 authenticated=(entry.get("endpoint") or {}).get("authenticated"),

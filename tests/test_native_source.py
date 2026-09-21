@@ -47,6 +47,7 @@ native = _load_native_source()
 class ConfigEntryState(Enum):
     LOADED = "loaded"
     NOT_LOADED = "not_loaded"
+    SETUP_RETRY = "setup_retry"
 
 
 class DisabledBy(Enum):
@@ -439,3 +440,149 @@ class TestEntryStreams(unittest.TestCase):
 
     def test_an_entry_with_no_stream_yields_nothing(self) -> None:
         self.assertEqual(self.streams({"host": "10.0.0.9", "password": "x"}), [])
+
+
+class TestRegistryEntries(unittest.TestCase):
+    """Issue 1, minor: Home Assistant 2026.9 deprecates reading the device
+    registry as a mapping. The adapter never touches it as one on cores
+    where iteration yields entries, and falls back only where it yields
+    keys, which was never deprecated."""
+
+    def test_a_new_core_yields_entries_on_iteration(self) -> None:
+        class NewStyle:
+            def __init__(self, entries: list[Any]) -> None:
+                self._entries = entries
+
+            def __iter__(self):
+                return iter(self._entries)
+
+            def values(self):  # pragma: no cover - must not be called
+                raise AssertionError("mapping access on a new core")
+
+        entries = [FakeDevice(id="d1", config_entries=set()), FakeDevice(id="d2", config_entries=set())]
+        self.assertEqual([d.id for d in native.registry_entries(NewStyle(entries))], ["d1", "d2"])
+
+    def test_an_old_core_yields_keys_and_is_read_by_values(self) -> None:
+        old = {"d1": FakeDevice(id="d1", config_entries=set()), "d2": FakeDevice(id="d2", config_entries=set())}
+        self.assertEqual([d.id for d in native.registry_entries(old)], ["d1", "d2"])
+
+    def test_empty_either_way(self) -> None:
+        self.assertEqual(native.registry_entries({}), [])
+        self.assertEqual(native.registry_entries([]), [])
+
+
+class TestProcessUptime(unittest.TestCase):
+    """The one piece of parsing in the change, pinned with a crafted /proc so
+    a wrong field index or a broken split fails on every platform."""
+
+    def _run(self, stat: bytes, booted: float, hertz: int = 100) -> Any:
+        import builtins
+        from unittest import mock
+
+        real_open = builtins.open
+
+        def fake_open(path: Any, *args: Any, **kwargs: Any) -> Any:
+            if str(path) == "/proc/self/stat":
+                import io
+
+                return io.BytesIO(stat)
+            return real_open(path, *args, **kwargs)
+
+        # A stand-in for the time module: macOS has no CLOCK_BOOTTIME, and
+        # the function must read the clock through the module attribute.
+        clock = types.SimpleNamespace(CLOCK_BOOTTIME=7, clock_gettime=lambda which: booted)
+        with mock.patch("builtins.open", fake_open), mock.patch.object(
+            native.os, "sysconf", lambda name: hertz
+        ), mock.patch.object(native, "time", clock):
+            return native.process_uptime_seconds()
+
+    def test_start_time_is_field_22_after_a_comm_with_brackets(self) -> None:
+        # comm is "py (weird) thon 3": the split has to happen at the LAST
+        # closing bracket. Field 22 (starttime) is 500000 ticks at 100 Hz.
+        fields = ["S", "1", "1", "1", "0", "-1", "4194560", "0", "0", "0", "0", "1", "1", "0", "0",
+                  "20", "0", "1", "0", "500000", "1000", "100", "0"]
+        stat = b"4242 (py (weird) thon 3) " + " ".join(fields).encode()
+        self.assertAlmostEqual(self._run(stat, booted=6000.25), 1000.25)
+
+    def test_disagreeing_clocks_are_unknown_not_zero(self) -> None:
+        # lxcfs rewrites the boot clock to the container's age while the
+        # start time stays host relative: negative age, so unknown.
+        fields = ["S"] + ["0"] * 18 + ["500000", "0", "0", "0"]
+        stat = b"1 (hass) " + " ".join(fields).encode()
+        self.assertIsNone(self._run(stat, booted=400.0))
+
+    def test_is_a_non_negative_float_or_none_for_real(self) -> None:
+        uptime = native.process_uptime_seconds()
+        self.assertTrue(uptime is None or uptime >= 0.0)
+
+
+class TestDeviceConfigEntry(unittest.TestCase):
+    """2026.8 gave a device one config_entry_id and deprecated the two older
+    properties. The new one is read where it exists, the old ones only
+    where it does not, and the payload keys stay the same."""
+
+    def test_new_core_uses_config_entry_id_and_never_the_shims(self) -> None:
+        class NewDevice:
+            id = "d1"
+            config_entry_id = "entry_a"
+
+            @property
+            def config_entries(self):  # pragma: no cover - must not be called
+                raise AssertionError("deprecated shim touched")
+
+            @property
+            def primary_config_entry(self):  # pragma: no cover - must not be called
+                raise AssertionError("deprecated shim touched")
+
+        payload = native.device_to_dict(NewDevice())
+        self.assertEqual(payload["config_entries"], ["entry_a"])
+        self.assertEqual(payload["primary_config_entry"], "entry_a")
+
+    def test_old_core_falls_back_to_the_set(self) -> None:
+        device = FakeDevice(id="d2", config_entries={"entry_b", "entry_a"})
+        payload = native.device_to_dict(device)
+        self.assertEqual(payload["config_entries"], ["entry_a", "entry_b"])
+
+
+class TestIgnoredEntries(unittest.TestCase):
+    """Issue 1, cause 3: a dismissed discovery has source "ignore" and never
+    loads by design. It is a user decision, not a fault."""
+
+    def test_source_reaches_the_model(self) -> None:
+        scan = scan_from_house()
+        self.assertTrue(all(i.source for i in scan.integrations))
+
+    def test_an_ignored_entry_is_not_a_not_loaded_finding(self) -> None:
+        from talos_core import derive
+
+        data = house()
+        data["config_entries"] = data["config_entries"] + [
+            FakeConfigEntry(entry_id="zha_dismissed", domain="zha", title="ZHA",
+                            state=ConfigEntryState.NOT_LOADED, source="ignore"),
+            FakeConfigEntry(entry_id="printer", domain="ipp", title="Printer",
+                            state=ConfigEntryState.SETUP_RETRY, source="user"),
+        ]
+        payload = native.payload_from_registries(**data)
+        scan = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native",
+                          ha_version="2026.9.3", ha_uptime_seconds=3600.0)
+        failed = {c.id: c for c in derive(scan).checks.failed}
+        subjects = list(failed["chk.integration_not_loaded"].subjects)
+        self.assertIn("printer", subjects)
+        self.assertNotIn("zha_dismissed", subjects)
+
+    def test_a_young_system_withholds_the_check(self) -> None:
+        from talos_core import derive
+
+        data = house()
+        data["config_entries"] = data["config_entries"] + [
+            FakeConfigEntry(entry_id="printer", domain="ipp", title="Printer",
+                            state=ConfigEntryState.SETUP_RETRY, source="user"),
+        ]
+        payload = native.payload_from_registries(**data)
+        young = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native", ha_uptime_seconds=60.0)
+        report = derive(young).checks
+        self.assertIn("chk.integration_not_loaded", {c.id for c in report.unverified})
+        self.assertNotIn("chk.integration_not_loaded", {c.id for c in report.failed})
+        # Unknown uptime, as in a CLI document, does not withhold it.
+        unknown = build_scan(payload, generated_at=FROZEN_CLOCK, collector="native")
+        self.assertIn("chk.integration_not_loaded", {c.id for c in derive(unknown).checks.failed})

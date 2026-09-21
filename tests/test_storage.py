@@ -355,3 +355,29 @@ class TestLeaseOrigin(unittest.TestCase):
             with TalosStore(path, RetentionPolicy()) as store:
                 (lease,) = store.load_leases()
                 self.assertEqual((lease.ip, lease.origin), ("192.168.1.4", "dhcp"))
+
+
+class TestConfirmations(unittest.TestCase):
+    """Answers about silent hosts are kept between polls."""
+
+    def test_round_trip_and_upsert(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from talos_core import RetentionPolicy, TalosStore
+        from talos_core.observed import Confirmation
+
+        with tempfile.TemporaryDirectory() as folder:
+            with TalosStore(Path(folder, "t.sqlite"), RetentionPolicy()) as store:
+                self.assertEqual(store.load_confirmations(), {})
+                store.save_confirmations(
+                    [
+                        Confirmation("10.0.0.1", False, "2026-09-20T10:00:00+00:00"),
+                        Confirmation("10.0.0.2", None, "2026-09-20T10:00:00+00:00"),
+                    ]
+                )
+                store.save_confirmations([Confirmation("10.0.0.1", True, "2026-09-20T11:00:00+00:00")])
+                loaded = store.load_confirmations()
+                self.assertEqual(loaded["10.0.0.1"].answer, True)
+                self.assertEqual(loaded["10.0.0.1"].asked_at, "2026-09-20T11:00:00+00:00")
+                self.assertIsNone(loaded["10.0.0.2"].answer)

@@ -34,9 +34,12 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .model import Scan
-from .observed.mapping import Lease, Observation, parse_time
+from .observed.mapping import Confirmation, Lease, Observation, parse_time
 
 SCHEMA_VERSION = 2
+
+# A week: far past the day the collector reuses an answer for.
+CONFIRMATION_RETENTION_SECONDS = 7 * 86400
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +107,7 @@ class PruneReport:
 class StoreStats:
     observations: int = 0
     leases: int = 0
+    confirmations: int = 0
     scans: int = 0
     snapshots: int = 0
     oldest_observation: str | None = None
@@ -113,6 +117,7 @@ class StoreStats:
         return {
             "observations": self.observations,
             "leases": self.leases,
+            "confirmations": self.confirmations,
             "scans": self.scans,
             "snapshots": self.snapshots,
             "oldest_observation": self.oldest_observation,
@@ -151,6 +156,17 @@ CREATE TABLE IF NOT EXISTS leases (
     seen_ts   REAL,
     origin    TEXT NOT NULL DEFAULT 'dhcp'
 );
+
+-- One row per silent host the resolver was asked about, with its answer.
+-- The question costs the resolver a scan of its log, so the answer is kept
+-- and reused for a while rather than asked again every poll.
+CREATE TABLE IF NOT EXISTS confirmations (
+    ip        TEXT PRIMARY KEY,
+    answer    INTEGER,
+    asked_at  TEXT NOT NULL,
+    asked_ts  REAL
+);
+CREATE INDEX IF NOT EXISTS confirmations_ts ON confirmations (asked_ts);
 
 CREATE TABLE IF NOT EXISTS scans (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -246,6 +262,9 @@ class TalosStore:
                     "ALTER TABLE leases ADD COLUMN origin TEXT NOT NULL DEFAULT 'dhcp'"
                 )
                 self._connection.commit()
+        # The confirmations table is additive and the schema script creates
+        # it when missing, so it needed no version of its own: a file written
+        # with it still opens on the release before.
         self._set_meta("schema_version", str(SCHEMA_VERSION))
 
     def _install_policy(self, policy: RetentionPolicy | None) -> RetentionPolicy:
@@ -275,6 +294,38 @@ class TalosStore:
             else:
                 self._set_meta("querylog_cursor", value)
             self._connection.commit()
+
+    # ── confirmations ─────────────────────────────────────────────────────
+
+    def save_confirmations(self, confirmations: Iterable[Confirmation]) -> None:
+        payload = [
+            (c.ip, None if c.answer is None else int(c.answer), c.asked_at, _epoch(c.asked_at))
+            for c in confirmations
+        ]
+        if not payload:
+            return
+        with self._lock:
+            self._connection.executemany(
+                "INSERT INTO confirmations (ip, answer, asked_at, asked_ts) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(ip) DO UPDATE SET answer = excluded.answer,"
+                " asked_at = excluded.asked_at, asked_ts = excluded.asked_ts",
+                payload,
+            )
+            self._connection.commit()
+
+    def load_confirmations(self) -> dict[str, Confirmation]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT ip, answer, asked_at FROM confirmations"
+            ).fetchall()
+        return {
+            row["ip"]: Confirmation(
+                ip=row["ip"],
+                answer=None if row["answer"] is None else bool(row["answer"]),
+                asked_at=row["asked_at"],
+            )
+            for row in rows
+        }
 
     # ── observations ──────────────────────────────────────────────────────
 
@@ -432,6 +483,14 @@ class TalosStore:
             )
             over_cap = cursor.rowcount or 0
 
+            # An answer older than a week carries nothing: the collector reuses
+            # one for a day at most. Addresses that rotate, IPv6 temporaries,
+            # would otherwise pile up here for the life of the file.
+            self._connection.execute(
+                "DELETE FROM confirmations WHERE asked_ts IS NULL OR asked_ts < ?",
+                (moment.timestamp() - CONFIRMATION_RETENTION_SECONDS,),
+            )
+
             cursor = self._connection.execute(
                 "DELETE FROM scans WHERE id NOT IN ("
                 "  SELECT id FROM scans ORDER BY id DESC LIMIT ?"
@@ -466,6 +525,7 @@ class TalosStore:
         with self._lock:
             observations = self._scalar("SELECT COUNT(*) FROM observations")
             leases = self._scalar("SELECT COUNT(*) FROM leases")
+            confirmations = self._scalar("SELECT COUNT(*) FROM confirmations")
             scans = self._scalar("SELECT COUNT(*) FROM scans")
             snapshots = self._scalar("SELECT COUNT(*) FROM snapshots")
             oldest = self._connection.execute(
@@ -479,6 +539,7 @@ class TalosStore:
         return StoreStats(
             observations=observations,
             leases=leases,
+            confirmations=confirmations,
             scans=scans,
             snapshots=snapshots,
             oldest_observation=oldest["first_seen"] if oldest else None,

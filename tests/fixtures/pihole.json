@@ -152,7 +152,7 @@
   "leases": {
     "leases": [
       {
-        "expires": 1756600000,
+        "expires": 1788136000,
         "name": "reolink-giardino",
         "hwaddr": "EC:71:DB:11:22:33",
         "ip": "192.168.1.42",
@@ -175,16 +175,16 @@
         "id": 1,
         "hwaddr": "ec:71:db:11:22:33",
         "interface": "eth0",
-        "firstSeen": 1756000000,
-        "lastQuery": 1756540661,
+        "firstSeen": 1787536000,
+        "lastQuery": 1788076661,
         "numQueries": 1200,
         "macVendor": "Reolink",
         "ips": [
           {
             "ip": "192.168.1.42",
             "name": "reolink-giardino",
-            "lastSeen": 1756540661,
-            "nameUpdated": 1756540000
+            "lastSeen": 1788076661,
+            "nameUpdated": 1788076000
           }
         ]
       },
@@ -192,16 +192,16 @@
         "id": 2,
         "hwaddr": "68:57:2d:99:88:77",
         "interface": "eth0",
-        "firstSeen": 1756000000,
-        "lastQuery": 1756539000,
+        "firstSeen": 1787536000,
+        "lastQuery": 1788075000,
         "numQueries": 40,
         "macVendor": "",
         "ips": [
           {
             "ip": "192.168.1.61",
             "name": "smartcam",
-            "lastSeen": 1756539000,
-            "nameUpdated": 1756500000
+            "lastSeen": 1788075000,
+            "nameUpdated": 1788036000
           }
         ]
       },
@@ -209,7 +209,7 @@
         "id": 3,
         "hwaddr": "00:00:00:00:00:00",
         "interface": "lo",
-        "firstSeen": 1756000000,
+        "firstSeen": 1787536000,
         "lastQuery": 0,
         "numQueries": 0,
         "macVendor": "",
@@ -217,7 +217,7 @@
           {
             "ip": "127.0.0.1",
             "name": "localhost",
-            "lastSeen": 1756000000,
+            "lastSeen": 1787536000,
             "nameUpdated": 0
           }
         ]

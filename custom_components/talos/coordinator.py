@@ -251,9 +251,11 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
         """
         from homeassistant.helpers import device_registry
 
+        from .native_source import registry_entries
+
         return {
             device.id: [str(pair[1]) for pair in device.identifiers if len(pair) >= 2]
-            for device in device_registry.async_get(self.hass).devices.values()
+            for device in registry_entries(device_registry.async_get(self.hass).devices)
         }
 
     def _mqtt_api(self) -> dict[str, Any] | None:
@@ -423,16 +425,17 @@ class TalosCoordinator(DataUpdateCoordinator[TalosData]):
             max_pages=int(self.entry.options.get(CONF_MAX_PAGES, DEFAULT_MAX_PAGES)),
         )
 
-        cursor, previous = await self.hass.async_add_executor_job(
-            lambda: (store.get_cursor(), store.load_observations())
+        cursor, previous, remembered = await self.hass.async_add_executor_job(
+            lambda: (store.get_cursor(), store.load_observations(), store.load_confirmations())
         )
-        facts = await collector.fetch(since=cursor, previous=previous)
+        facts = await collector.fetch(since=cursor, previous=previous, remembered=remembered)
 
         # Totals are folded on our side because the resolver's retention is
         # limited and the log rolls over; persist before deriving anything.
         def save() -> None:
             store.save_observations(facts.observations)
             store.save_leases(facts.leases)
+            store.save_confirmations(facts.confirmations)
             store.set_cursor(facts.cursor)
 
         await self.hass.async_add_executor_job(save)

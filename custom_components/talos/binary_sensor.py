@@ -22,8 +22,16 @@ from .const import DOMAIN
 from .coordinator import TalosCoordinator
 from .entity import TalosEntity
 
+# Every note that says "part of the network cannot be seen": a confirmed
+# silent host, hosts the resolver is told not to log, a log hidden by its
+# privacy level, hosts whose silence could not be confirmed, no address
+# table at all, and no observed side at all. Hosts seen only before the
+# walked window are not here: they were seen.
 BLIND_SPOT_CHECKS = {
     "unv.resolver_bypassed",
+    "unv.resolver_unlogged_clients",
+    "unv.resolver_log_hidden",
+    "unv.resolver_silence_unconfirmed",
     "unv.dhcp_leases_unavailable",
     "unv.observed_source_unavailable",
 }

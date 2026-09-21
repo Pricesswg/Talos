@@ -28,6 +28,7 @@ from talos_core.observed import (
     QueryRecord,
     ZeroCheck,
     adguard_records,
+    settle,
     aggregate,
     collector_for,
     merge_observed,
@@ -59,8 +60,54 @@ class FakeHttp:
         self._data = data
         self._dhcp = dhcp
         self._clients = clients
+        self.search_fails = False
+        # AdGuard scans at most this many entries per search request and
+        # reports where it stopped in `oldest`; None models no cap.
+        self.scan_cap: int | None = None
         self.calls: list[tuple[str, dict[str, Any] | None]] = []
         self._page_index = 0
+
+    def _search(self, params: dict[str, Any]) -> Any:
+        """The real search, as AdGuard's internal/querylog does it: a quoted
+        term is an exact match on the client, the client name and the
+        question name; the scan stops at the first `limit` hits and reports
+        the last scanned time in `oldest`, empty only at the end of the log;
+        `older_than` continues after that time; without `offset` the scan is
+        capped at `scan_cap` entries, with it the cap is lifted."""
+        if self.search_fails:
+            raise ObservedError("querylog: HTTP 500")
+        term = str(params["search"])
+        strict = term.startswith('"') and term.endswith('"')
+        needle = term.strip('"')
+        limit = int(params.get("limit") or 50)
+        entries = [record for page in self._pages for record in page["data"]]
+        start = 0
+        if params.get("older_than"):
+            start = next(
+                (i for i, r in enumerate(entries) if r.get("time") < params["older_than"]),
+                len(entries),
+            )
+        cap = None if ("offset" in params or self.scan_cap is None) else self.scan_cap
+        stop = len(entries) if cap is None else min(len(entries), start + cap)
+
+        def matches(r: dict[str, Any]) -> bool:
+            client = str(r.get("client", ""))
+            if not strict:
+                return needle in client
+            name = str((r.get("question") or {}).get("name", ""))
+            return needle in (client, name, str((r.get("client_info") or {}).get("name", "")))
+
+        hits: list[dict[str, Any]] = []
+        last = start - 1
+        for index in range(start, stop):
+            last = index
+            if matches(entries[index]):
+                hits.append(entries[index])
+                if len(hits) >= limit:
+                    break
+        reached_end = last >= len(entries) - 1
+        oldest = "" if reached_end else entries[last]["time"]
+        return {"data": hits, "oldest": oldest}
 
     async def request_json(self, method: str, path: str, **kwargs: Any) -> Any:
         if method != "GET":
@@ -69,6 +116,10 @@ class FakeHttp:
 
     async def get_json(self, path: str, params: dict[str, Any] | None = None) -> Any:
         self.calls.append((path, params))
+        if path == "/control/querylog/config":
+            return self._data.get("querylog_config") or {"enabled": True, "anonymize_client_ip": False, "interval": 90 * 86400000}
+        if path == "/control/querylog" and params and params.get("search"):
+            return self._search(params)
         if path == "/control/querylog":
             page = self._pages[min(self._page_index, len(self._pages) - 1)]
             self._page_index += 1
@@ -237,7 +288,11 @@ class TestZeroCheck(unittest.TestCase):
             dhcp_available=True,
         )
         self.assertEqual(zero.unleased_clients, ("10.0.0.1",))
-        self.assertEqual(zero.silent_leases[0].ip, "10.0.0.9")
+        # A candidate, not a verdict: nobody has asked the resolver about it.
+        self.assertEqual(zero.silent_leases, ())
+        self.assertEqual(zero.unconfirmed[0].ip, "10.0.0.9")
+        self.assertEqual(settle(zero, {"10.0.0.9": False}).silent_leases[0].ip, "10.0.0.9")
+        self.assertEqual(settle(zero, {"10.0.0.9": True}).outside_window[0].ip, "10.0.0.9")
 
 
 class TestCollectorPagination(unittest.TestCase):
@@ -268,7 +323,8 @@ class TestCollectorPagination(unittest.TestCase):
         ]
         transport = FakeHttp(data)
         collect(transport, max_pages=3)
-        self.assertEqual(len([c for c in transport.calls if c[0].endswith("querylog")]), 3)
+        walked = [c for c in transport.calls if c[0].endswith("querylog") and not (c[1] or {}).get("search")]
+        self.assertEqual(len(walked), 3)
 
     def test_missing_optional_endpoints_degrade(self) -> None:
         facts = collect(FakeHttp(adguard(), dhcp=False, clients=False))
@@ -509,6 +565,20 @@ class FakePihole:
             raise ObservedAuthError(f"{path}: HTTP 401")
         if path == "/api/info/version":
             return self._data["version"]
+        if path == "/api/queries" and params and params.get("client_ip"):
+            wanted = params["client_ip"]
+            memory = [q for page in self._data["query_pages"] for q in page["queries"]]
+            if str(params.get("disk", "")).lower() == "true":
+                # The disk table alone, as FTL reads it: what was exported,
+                # which on this fake is the memory pages plus the older rows.
+                pool = memory + list(self._data.get("disk_only") or [])
+                total = self._data.get("disk_total", len(pool))
+                if total == 0:
+                    pool = []
+            else:
+                pool, total = memory, len(memory)
+            hits = [q for q in pool if (q.get("client") or {}).get("ip") == wanted]
+            return {"queries": hits[: int(params.get("length") or 5)], "cursor": 0, "recordsTotal": total}
         if path == "/api/queries":
             start = int((params or {}).get("start") or 0)
             length = int((params or {}).get("length") or 100)
@@ -523,6 +593,14 @@ class FakePihole:
             return self._data["network"]
         if path == "/api/clients":
             return self._data["clients"]
+        if path == "/api/config/misc/privacylevel":
+            if self._data.get("privacy_fails"):
+                raise ObservedError("privacylevel: HTTP 500")
+            return self._data.get("privacy") or {"config": {"misc": {"privacylevel": 0}}}
+        if path == "/api/config/webserver/api/excludeClients":
+            return self._data.get("exclude") or {"config": {"webserver": {"api": {"excludeClients": []}}}}
+        if path == "/api/config/database/maxDBdays":
+            return self._data.get("maxdbdays") or {"config": {"database": {"maxDBdays": 91}}}
         raise ObservedError(f"{path}: HTTP 404")
 
 
@@ -582,12 +660,15 @@ class TestPiholeCollector(unittest.TestCase):
         http = FakePihole(pihole())
         since = "2026-08-30T08:50:00+00:00"
         facts = asyncio.run(PiholeCollector(http, password="secret", page_size=3).fetch(since=since))
-        # Only the two records newer than the boundary are counted.
-        self.assertEqual(sum(o.count for o in facts.observations), 2)
+        # Only the two records newer than the boundary are walked; the third
+        # is the smartcam's, folded in by the confirmation that found it.
+        walked = sum(o.count for o in facts.observations if o.client != "192.168.1.61")
+        self.assertEqual(walked, 2)
         first = next(p for m, path, p in http.calls if path == "/api/queries")
         self.assertEqual(first["from"], 1788079800)
         # One page was enough: the boundary was met inside it.
-        self.assertEqual(sum(1 for m, path, p in http.calls if path == "/api/queries"), 1)
+        walked = [p for m, path, p in http.calls if path == "/api/queries" and not (p or {}).get("client_ip")]
+        self.assertEqual(len(walked), 1)
 
     def test_network_table_joins_what_dhcp_does_not_hold(self) -> None:
         facts = self.collect(FakePihole(pihole()))
@@ -643,3 +724,407 @@ class TestResolverFactory(unittest.TestCase):
     def test_an_unknown_kind_is_refused_loudly(self) -> None:
         with self.assertRaises(ValueError):
             collector_for("dnsmasq", FakeHttp(adguard()))
+
+
+class TestSilenceOutcomes(unittest.TestCase):
+    """Issue 1: an absence from the walked window was read as a bypass. Now a
+    silent lease is a candidate until the resolver has been asked about it
+    over its whole log, and each outcome is its own note."""
+
+    def test_full_walk_confirms_the_one_real_silence(self) -> None:
+        facts = collect(FakeHttp(adguard()))
+        zero = facts.zero
+        self.assertTrue(zero.confirmed)
+        self.assertEqual([l.ip for l in zero.silent_leases], ["192.168.1.203"])
+        # The boiler gateway is flagged ignore_querylog: absent by configuration.
+        self.assertEqual([l.ip for l in zero.unlogged_leases], ["192.168.1.150"])
+        self.assertEqual(facts.unlogged, ("192.168.1.150",))
+        self.assertEqual(zero.outside_window, ())
+        self.assertEqual(zero.unconfirmed, ())
+        self.assertFalse(zero.window.truncated)
+
+    def test_a_short_walk_does_not_turn_an_old_query_into_a_bypass(self) -> None:
+        # Two pages of budget: the HVAC unit's only query sits on page four.
+        transport = FakeHttp(adguard())
+        facts = collect(transport, max_pages=2)
+        zero = facts.zero
+        self.assertTrue(zero.window.truncated)
+        self.assertEqual(zero.window.entries, 12)
+        self.assertEqual([l.ip for l in zero.outside_window], ["192.168.1.177"])
+        self.assertEqual([l.ip for l in zero.silent_leases], ["192.168.1.203"])
+        # One targeted search per candidate, and none for the unlogged host.
+        searched = [p["search"] for path, p in transport.calls if p and p.get("search")]
+        # Exact terms, in AdGuard's double quotes, one per candidate.
+        self.assertEqual(sorted(searched), ['"192.168.1.177"', '"192.168.1.203"'])
+
+    def test_a_prefix_neighbour_is_not_a_match(self) -> None:
+        data = adguard()
+        data["dhcp"]["leases"].append({"mac": "AA:BB:CC:00:00:04", "ip": "192.168.1.4"})
+        facts = collect(FakeHttp(data))
+        # `search=192.168.1.4` returns the camera at .42; read back exactly,
+        # that is not this host, and the page was short, so: silent.
+        self.assertIn("192.168.1.4", [l.ip for l in facts.zero.silent_leases])
+
+    def test_when_the_confirmation_fails_nothing_is_a_finding(self) -> None:
+        transport = FakeHttp(adguard())
+        transport.search_fails = True
+        facts = collect(transport, max_pages=2)
+        zero = facts.zero
+        self.assertFalse(zero.confirmed)
+        self.assertEqual(zero.silent_leases, ())
+        self.assertEqual(sorted(l.ip for l in zero.unconfirmed), ["192.168.1.177", "192.168.1.203"])
+        merged = merge_observed(declared_scan(), facts)
+        ids = {u.id for u in merged.unverified}
+        self.assertIn("unv.resolver_silence_unconfirmed", ids)
+        self.assertNotIn("unv.resolver_bypassed", ids)
+        # And the check is partial, naming the hosts it could not inspect,
+        # rather than passed or failed.
+        checks = derive(merged).checks
+        partial = {c.id: c for c in checks.partial}
+        self.assertIn("chk.resolver_bypass", partial)
+        # The unlogged boiler gateway is uninspected too: never asked, by design.
+        self.assertEqual(
+            sorted(partial["chk.resolver_bypass"].uninspected),
+            ["192.168.1.150", "192.168.1.177", "192.168.1.203"],
+        )
+        self.assertNotIn("chk.resolver_bypass", {c.id for c in checks.failed})
+
+    def test_each_outcome_is_its_own_note(self) -> None:
+        merged = merge_observed(declared_scan(), collect(FakeHttp(adguard()), max_pages=2))
+        notes = {u.id: u for u in merged.unverified}
+        self.assertEqual(notes["unv.resolver_bypassed"].subjects, ["192.168.1.203"])
+        self.assertIn("whole retention", notes["unv.resolver_bypassed"].detail)
+        self.assertIn("12 entries", notes["unv.resolver_bypassed"].detail)
+        self.assertEqual(notes["unv.observation_window"].subjects, ["192.168.1.177"])
+        self.assertIn("hvac-attic", notes["unv.observation_window"].detail)
+        self.assertEqual(notes["unv.resolver_unlogged_clients"].subjects, ["192.168.1.150"])
+        self.assertIn("ignore_querylog", notes["unv.resolver_unlogged_clients"].detail)
+        # The check fires on the confirmed host only.
+        failed = {c.id: c for c in derive(merged).checks.failed}
+        self.assertEqual(list(failed["chk.resolver_bypass"].subjects), ["192.168.1.203"])
+
+    def test_unlogged_matches_mac_and_cidr_too(self) -> None:
+        from talos_core.observed import is_unlogged
+
+        lease = Lease(mac="aa:bb:cc:dd:ee:ff", ip="10.1.2.3")
+        self.assertTrue(is_unlogged(lease, ("aa:bb:cc:dd:ee:ff",)))
+        self.assertTrue(is_unlogged(lease, ("10.1.2.0/24",)))
+        self.assertFalse(is_unlogged(lease, ("10.1.3.0/24", "10.1.2.4")))
+        self.assertFalse(is_unlogged(lease, ("not an id",)))
+
+
+class TestPiholeSilence(unittest.TestCase):
+    def test_candidates_are_confirmed_by_client_ip(self) -> None:
+        data = pihole()
+        data["leases"]["leases"].append({"hwaddr": "AA:BB:CC:00:00:99", "ip": "192.168.1.99", "name": "mute"})
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret", page_size=3, max_pages=1).fetch())
+        zero = facts.zero
+        # Page budget of one: the smartcam's query is on page two, confirmed
+        # present by the targeted filter; the mute host is confirmed absent.
+        self.assertEqual([l.ip for l in zero.outside_window], ["192.168.1.61"])
+        self.assertEqual([l.ip for l in zero.silent_leases], ["192.168.1.99"])
+        confirmations = [p for m, path, p in http.calls if path == "/api/queries" and (p or {}).get("client_ip")]
+        self.assertEqual(sorted(p["client_ip"] for p in confirmations), ["192.168.1.61", "192.168.1.99"])
+
+    def test_privacy_level_is_reported_as_a_limit(self) -> None:
+        data = pihole()
+        data["privacy"] = {"config": {"misc": {"privacylevel": 2}}}
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertIn("clients are hidden", facts.log_hidden)
+        merged = merge_observed(declared_scan(), facts)
+        self.assertIn("unv.resolver_log_hidden", {u.id for u in merged.unverified})
+
+
+class TestConfirmationAgainstTheRealServer(unittest.TestCase):
+    """The reviewers' reproductions: AdGuard scans 50 000 entries per search
+    unless told to continue, Pi-hole answers from a day of memory unless
+    told to read the disk, a budget that never rotates asks the same hosts
+    forever, and a privacy level that hides clients makes every lease look
+    silent. None of those may become a finding."""
+
+    def test_offset_lifts_the_scan_cap_so_one_request_reaches_the_end(self) -> None:
+        transport = FakeHttp(adguard())
+        transport.scan_cap = 5  # the HVAC entry sits 13 entries deep
+        facts = collect(transport, max_pages=2)
+        self.assertEqual([l.ip for l in facts.zero.outside_window], ["192.168.1.177"])
+        self.assertEqual([l.ip for l in facts.zero.silent_leases], ["192.168.1.203"])
+        searches = [p for path, p in transport.calls if p and p.get("search")]
+        self.assertTrue(all(p.get("offset") == 0 and p.get("limit") == 1 for p in searches))
+        # One request per host was enough: no continuation was needed.
+        self.assertEqual(len([p for p in searches if p["search"] == '"192.168.1.203"']), 1)
+
+    def test_a_foreign_hit_is_stepped_past(self) -> None:
+        # A query for the bare name "192.168.1.4", from the camera: the
+        # strict search returns it first, and it is not this host.
+        data = adguard()
+        data["dhcp"]["leases"].append({"mac": "AA:BB:CC:00:00:04", "ip": "192.168.1.4"})
+        data["querylog_pages"][0]["data"].insert(0, {
+            "time": "2026-08-30T08:58:00.000+02:00", "client": "192.168.1.42",
+            "question": {"name": "192.168.1.4", "type": "A"}, "reason": "NotFilteredNotFound",
+        })
+        transport = FakeHttp(data)
+        facts = collect(transport)
+        self.assertIn("192.168.1.4", [l.ip for l in facts.zero.silent_leases])
+        steps = [p for path, p in transport.calls if p and p.get("search") == '"192.168.1.4"']
+        self.assertEqual(len(steps), 2)
+        self.assertTrue(steps[1].get("older_than"))
+        # And when the host itself has an older entry, it is found past it.
+        data["querylog_pages"][-2]["data"].append({
+            "time": "2026-08-28T03:00:00.000+02:00", "client": "192.168.1.4",
+            "question": {"name": "printer.vendor.example", "type": "A"}, "reason": "NotFilteredNotFound",
+        })
+        # Two pages of walk keep that entry out of the walk, so the search
+        # is what finds it, past the foreign hit.
+        facts = collect(FakeHttp(data), max_pages=2)
+        self.assertIn("192.168.1.4", [l.ip for l in facts.zero.outside_window])
+
+    def test_a_truncated_walk_does_not_trust_the_memory(self) -> None:
+        from datetime import datetime, timezone
+
+        from talos_core.observed import Confirmation
+
+        remembered = {"192.168.1.177": Confirmation("192.168.1.177", False, "2026-09-01T11:00:00+00:00")}
+        now = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
+        # Two pages: truncated, so the answer is not reused and the search
+        # finds the HVAC entry the walk did not reach.
+        facts = asyncio.run(AdGuardCollector(FakeHttp(adguard()), max_pages=2).fetch(remembered=remembered, now=now))
+        self.assertIn("192.168.1.177", [l.ip for l in facts.zero.outside_window])
+
+    def test_the_found_entry_is_folded_into_the_totals(self) -> None:
+        facts = collect(FakeHttp(adguard()), max_pages=2)
+        hvac = [o for o in facts.observations if o.client == "192.168.1.177"]
+        self.assertEqual([(o.fqdn, o.count) for o in hvac], [("iot.hvac-vendor.com", 1)])
+
+    def test_answers_are_remembered_and_the_budget_rotates(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from talos_core.observed import Confirmation
+        from talos_core.observed import adguard as module
+
+        data = adguard()
+        for n in range(3):
+            data["dhcp"]["leases"].append({"mac": f"AA:BB:CC:00:09:{n:02x}", "ip": f"10.9.0.{n}"})
+        original = module.MAX_CONFIRMATIONS
+        module.MAX_CONFIRMATIONS = 2
+        try:
+            now = datetime(2026, 9, 1, 12, tzinfo=timezone.utc)
+            # First poll, a full walk: four candidates (the HVAC unit was
+            # walked), two asked, the rest wait.
+            transport = FakeHttp(data)
+            facts = asyncio.run(AdGuardCollector(transport).fetch(now=now))
+            asked = {c.ip for c in facts.confirmations}
+            self.assertEqual(len(asked), 2)
+            self.assertEqual(len(facts.zero.not_asked), 2)
+            # Second poll, remembering the answers: the two already answered
+            # False are skipped for a day, two new hosts are asked.
+            remembered = {c.ip: c for c in facts.confirmations}
+            transport = FakeHttp(data)
+            again = asyncio.run(
+                AdGuardCollector(transport).fetch(
+                    remembered=remembered, now=now + timedelta(hours=1)
+                )
+            )
+            asked_again = {c.ip for c in again.confirmations}
+            self.assertEqual(len(asked_again), 2)
+            self.assertFalse(asked & asked_again, "a host answered an hour ago is not re-asked")
+            # Reused answers still count as confirmed silence.
+            self.assertTrue(asked <= {l.ip for l in again.zero.silent_leases})
+            # Once everyone has been asked, the ones asked longest ago go
+            # first: the two with a stale answer outrank three asked an hour
+            # ago without an answer.
+            stale = {ip: Confirmation(ip, False, "2026-08-01T00:00:00+00:00") for ip in asked}
+            recent = {
+                l.ip: Confirmation(l.ip, None, (now - timedelta(hours=1)).isoformat())
+                for l in facts.zero.not_asked
+            }
+            later = asyncio.run(
+                AdGuardCollector(FakeHttp(data)).fetch(remembered={**stale, **recent}, now=now)
+            )
+            self.assertEqual({c.ip for c in later.confirmations}, asked)
+        finally:
+            module.MAX_CONFIRMATIONS = original
+
+    def test_pihole_reads_the_disk_not_the_day_in_memory(self) -> None:
+        data = pihole()
+        data["leases"]["leases"].append({"hwaddr": "AA:BB:CC:00:00:77", "ip": "192.168.1.77", "name": "hvac"})
+        # Its only query is 40 hours old: on disk, gone from memory.
+        data["disk_only"] = [{"id": 8000, "time": 1787936000.0, "domain": "iot.hvac-vendor.com",
+                              "status": "FORWARDED", "client": {"ip": "192.168.1.77", "name": "hvac"}}]
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertIn("192.168.1.77", [l.ip for l in facts.zero.outside_window])
+        self.assertNotIn("192.168.1.77", [l.ip for l in facts.zero.silent_leases])
+        disk_reads = [p for m, path, p in http.calls if path == "/api/queries" and (p or {}).get("client_ip")]
+        self.assertTrue(all(str(p.get("disk")).lower() == "true" for p in disk_reads))
+
+    def test_hidden_clients_never_become_silent_hosts(self) -> None:
+        data = pihole()
+        data["privacy"] = {"config": {"misc": {"privacylevel": 2}}}
+        for page in data["query_pages"]:
+            for q in page["queries"]:
+                q["client"] = {"ip": "0.0.0.0", "name": None}
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual(facts.zero.silent_leases, ())
+        self.assertNotIn("0.0.0.0", facts.zero.unleased_clients)
+        self.assertFalse(any((p or {}).get("client_ip") for m, path, p in http.calls if path == "/api/queries"))
+        merged = merge_observed(declared_scan(), facts)
+        notes = {u.id: u for u in merged.unverified}
+        self.assertIn("unv.resolver_log_hidden", notes)
+        self.assertIn("hides who asked", notes["unv.resolver_silence_unconfirmed"].detail)
+        self.assertNotIn("chk.resolver_bypass", {c.id for c in derive(merged).checks.failed})
+
+
+class TestSilenceIsPerDevice(unittest.TestCase):
+    """The device is the MAC. A device seen on one address is not silent on
+    its others, and a pair last seen before the log began is gone, not
+    silent."""
+
+    def test_other_addresses_of_a_seen_mac_are_not_candidates(self) -> None:
+        data = pihole()
+        cam = next(d for d in data["network"]["devices"] if d["hwaddr"] == "68:57:2d:99:88:77")
+        cam["ips"].append({"ip": "fe80::6a57:2dff:fe99:8877", "name": None, "lastSeen": 1788080000, "nameUpdated": 0})
+        cam["ips"].append({"ip": "192.168.1.60", "name": "smartcam", "lastSeen": 1788080000, "nameUpdated": 0})
+        http = FakePihole(data, dhcp=False)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        addresses = [l.ip for l in facts.zero.silent_leases] + [l.ip for l in facts.zero.unconfirmed]
+        self.assertNotIn("fe80::6a57:2dff:fe99:8877", addresses)
+        self.assertNotIn("192.168.1.60", addresses)
+
+    def test_a_device_is_silent_only_when_every_address_answers_no(self) -> None:
+        from talos_core.observed import Lease, ZeroCheck, settle
+
+        a = Lease(mac="aa:aa:aa:aa:aa:aa", ip="10.0.0.1")
+        a6 = Lease(mac="aa:aa:aa:aa:aa:aa", ip="fe80::1")
+        b = Lease(mac="bb:bb:bb:bb:bb:bb", ip="10.0.0.2")
+        zero = ZeroCheck(dhcp_available=True, unconfirmed=(a, a6, b))
+        settled = settle(zero, {"10.0.0.1": False, "fe80::1": True, "10.0.0.2": False})
+        self.assertEqual([l.ip for l in settled.silent_leases], ["10.0.0.2"])
+        self.assertEqual(sorted(l.ip for l in settled.outside_window), ["10.0.0.1", "fe80::1"])
+        # One address unanswered leaves the whole device pending.
+        settled = settle(zero, {"10.0.0.1": False, "10.0.0.2": False})
+        self.assertEqual([l.ip for l in settled.silent_leases], ["10.0.0.2"])
+        self.assertEqual(sorted(l.ip for l in settled.unconfirmed), ["10.0.0.1", "fe80::1"])
+
+    def test_a_pair_last_seen_before_the_log_began_is_stale_not_silent(self) -> None:
+        from datetime import datetime, timezone
+
+        data = pihole()
+        data["network"]["devices"].append({
+            "id": 9, "hwaddr": "de:ad:be:ef:00:01", "interface": "eth0", "firstSeen": 1745000000,
+            "lastQuery": 1745000000, "numQueries": 3, "macVendor": "",
+            "ips": [{"ip": "192.168.1.250", "name": "old-laptop", "lastSeen": 1745000000, "nameUpdated": 0}],
+        })
+        data["maxdbdays"] = {"config": {"database": {"maxDBdays": 30}}}
+        http = FakePihole(data, dhcp=False)
+        now = datetime(2026, 8, 30, 12, tzinfo=timezone.utc)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch(now=now))
+        self.assertEqual([l.ip for l in facts.zero.stale_pairs], ["192.168.1.250"])
+        self.assertNotIn("192.168.1.250", [l.ip for l in facts.zero.silent_leases])
+        self.assertFalse(any((p or {}).get("client_ip") == "192.168.1.250" for m, path, p in http.calls))
+        merged = merge_observed(declared_scan(), facts)
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_stale_pairs")
+        self.assertIn("old-laptop", note.detail)
+        self.assertIn("30 days", note.detail)
+
+
+class TestResolverSettingsThatHideTheLog(unittest.TestCase):
+    def test_pihole_exclude_clients_are_unlogged(self) -> None:
+        data = pihole()
+        data["leases"]["leases"].append({"hwaddr": "AA:BB:CC:00:00:50", "ip": "192.168.1.50", "name": "tv"})
+        data["exclude"] = {"config": {"webserver": {"api": {"excludeClients": ["^192\\.168\\.1\\.50$", "not[a(valid"]}}}}
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual([l.ip for l in facts.zero.unlogged_leases], ["192.168.1.50"])
+        self.assertNotIn("192.168.1.50", [l.ip for l in facts.zero.silent_leases])
+        merged = merge_observed(declared_scan(), facts)
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_unlogged_clients")
+        self.assertIn("excludeClients", note.detail)
+
+    def test_pihole_without_a_disk_database_cannot_confirm(self) -> None:
+        data = pihole()
+        data["leases"]["leases"].append({"hwaddr": "AA:BB:CC:00:00:99", "ip": "192.168.1.99", "name": "mute"})
+        data["maxdbdays"] = {"config": {"database": {"maxDBdays": 0}}}
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual(facts.zero.silent_leases, ())
+        self.assertIn("192.168.1.99", [l.ip for l in facts.zero.unconfirmed])
+        self.assertIn("maxDBdays", facts.log_hidden)
+
+    def test_pihole_empty_disk_table_is_not_an_absence(self) -> None:
+        data = pihole()
+        data["leases"]["leases"].append({"hwaddr": "AA:BB:CC:00:00:99", "ip": "192.168.1.99", "name": "mute"})
+        data["disk_total"] = 0
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual(facts.zero.silent_leases, ())
+        self.assertIn("192.168.1.99", [l.ip for l in facts.zero.unconfirmed])
+
+    def test_pihole_unreadable_privacy_level_is_not_level_zero(self) -> None:
+        data = pihole()
+        data["privacy_fails"] = True
+        for page in data["query_pages"]:
+            for q in page["queries"]:
+                q["client"] = {"ip": "0.0.0.0", "name": "0.0.0.0"}
+        http = FakePihole(data)
+        facts = asyncio.run(PiholeCollector(http, password="secret").fetch())
+        self.assertEqual(facts.zero.silent_leases, ())
+        self.assertFalse(any((p or {}).get("client_ip") for m, path, p in http.calls if path == "/api/queries"))
+
+    def test_adguard_log_off_or_anonymised_asks_nothing(self) -> None:
+        for config, phrase in (
+            ({"enabled": False, "interval": 86400000}, "switched off"),
+            ({"enabled": True, "anonymize_client_ip": True, "interval": 86400000}, "anonymised"),
+        ):
+            with self.subTest(config=config):
+                data = adguard()
+                data["querylog_config"] = config
+                transport = FakeHttp(data)
+                facts = collect(transport)
+                self.assertIn(phrase, facts.log_hidden)
+                self.assertEqual(facts.zero.silent_leases, ())
+                self.assertFalse(any(p and p.get("search") for path, p in transport.calls))
+                merged = merge_observed(declared_scan(), facts)
+                self.assertIn("unv.resolver_log_hidden", {u.id for u in merged.unverified})
+                self.assertNotIn("chk.resolver_bypass", {c.id for c in derive(merged).checks.failed})
+
+    def test_adguard_retention_is_read_and_stated(self) -> None:
+        data = adguard()
+        data["querylog_config"] = {"enabled": True, "anonymize_client_ip": False, "interval": 7 * 86400000}
+        facts = collect(FakeHttp(data))
+        self.assertEqual(facts.zero.retention_seconds, 7 * 86400)
+        merged = merge_observed(declared_scan(), facts)
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_bypassed")
+        self.assertIn("7 days", note.detail)
+
+    def test_unlogged_matches_every_mac_spelling(self) -> None:
+        from talos_core.observed import Lease, is_unlogged, parse_unlogged
+
+        payload = {"clients": [{"name": "x", "ids": ["AA-BB-CC-DD-EE-FF"], "ignore_querylog": True},
+                               {"name": "y", "ids": ["aabb.ccdd.ee00"], "ignore_querylog": True}]}
+        unlogged = parse_unlogged(payload)
+        self.assertEqual(unlogged, ("aa:bb:cc:dd:ee:00", "aa:bb:cc:dd:ee:ff"))
+        self.assertTrue(is_unlogged(Lease(mac="AA:BB:CC:DD:EE:FF", ip="10.0.0.1"), unlogged))
+
+    def test_unleased_clients_are_named_and_the_supervisor_network_explained(self) -> None:
+        data = adguard()
+        data["querylog_pages"][0]["data"].insert(0, {
+            "time": "2026-08-30T08:59:00.000+02:00", "client": "172.30.32.3",
+            "question": {"name": "version.home-assistant.io", "type": "A"}, "reason": "NotFilteredNotFound",
+        })
+        merged = merge_observed(declared_scan(), collect(FakeHttp(data)))
+        note = next(u for u in merged.unverified if u.id == "unv.resolver_unleased_clients")
+        self.assertIn("172.30.32.3", note.subjects)
+        self.assertIn("supervisor network", note.detail)
+
+
+class TestUptimeSurvivesTheMerge(unittest.TestCase):
+    def test_a_young_scan_stays_young_after_merging(self) -> None:
+        from dataclasses import replace
+
+        young = replace(declared_scan(), ha_uptime_seconds=60.0)
+        merged = merge_observed(young, collect(FakeHttp(adguard())))
+        self.assertEqual(merged.ha_uptime_seconds, 60.0)
+        self.assertEqual(merged.ha_version, young.ha_version)

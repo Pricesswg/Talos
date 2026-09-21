@@ -7,7 +7,7 @@ being testable in CI and every HA release turns into a regression risk.
 
 from __future__ import annotations
 
-from .checks import CheckEngine, CheckReport, CheckResult, default_engine
+from .checks import SETTLE_SECONDS, CheckEngine, CheckReport, CheckResult, default_engine
 from .const import SCHEMA_VERSION, SUPPORTED_SCHEMA_VERSIONS
 from .zones import ZoneMap
 from .diagnostics import (
@@ -97,6 +97,7 @@ __all__ = [
     "ZigbeeFacts",
     "PruneReport",
     "RetentionPolicy",
+    "SETTLE_SECONDS",
     "SCHEMA_VERSION",
     "SUPPORTED_SCHEMA_VERSIONS",
     "Scan",

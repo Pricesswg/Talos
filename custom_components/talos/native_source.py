@@ -13,6 +13,8 @@ Every `homeassistant.*` import is deferred into the method that needs it.
 from __future__ import annotations
 
 import ipaddress
+import os
+import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 from typing import Any, Iterable
@@ -35,8 +37,13 @@ def device_to_dict(device: Any) -> dict[str, Any]:
         "manufacturer": getattr(device, "manufacturer", None),
         "model": getattr(device, "model", None),
         "area_id": getattr(device, "area_id", None),
-        "config_entries": sorted(getattr(device, "config_entries", ()) or ()),
-        "primary_config_entry": getattr(device, "primary_config_entry", None),
+        # 2026.8 gave a device one config entry, `config_entry_id`, and made
+        # `config_entries` and `primary_config_entry` deprecated shims that
+        # log on newer cores. The new one is read where it exists and the
+        # old ones only where it does not; the payload keeps the old keys,
+        # which is what the WebSocket source still sends.
+        "config_entries": _device_config_entries(device),
+        "primary_config_entry": _device_primary_entry(device),
         "connections": [list(pair) for pair in (getattr(device, "connections", ()) or ())],
         # The only evidence that a device behind MQTT is actually Zigbee.
         "identifiers": [list(pair) for pair in (getattr(device, "identifiers", ()) or ())],
@@ -167,6 +174,69 @@ def entry_endpoint(entry: Any) -> dict[str, Any] | None:
     }
 
 
+def _device_config_entries(device: Any) -> list[str]:
+    entry_id = getattr(device, "config_entry_id", None)
+    if entry_id is not None:
+        return [str(entry_id)]
+    return sorted(str(e) for e in (getattr(device, "config_entries", ()) or ()))
+
+
+def _device_primary_entry(device: Any) -> str | None:
+    entry_id = getattr(device, "config_entry_id", None)
+    if entry_id is not None:
+        return str(entry_id)
+    return getattr(device, "primary_config_entry", None)
+
+
+def registry_entries(collection: Any) -> list[Any]:
+    """The entries of a registry collection, without touching it as a mapping.
+
+    Home Assistant 2026.9 deprecated reading `DeviceRegistry.devices` as a
+    dict and removes it in 2027.9: iterating the collection is the supported
+    way, and on those cores it yields the entries. On older cores the same
+    iteration yields the keys, so the first item says which world this is,
+    and only there is `.values()` used, where it was never deprecated.
+    """
+    items = list(collection)
+    if items and isinstance(items[0], str):
+        return list(collection.values())
+    return items
+
+
+def process_uptime_seconds() -> float | None:
+    """Seconds since this process started, from /proc on Linux, else None.
+
+    Home Assistant keeps no start timestamp on `hass`, and the moment Talos
+    was set up is not the same thing: a reload of Talos alone an hour after
+    boot must not read as a young system. The process is the right clock,
+    and every supported Home Assistant install runs on Linux, where /proc
+    has it. Anywhere else the answer is unknown, and unknown is not young.
+
+    The boot clock comes from CLOCK_BOOTTIME, the same base the kernel uses
+    for the start time in /proc/self/stat, and not from /proc/uptime: inside
+    an LXC container lxcfs rewrites /proc/uptime to the container's age
+    while the start time stays host-relative, and the difference goes
+    negative. A negative age means the two clocks disagree, so it is
+    unknown, not zero.
+    """
+    try:
+        with open("/proc/self/stat", "rb") as handle:
+            stat = handle.read()
+        # Field 22 is the start time in clock ticks; the command name in
+        # field 2 may contain spaces and brackets, so split after its last
+        # closing bracket.
+        fields = stat[stat.rindex(b")") + 2 :].split()
+        ticks = int(fields[19])
+        hertz = os.sysconf("SC_CLK_TCK")
+        clock = getattr(time, "CLOCK_BOOTTIME", None)
+        if clock is None:
+            return None  # not Linux: no boot clock, so unknown
+        age = time.clock_gettime(clock) - ticks / hertz
+        return age if age >= 0 else None
+    except (OSError, ValueError, IndexError, AttributeError):
+        return None
+
+
 def config_entry_to_dict(entry: Any) -> dict[str, Any]:
     return {
         "entry_id": entry.entry_id,
@@ -277,7 +347,7 @@ class NativeSource:
         from homeassistant.helpers import area_registry, device_registry, entity_registry
         from homeassistant.loader import async_get_integrations
 
-        devices = device_registry.async_get(self._hass).devices.values()
+        devices = registry_entries(device_registry.async_get(self._hass).devices)
         entities = entity_registry.async_get(self._hass).entities.values()
         areas = area_registry.async_get(self._hass).areas.values()
         config_entries = self._hass.config_entries.async_entries()
@@ -302,5 +372,6 @@ class NativeSource:
                 generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 collector="native",
                 ha_version=ha_version,
+                ha_uptime_seconds=process_uptime_seconds(),
             )
         )

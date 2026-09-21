@@ -29,6 +29,11 @@ DEFAULT_CHECKS_PATH = Path(__file__).resolve().parent / "data" / "checks.json"
 
 SEVERITIES: tuple[str, ...] = ("high", "medium", "low")
 
+# How long after a Home Assistant start an entry's state means what it says.
+# Integrations that retry take a few minutes to settle; ten covers a slow
+# host with many of them.
+SETTLE_SECONDS = 600
+
 # What a precondition means, in one line each, for the message the user reads
 # when a check could not run.
 PRECONDITION_REASONS: dict[str, str] = {
@@ -43,6 +48,18 @@ PRECONDITION_REASONS: dict[str, str] = {
     "dhcp_leases": (
         "DHCP leases unavailable: the resolver's clients cannot be compared"
         " against the devices present on the network"
+    ),
+    "silence_confirmed": (
+        "silent hosts could not be confirmed against the resolver's full log:"
+        " absence from the window one poll read is not evidence of absence"
+    ),
+    "resolver_unlogged": (
+        "the resolver is configured not to log some clients: nothing they"
+        " resolve can be observed, so they are neither clean nor a finding"
+    ),
+    "settled": (
+        "Home Assistant started minutes ago and integrations may still be"
+        " setting up: their state at this moment is not their state"
     ),
     "manifests": (
         "integration manifests unreadable: iot_class and is_built_in are not"
@@ -318,7 +335,22 @@ class _Context:
         A precondition that names nothing leaves the list empty."""
         if "entry_streams" in missing:
             return "integration", list(self.streaming_integrations())
+        hosts: list[str] = []
+        for name, note_id in (
+            ("silence_confirmed", "unv.resolver_silence_unconfirmed"),
+            ("resolver_unlogged", "unv.resolver_unlogged_clients"),
+        ):
+            if name in missing:
+                hosts.extend(self.note_subjects(note_id))
+        if hosts:
+            return "host", sorted(set(hosts))
         return "unknown", []
+
+    def note_subjects(self, note_id: str) -> list[str]:
+        for note in self.scan.unverified:
+            if note.id == note_id:
+                return list(note.subjects)
+        return []
 
     def precondition(self, name: str) -> bool:
         if name == "observed_evidence":
@@ -327,6 +359,15 @@ class _Context:
             return any(device.zone != "unknown" for device in self.scan.devices)
         if name == "dhcp_leases":
             return "unv.dhcp_leases_unavailable" not in self.unverified_ids
+        if name == "silence_confirmed":
+            return "unv.resolver_silence_unconfirmed" not in self.unverified_ids
+        if name == "resolver_unlogged":
+            return "unv.resolver_unlogged_clients" not in self.unverified_ids
+        if name == "settled":
+            # Unknown uptime, a CLI document or an older export, is not a
+            # reason to withhold the check: only a young uptime is.
+            uptime = self.scan.ha_uptime_seconds
+            return uptime is None or uptime >= SETTLE_SECONDS
         if name == "entry_streams":
             if any(
                 conduit.evidence == "declared"
@@ -372,6 +413,7 @@ def _select(
     if kind == "integration_where":
         wanted_classes = set(selector.get("iot_class_in") or ())
         excluded_states = set(selector.get("state_not_in") or ())
+        excluded_sources = set(selector.get("source_not_in") or ())
         built_in = selector.get("is_built_in")
         wanted_domains = set(selector.get("domain_in") or ())
         authenticated = selector.get("authenticated")
@@ -381,6 +423,7 @@ def _select(
             if (built_in is None or integration.is_built_in is bool(built_in))
             and (not wanted_classes or integration.iot_class in wanted_classes)
             and (not excluded_states or integration.state not in excluded_states)
+            and (not excluded_sources or (integration.source or "") not in excluded_sources)
             and (not wanted_domains or integration.domain in wanted_domains)
             # `is` on purpose: None means the question does not apply to this
             # entry, and must not match a check looking for False.

@@ -171,6 +171,7 @@ async def _collect_observed(scan: Scan, store: TalosStore | None, args: Any) -> 
 
     cursor = store.get_cursor() if store else None
     previous = store.load_observations() if store else ()
+    remembered = store.load_confirmations() if store else {}
 
     basic = args.resolver == "adguard"
     transport = AiohttpJsonTransport(
@@ -180,13 +181,14 @@ async def _collect_observed(scan: Scan, store: TalosStore | None, args: Any) -> 
     )
     try:
         collector = collector_for(args.resolver, transport, password=args.adguard_password)
-        facts = await collector.fetch(since=cursor, previous=previous)
+        facts = await collector.fetch(since=cursor, previous=previous, remembered=remembered)
     finally:
         await transport.close()
 
     if store is not None:
         store.save_observations(facts.observations)
         store.save_leases(facts.leases)
+        store.save_confirmations(facts.confirmations)
         store.set_cursor(facts.cursor)
 
     zones = ZoneMap.from_dict({"trusted_lan": args.zone_trusted, "iot_vlan": args.zone_iot})

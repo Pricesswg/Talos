@@ -15,12 +15,13 @@ which sources actually carried the join is recorded rather than assumed.
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Iterable
 
 from ..const import PHONE_HOME_DESTINATION_KINDS
 from ..zones import ZoneMap
 from ..model import Conduit, Correlation, Destination, Device, Scan, SourceRef, UnverifiedCheck
 from .classify import DomainClassifier
-from .mapping import ObservedFacts
+from .mapping import Lease, ObservedFacts, ZeroCheck
 
 # Only a relationship with somebody worth naming is worth attributing to the
 # children of a hub. Inheriting a clock sync would be noise, not evidence.
@@ -108,11 +109,10 @@ def merge_observed(
 
     conduits.extend(_inherit_through_hubs(devices, destinations, conduits))
 
-    return Scan(
-        schema_version=scan.schema_version,
-        generated_at=scan.generated_at,
-        collector=scan.collector,
-        ha_version=scan.ha_version,
+    # `replace`, not a new Scan: every scalar the collector recorded, the
+    # version, the uptime, whatever comes next, survives the merge unlisted.
+    return replace(
+        scan,
         integrations=list(scan.integrations),
         devices=devices,
         destinations=sorted(destinations.values(), key=lambda d: d.id),
@@ -199,6 +199,192 @@ def _descendants(root: str, children: dict[str, list[str]]) -> list[str]:
     return found
 
 
+def _hosts(leases: Iterable[Lease]) -> str:
+    return ", ".join(
+        f"{lease.ip} ({lease.hostname})" if lease.hostname else lease.ip for lease in leases
+    )
+
+
+def _window_text(zero: ZeroCheck) -> str:
+    window = zero.window
+    if window is None or not window.entries:
+        return "this poll read no entries"
+    span = ""
+    if window.oldest and window.newest:
+        span = f", from {window.oldest} to {window.newest}"
+    text = f"this poll read {window.entries} entries{span}"
+    if window.truncated:
+        text += ", and stopped at its page budget before the end of the log"
+    return text
+
+
+def _unlogged_note(unlogged: Iterable[str], leases: Iterable[Lease]) -> UnverifiedCheck:
+    hosts = _hosts(leases)
+    identifiers = ", ".join(unlogged)
+    return UnverifiedCheck(
+        id="unv.resolver_unlogged_clients",
+        title="Clients the resolver is configured not to log",
+        reason="method_limit",
+        detail=(
+            f"The resolver keeps these clients out of its query log by its own"
+            f" configuration, AdGuard's ignore_querylog or Pi-hole's"
+            f" excludeClients: {identifiers}."
+            + (f" On this network that covers {hosts}." if hosts else "")
+            + " Their absence from the log is a setting, not a behaviour, so it"
+            " says nothing either way: whether they use the resolver cannot be"
+            " read from its log, and they are neither reported as bypassing it"
+            " nor counted as clean. Clear the setting on the resolver to bring"
+            " them into view."
+        ),
+        subjects=[lease.ip for lease in leases],
+    )
+
+
+def _retention_text(zero: ZeroCheck) -> str:
+    seconds = zero.retention_seconds
+    if not seconds:
+        return "over its whole retention"
+    days = seconds / 86400.0
+    if days >= 1:
+        return f"over its whole retention of {days:g} days"
+    return f"over its whole retention of {seconds / 3600.0:g} hours"
+
+
+def _silence_notes(
+    zero: ZeroCheck, log_hidden: str | None = None, unlogged: Iterable[str] = ()
+) -> list[UnverifiedCheck]:
+    """One note per outcome of the silence question, none of which is the
+    same thing as another. Only the confirmed one drives a check."""
+    notes: list[UnverifiedCheck] = []
+
+    if zero.unlogged_leases:
+        notes.append(_unlogged_note(unlogged, zero.unlogged_leases))
+
+    if zero.silent_leases:
+        notes.append(
+            UnverifiedCheck(
+                id="unv.resolver_bypassed",
+                title="Devices with a lease and no query in the resolver's log",
+                reason="method_limit",
+                detail=(
+                    "They hold a lease, or were seen on the wire by the resolver,"
+                    " and the resolver's log holds no query from any of their"
+                    f" addresses {_retention_text(zero)}: {_hosts(zero.silent_leases)}."
+                    " Each one was confirmed with a targeted search of the full"
+                    " log, not inferred from the window this poll read"
+                    f" ({_window_text(zero)}). The usual reason is a DNS server"
+                    " hardcoded in the firmware. A device powered off for longer"
+                    " than the log is kept looks the same, and so does one that"
+                    " queries less often than that. Either way every DNS-based"
+                    " check is blind on these hosts: they are not clean results,"
+                    " they are invisible."
+                ),
+                subjects=[lease.ip for lease in zero.silent_leases],
+            )
+        )
+
+    if zero.outside_window:
+        notes.append(
+            UnverifiedCheck(
+                id="unv.observation_window",
+                title="Hosts seen only before the window this poll read",
+                reason="method_limit",
+                detail=(
+                    f"{_window_text(zero).capitalize()}. These hosts queried the"
+                    " resolver, but only earlier than that, so the walk never"
+                    f" counted them: {_hosts(zero.outside_window)}. Devices that"
+                    " phone home a few times a day fall past a short window on a"
+                    " busy resolver. They are not bypassing it. The one entry the"
+                    " confirmation found for each is folded into the totals, so"
+                    " the host counts as seen from now on; the rest of its earlier"
+                    " queries are not, and only what it asks from here on is"
+                    " counted in full. Raising the page budget in Settings,"
+                    " Collection, widens what each poll reads."
+                ),
+                subjects=[lease.ip for lease in zero.outside_window],
+            )
+        )
+
+    pending = [*zero.unconfirmed, *zero.not_asked]
+    if pending:
+        if log_hidden and "client" in log_hidden:
+            why = f"the resolver hides who asked ({log_hidden}), so no search can answer"
+        elif zero.not_asked and not zero.unconfirmed:
+            why = "this poll's budget of targeted searches ran out before reaching them"
+        elif not zero.confirmed:
+            why = "the confirmation could not be run"
+        else:
+            why = (
+                "the confirmation did not answer for them"
+                + (", or the budget ran out before reaching them" if zero.not_asked else "")
+            )
+        notes.append(
+            UnverifiedCheck(
+                id="unv.resolver_silence_unconfirmed",
+                title="Hosts with no query in the walked window, unconfirmed",
+                reason="method_limit",
+                detail=(
+                    f"No query from these hosts in the window this poll read"
+                    f" ({_window_text(zero)}), and {why}, so whether the full log"
+                    f" holds any is unknown: {_hosts(pending)}. They are not"
+                    " reported as bypassing the resolver. The hosts not yet asked"
+                    " go first on a later poll; while the resolver cannot answer,"
+                    " no poll can."
+                ),
+                subjects=[lease.ip for lease in pending],
+            )
+        )
+
+    if zero.stale_pairs:
+        notes.append(
+            UnverifiedCheck(
+                id="unv.resolver_stale_pairs",
+                title="Addresses last seen on the wire before the log began",
+                reason="method_limit",
+                detail=(
+                    "The resolver's network table remembers these addresses, but"
+                    " it last saw them before its query log begins"
+                    f" ({_retention_text(zero)}): {_hosts(zero.stale_pairs)}. As"
+                    " far as the log can tell they belong to something that left"
+                    " the network, so they were not asked about: a search could"
+                    " only ever answer no, and no would mean nothing."
+                ),
+                subjects=[lease.ip for lease in zero.stale_pairs],
+            )
+        )
+
+    if zero.unleased_clients:
+        hosts = ", ".join(zero.unleased_clients)
+        supervisor = any(
+            c.startswith("172.30.32.") or c.startswith("172.30.33.") or c.startswith("127.")
+            for c in zero.unleased_clients
+        )
+        notes.append(
+            UnverifiedCheck(
+                id="unv.resolver_unleased_clients",
+                title="Clients that asked the resolver but hold no lease",
+                reason="method_limit",
+                detail=(
+                    f"The resolver answered these addresses and none holds a lease"
+                    f" or a pair in the address table: {hosts}. Their queries are"
+                    " counted, attributed to an unknown host, and cannot be tied"
+                    " to a device."
+                    + (
+                        " One of them is on Home Assistant's own supervisor network:"
+                        " when the resolver runs on this host, Home Assistant's queries"
+                        " reach it from there and not from the host's LAN lease, so"
+                        " that lease can look silent while Home Assistant is using the"
+                        " resolver all along."
+                        if supervisor
+                        else ""
+                    )
+                ),
+                subjects=list(zero.unleased_clients),
+            )
+        )
+    return notes
+
+
 def _notes(
     scan: Scan,
     facts: ObservedFacts,
@@ -229,20 +415,27 @@ def _notes(
                 ),
             )
         )
-    elif facts.zero.silent_leases:
-        hosts = ", ".join(f"{lease.ip} ({lease.mac})" for lease in facts.zero.silent_leases)
+    else:
+        notes.extend(_silence_notes(facts.zero, facts.log_hidden, facts.unlogged))
+
+    if facts.unlogged and not facts.zero.dhcp_available:
+        # Without a table nothing is compared, but the operator's exclusions
+        # are still a fact about what the log can show.
+        notes.append(_unlogged_note(facts.unlogged, ()))
+
+    if facts.log_hidden:
         notes.append(
             UnverifiedCheck(
-                id="unv.resolver_bypassed",
-                title="Devices bypassing the resolver",
+                id="unv.resolver_log_hidden",
+                title="The resolver's privacy level hides the log",
                 reason="method_limit",
                 detail=(
-                    f"They hold a DHCP lease but have never queried AdGuard: {hosts}."
-                    " They use a DNS server hardcoded in their firmware. Every"
-                    " DNS-based check is blind on these hosts: they are not clean"
-                    " results, they are invisible."
+                    f"On this resolver {facts.log_hidden}. What the log does not"
+                    " show cannot be attributed to anything: the observed side of"
+                    " this report is empty by the resolver's own setting, not"
+                    " because nothing was asked. Lower the privacy level to 0 in"
+                    " the resolver's settings to make the log readable."
                 ),
-                subjects=[lease.ip for lease in facts.zero.silent_leases],
             )
         )
 

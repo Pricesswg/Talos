@@ -37,27 +37,38 @@
       "title": "Device bypassing the resolver",
       "severity": "high",
       "requires": [
-        "dhcp_leases"
+        "dhcp_leases",
+        "silence_confirmed",
+        "resolver_unlogged"
       ],
       "selector": {
         "type": "unverified_present",
         "check_id": "unv.resolver_bypassed"
       },
-      "detail": "Holds a DHCP lease but has never queried the resolver: it uses a DNS server hardcoded in its firmware. Every DNS-based check is blind on this host.",
-      "remediation": "Set the network DNS on the device if it allows it. Otherwise redirect port 53 at the router. DNS over HTTPS stays out of reach either way."
+      "detail": "Holds a lease, or was seen on the wire by the resolver, and the resolver's log holds no query from any of its addresses over its whole retention: each host was confirmed with a targeted search of the full log, never inferred from the window one poll read. The usual reason is a DNS server hardcoded in the firmware. A device powered off for longer than the log is kept looks the same, and so does one that queries less often than that. Either way every DNS-based check is blind on this host. Hosts still waiting for their confirmation, and hosts the resolver is configured not to log, are listed as not inspected rather than passed.",
+      "remediation": "Set the network DNS on the device if it allows it. Otherwise redirect port 53 at the router. DNS over HTTPS stays out of reach either way.",
+      "partial_on": [
+        "silence_confirmed",
+        "resolver_unlogged"
+      ]
     },
     {
       "id": "chk.integration_not_loaded",
       "title": "Integration not loaded",
       "severity": "high",
-      "requires": [],
+      "requires": [
+        "settled"
+      ],
       "selector": {
         "type": "integration_where",
         "state_not_in": [
           "loaded"
+        ],
+        "source_not_in": [
+          "ignore"
         ]
       },
-      "detail": "The config entry is not loaded, so its entities are unavailable right now. This is not an offline-resilience question: they are not working with or without an uplink. A stopped broker, a service that moved, or a failed migration all look like this.",
+      "detail": "The config entry is not loaded, so its entities are unavailable right now. This is not an offline-resilience question: they are not working with or without an uplink. setup_retry means Home Assistant is trying and failing, most often a device that is powered off or a service that moved; not_loaded means it is not trying. Discoveries you dismissed are not counted: an ignored entry never loads by design.",
       "remediation": "Open Settings, Devices and services and read the entry's error. If it points at a broker or a server, check that the service is actually running and that the address still matches: an add-on that was stopped or renamed is the common case."
     },
     {

@@ -14,6 +14,7 @@ from homeassistant.components import frontend, panel_custom
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_call_later
 from homeassistant.loader import async_get_integration
 
 from . import services, websocket_api
@@ -27,6 +28,8 @@ from .const import (
     STATIC_URL,
 )
 from .coordinator import TalosCoordinator
+from .core import SETTLE_SECONDS
+from .native_source import process_uptime_seconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,6 +42,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+
+    # The first scan of a boot runs while integrations are still setting up,
+    # so the not-loaded check withholds itself. One more scan once the
+    # system has settled, instead of waiting for the interval, which can be
+    # a day. A reload of Talos on an old process schedules nothing.
+    uptime = process_uptime_seconds()
+    if uptime is not None and uptime < SETTLE_SECONDS:
+
+        async def _settled(_now: object) -> None:
+            # A coroutine, so Home Assistant runs it on the event loop; a
+            # plain function would be sent to the executor, where creating
+            # a task is not allowed.
+            await coordinator.async_request_refresh()
+
+        entry.async_on_unload(async_call_later(hass, SETTLE_SECONDS - uptime + 5, _settled))
 
     websocket_api.async_register(hass)
     services.async_register(hass)

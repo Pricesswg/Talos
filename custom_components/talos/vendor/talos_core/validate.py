@@ -62,6 +62,7 @@ _INT = (int,)
 _BOOL = (bool,)
 _LIST = (list,)
 _DICT = (dict,)
+_NUM = (int, float)
 
 
 class _Entry(NamedTuple):
@@ -212,6 +213,7 @@ def _check_root(out: list[Finding], raw: dict[str, Any]) -> None:
     _field(out, "$", raw, "generated_at", _STR)
     _field(out, "$", raw, "collector", _STR, enum=COLLECTOR_SOURCES)
     _field(out, "$", raw, "ha_version", _STR, required=False, nullable=True)
+    _field(out, "$", raw, "ha_uptime_seconds", _NUM, required=False, nullable=True)
 
 
 def _check_integrations(out: list[Finding], raw: dict[str, Any]) -> _Index:
@@ -224,6 +226,7 @@ def _check_integrations(out: list[Finding], raw: dict[str, Any]) -> _Index:
         _field(out, path, entry, "iot_class", _STR, enum=IOT_CLASSES)
         _field(out, path, entry, "is_built_in", _BOOL)
         _field(out, path, entry, "state", _STR, required=False)
+        _field(out, path, entry, "source", _STR, required=False, nullable=True)
         _field(out, path, entry, "role", _STR, required=False, enum=INTEGRATION_ROLES)
         _field(out, path, entry, "entity_count", _INT, required=False, minimum=0)
         deps = _field(out, path, entry, "dependencies", _LIST, required=False)

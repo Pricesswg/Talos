@@ -38,6 +38,11 @@ class Integration:
     iot_class: str
     is_built_in: bool
     state: str = "loaded"
+    # How the entry came to exist: "user", "zeroconf", "dhcp", "ignore" and
+    # the rest of Home Assistant's config entry sources. "ignore" is a
+    # discovery the user dismissed: it never loads by design, and a check
+    # that reads not-loaded as failure must leave it alone.
+    source: str | None = None
     # A bus that carries other systems, or a service that carries a continuous
     # media stream. Neither is a transport: Zigbee2MQTT rides on MQTT and an
     # ONVIF camera rides on Wi-Fi.
@@ -67,6 +72,7 @@ class Integration:
             iot_class=_req(raw, "iot_class", path),
             is_built_in=bool(_req(raw, "is_built_in", path)),
             state=raw.get("state") or "loaded",
+            source=raw.get("source"),
             role=raw.get("role") or "unknown",
             authenticated=raw.get("authenticated"),
             dependencies=list(raw.get("dependencies") or []),
@@ -81,6 +87,7 @@ class Integration:
             "iot_class": self.iot_class,
             "is_built_in": self.is_built_in,
             "state": self.state,
+            "source": self.source,
             "role": self.role,
             "authenticated": self.authenticated,
             "dependencies": list(self.dependencies),
@@ -491,6 +498,10 @@ class Scan:
     collector: str
     schema_version: str = SCHEMA_VERSION
     ha_version: str | None = None
+    # Seconds since the Home Assistant process started, when the collector
+    # could tell. A scan taken a minute after boot describes a system still
+    # setting up, and the checks that read entry state have to know that.
+    ha_uptime_seconds: float | None = None
     integrations: list[Integration] = field(default_factory=list)
     devices: list[Device] = field(default_factory=list)
     destinations: list[Destination] = field(default_factory=list)
@@ -544,6 +555,9 @@ class Scan:
             generated_at=_req(raw, "generated_at", "$"),
             collector=_req(raw, "collector", "$"),
             ha_version=raw.get("ha_version"),
+            ha_uptime_seconds=(
+                float(raw["ha_uptime_seconds"]) if raw.get("ha_uptime_seconds") is not None else None
+            ),
             integrations=[
                 Integration.from_dict(r, f"$.integrations[{i}]")
                 for i, r in enumerate(raw.get("integrations") or [])
@@ -577,6 +591,7 @@ class Scan:
             "generated_at": self.generated_at,
             "collector": self.collector,
             "ha_version": self.ha_version,
+            "ha_uptime_seconds": self.ha_uptime_seconds,
             "integrations": [i.to_dict() for i in self.integrations],
             "devices": [d.to_dict() for d in self.devices],
             "destinations": [d.to_dict() for d in self.destinations],

@@ -26,13 +26,18 @@ from typing import Any, Iterable, Iterator
 
 from .base import HttpTransport, ObservedAuthError, ObservedError, ObservedSource
 from .mapping import (
+    HIDDEN_CLIENTS,
+    Confirmation,
     Lease,
     Observation,
     ObservedFacts,
     QueryRecord,
+    WalkWindow,
     aggregate,
+    order_candidates,
     parse_time,
     run_zero_check,
+    settle,
 )
 
 AUTH_PATH = "/api/auth"
@@ -42,7 +47,26 @@ DHCP_CONFIG_PATH = "/api/config/dhcp/active"
 NETWORK_PATH = "/api/network/devices"
 CLIENTS_PATH = "/api/clients"
 VERSION_PATH = "/api/info/version"
+PRIVACY_PATH = "/api/config/misc/privacylevel"
+EXCLUDE_PATH = "/api/config/webserver/api/excludeClients"
+MAXDBDAYS_PATH = "/api/config/database/maxDBdays"
 SID_HEADER = "X-FTL-SID"
+
+# Same bound as AdGuard's: one request per silent host, per poll. Each one
+# reads the long-term database on disk, which the API warns is heavy on a
+# Pi, so the bound is real and the answers are remembered for a day.
+MAX_CONFIRMATIONS = 40
+
+# Pi-hole's privacy levels. Above zero the log stops naming things, and
+# what it stops naming is exactly what the join needs. From level 2 the
+# client is written as 0.0.0.0, so no lease can ever be seen and the
+# silence question has no answer: it is not asked.
+PRIVACY_LEVELS = {
+    1: "domains are hidden in the query log",
+    2: "domains and clients are hidden in the query log",
+    3: "the query log is anonymised: no domain and no client",
+}
+CLIENTS_HIDDEN_FROM = 2
 
 # Pi-hole's status names. Anything answered by a list, a regex or an
 # upstream that blocked it counts as blocked; CACHE, FORWARDED, RETRIED and
@@ -110,14 +134,24 @@ def parse_network_table(payload: Any) -> tuple[tuple[Lease, ...], dict[str, str]
         if not isinstance(device, dict):
             continue
         mac = device.get("hwaddr")
-        if not mac or str(mac).lower() in ("00:00:00:00:00:00", "ip-"):
+        # FTL files an address it saw without a MAC under a pseudo MAC of
+        # the form ip-<address>: no device to join, nothing to keep.
+        if not mac or str(mac).lower() == "00:00:00:00:00:00" or str(mac).lower().startswith("ip-"):
             continue
         for entry in device.get("ips") or ():
             if not isinstance(entry, dict) or not entry.get("ip"):
                 continue
             ip = str(entry["ip"])
             name = entry.get("name") or None
-            pairs.append(Lease(mac=str(mac).lower(), ip=ip, hostname=name, origin="network"))
+            pairs.append(
+                Lease(
+                    mac=str(mac).lower(),
+                    ip=ip,
+                    hostname=name,
+                    origin="network",
+                    seen_at=_iso(entry.get("lastSeen")) or None,
+                )
+            )
             if name:
                 names[ip] = str(name)
     return tuple(pairs), names
@@ -172,11 +206,21 @@ class PiholeCollector(ObservedSource):
         self,
         since: str | None = None,
         previous: Iterable[Observation] = (),
+        remembered: dict[str, Confirmation] | None = None,
+        now: datetime | None = None,
     ) -> ObservedFacts:
+        now = now or datetime.now(timezone.utc)
         await self._login()
         try:
-            queries, cursor = await self._read_queries(since)
+            privacy = _privacy_level(await self._read_optional(PRIVACY_PATH))
+            excluded = parse_exclude_clients(await self._read_optional(EXCLUDE_PATH))
+            retention = _max_db_seconds(await self._read_optional(MAXDBDAYS_PATH))
+            queries, cursor, window = await self._read_queries(since)
             observations = aggregate(pihole_records(queries), previous)
+            # A config read that failed is not level 0: a walk whose every
+            # client is the placeholder says the clients are hidden.
+            if privacy is None:
+                privacy = CLIENTS_HIDDEN_FROM if _walk_is_hidden(observations) else None
 
             leases = list(parse_pihole_leases(await self._read_optional(LEASES_PATH)))
             dhcp_active = _dhcp_active(await self._read_optional(DHCP_CONFIG_PATH))
@@ -195,16 +239,101 @@ class PiholeCollector(ObservedSource):
             pairs = leases + [pair for pair in network if pair.mac not in leased_macs]
             table_available = dhcp_active or bool(pairs)
 
+            # The exclusion list is regular expressions over the client's
+            # address or name. A pair that matches is kept out of the API's
+            # answers, walk and confirmation alike: unlogged, like AdGuard's
+            # flag, and never a candidate.
+            unlogged = tuple(
+                sorted(
+                    {
+                        pair.ip
+                        for pair in pairs
+                        if _excluded(pair, names.get(pair.ip), excluded)
+                    }
+                )
+            )
+            zero = run_zero_check(
+                observations, pairs, table_available, unlogged, window, retention, now
+            )
+            asked: dict[str, bool | None] = {}
+            hits: list[dict[str, Any]] = []
+            hidden = privacy is not None and privacy >= CLIENTS_HIDDEN_FROM
+            if hidden or privacy is None or retention == 0:
+                # No filter can answer: clients are hidden, or the level could
+                # not be read and the walk did not settle it, or nothing is
+                # ever written to the long-term database. Leave the
+                # candidates unconfirmed and the check withholds itself.
+                zero = settle(zero, {})
+            else:
+                to_ask, answers = order_candidates(zero.unconfirmed, remembered or {}, now, window)
+                asked, hits = await self._confirm(to_ask[:MAX_CONFIRMATIONS])
+                answers.update(asked)
+                zero = settle(zero, answers, not_asked=to_ask[MAX_CONFIRMATIONS:])
+                if hits:
+                    observations = aggregate(pihole_records(hits), observations)
+
+            if hidden or (privacy is not None and privacy > 0):
+                log_hidden = PRIVACY_LEVELS.get(privacy or 0)
+            elif privacy is None:
+                log_hidden = "the privacy level could not be read, so whether clients are shown is unknown"
+            elif retention == 0:
+                log_hidden = "the long-term query database is disabled (maxDBdays is 0), so the log holds only what is in memory"
+            else:
+                log_hidden = None
+
+            stamp = now.isoformat(timespec="seconds")
             return ObservedFacts(
                 observations=observations,
                 leases=tuple(pairs),
                 client_names=names,
-                zero=run_zero_check(observations, pairs, table_available),
+                zero=zero,
                 cursor=cursor or since,
                 window_hours=self._window_hours,
+                unlogged=unlogged,
+                log_hidden=log_hidden,
+                confirmations=tuple(
+                    Confirmation(ip=ip, answer=answer, asked_at=stamp)
+                    for ip, answer in asked.items()
+                ),
             )
         finally:
             await self._logout()
+
+    async def _confirm(
+        self, candidates: Iterable[Lease]
+    ) -> tuple[dict[str, bool | None], list[dict[str, Any]]]:
+        """Ask about each silent host over the long-term database.
+
+        Without `disk` the API answers from memory, which holds a day at
+        most; `disk=true` reads the database on disk, the whole retention.
+        `client_ip` is an exact filter, so one entry back is a yes and an
+        empty page is a no."""
+        answers: dict[str, bool | None] = {}
+        hits: list[dict[str, Any]] = []
+        for lease in candidates:
+            try:
+                payload = await self._get(
+                    QUERIES_PATH, {"client_ip": lease.ip, "length": 1, "disk": "true"}
+                )
+            except ObservedAuthError:
+                raise
+            except ObservedError:
+                answers[lease.ip] = None
+                continue
+            page = payload.get("queries") if isinstance(payload, dict) else None
+            if not isinstance(page, list):
+                answers[lease.ip] = None
+                continue
+            exact = [q for q in page if isinstance(q, dict) and _client_ip(q) == lease.ip]
+            if exact:
+                answers[lease.ip] = True
+                hits.extend(exact)
+                continue
+            # An empty page from an empty database is not an absence: the
+            # response says how many rows the disk table holds at all.
+            total = payload.get("recordsTotal") if isinstance(payload, dict) else None
+            answers[lease.ip] = False if (total is None or int(total or 0) > 0) else None
+        return answers, hits
 
     # ── session ──────────────────────────────────────────────────────────
 
@@ -239,12 +368,16 @@ class PiholeCollector(ObservedSource):
 
     # ── queries ──────────────────────────────────────────────────────────
 
-    async def _read_queries(self, since: str | None) -> tuple[list[dict[str, Any]], str | None]:
+    async def _read_queries(
+        self, since: str | None
+    ) -> tuple[list[dict[str, Any]], str | None, WalkWindow]:
         boundary = parse_time(since)
         collected: list[dict[str, Any]] = []
         newest: str | None = None
+        oldest_walked: str | None = None
         cursor: Any = None
         start = 0
+        truncated = True
 
         for _ in range(self._max_pages):
             params: dict[str, Any] = {"length": self._page_size, "start": start}
@@ -258,6 +391,7 @@ class PiholeCollector(ObservedSource):
             payload = await self._get(QUERIES_PATH, params)
             page = payload.get("queries") if isinstance(payload, dict) else None
             if not isinstance(page, list) or not page:
+                truncated = False
                 break
             if cursor is None:
                 cursor = payload.get("cursor")
@@ -271,11 +405,17 @@ class PiholeCollector(ObservedSource):
                     reached_boundary = True
                     break
                 collected.append(query)
+                if isinstance(query, dict) and query.get("time") is not None:
+                    oldest_walked = _iso(query.get("time"))
             if reached_boundary or len(page) < self._page_size:
+                truncated = False
                 break
             start += len(page)
 
-        return collected, newest
+        window = WalkWindow(
+            entries=len(collected), newest=newest, oldest=oldest_walked, truncated=truncated
+        )
+        return collected, newest, window
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         try:
@@ -296,6 +436,70 @@ class PiholeCollector(ObservedSource):
             raise
         except ObservedError:
             return None
+
+
+def _privacy_level(payload: Any) -> int | None:
+    """`/api/config/misc/privacylevel`: what the log is allowed to show.
+    Unreadable is None, not 0: it is not known that everything is shown."""
+    config = payload.get("config") if isinstance(payload, dict) else None
+    misc = config.get("misc") if isinstance(config, dict) else None
+    level = misc.get("privacylevel") if isinstance(misc, dict) else None
+    try:
+        return max(0, int(level))
+    except (TypeError, ValueError):
+        return None
+
+
+def _walk_is_hidden(observations: Iterable[Observation]) -> bool:
+    clients = {o.client for o in observations}
+    return bool(clients) and clients <= HIDDEN_CLIENTS
+
+
+def _max_db_seconds(payload: Any) -> float | None:
+    """`/api/config/database/maxDBdays`: how long queries stay on disk. 0
+    means they are never written there. Unreadable is unknown."""
+    config = payload.get("config") if isinstance(payload, dict) else None
+    database = config.get("database") if isinstance(config, dict) else None
+    days = database.get("maxDBdays") if isinstance(database, dict) else None
+    try:
+        days = float(days)
+    except (TypeError, ValueError):
+        return None
+    return max(0.0, days) * 86400.0
+
+
+def parse_exclude_clients(payload: Any) -> tuple[Any, ...]:
+    """`/api/config/webserver/api/excludeClients`: regular expressions the
+    API applies to a client's address or name before answering. Compiled
+    here; a pattern that does not compile is skipped."""
+    import re
+
+    config = payload.get("config") if isinstance(payload, dict) else None
+    webserver = config.get("webserver") if isinstance(config, dict) else None
+    api = webserver.get("api") if isinstance(webserver, dict) else None
+    raw = api.get("excludeClients") if isinstance(api, dict) else None
+    patterns = []
+    for item in raw or ():
+        try:
+            patterns.append(re.compile(str(item)))
+        except re.error:
+            continue
+    return tuple(patterns)
+
+
+def _excluded(pair: Lease, name: str | None, patterns: tuple[Any, ...]) -> bool:
+    for pattern in patterns:
+        for text in (pair.ip, pair.hostname, name):
+            if text and pattern.search(str(text)):
+                return True
+    return False
+
+
+def _client_ip(query: dict[str, Any]) -> str | None:
+    client = query.get("client")
+    if isinstance(client, dict):
+        return client.get("ip")
+    return client if isinstance(client, str) else None
 
 
 def _dhcp_active(payload: Any) -> bool:
