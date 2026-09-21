@@ -126,4 +126,4 @@ __all__ = [
     "validate",
 ]
 
-__version__ = "1.24.0"
+__version__ = "1.25.0"
